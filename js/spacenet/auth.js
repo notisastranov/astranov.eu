@@ -282,7 +282,7 @@
     var short = inNow ? String(u.name || String(u.email).split("@")[0] || "YOU").split(/\s+/)[0].replace(/[<>"&]/g, "").slice(0, 10) : "";
     btn.setAttribute("data-who", inNow ? who : "");
     /* 4383: a guest sees YOU too (it opens the YOU panel: where, tasks, and LOG IN inside), never a bare LOGIN */
-    btn.innerHTML = '<span class="lbl">' + (inNow ? (short || "YOU") : "YOU") + '</span><span class="tgt">' + (inNow ? '<img alt="" src="' + String((u && u.photo) || "/you.png?v=4406").replace(/"/g, "") + '">' : '<span class="ph">?</span>') + "</span>";
+    btn.innerHTML = '<span class="lbl">' + (inNow ? (short || "YOU") : "YOU") + '</span><span class="tgt">' + (inNow ? '<img alt="" src="' + String((u && u.photo) || "/you.png?v=4407").replace(/"/g, "") + '">' : '<span class="ph">?</span>') + "</span>";
     if (window.SN && SN.paintMoney) SN.paintMoney();
   }
   /* 4401: from main 4399 — pick your role from the login card */
@@ -295,36 +295,34 @@
     if (!body) return;
     var u = user();
     var inNow = !!(u && u.email);
-    var name = inNow ? (u.name || u.email) : "Guest";
-    var mail = inNow ? u.email : "Not signed in";
-    var tel = (u && u.phone) || read("sn:phone", "") || "";
+    /* 4407: account panel — signed-in Google session (name, email, avatar) + SIGN OUT; guest sees SIGN IN only */
+    if (!inNow) {
+      body.innerHTML =
+        '<div class="who"><span class="ph">?</span><div><b>Guest</b><span>OUT</span></div></div>' +
+        '<button type="button" class="go" data-act="google">SIGN IN</button>' +
+        '<p class="note">One Astranov account. Google sign-in.</p>';
+      return;
+    }
+    var name = u.name || u.email;
+    var mail = u.email;
     var mine = "";
-    try { if (inNow && window.SN && SN.avcGet) mine = Math.round(SN.avcGet()).toLocaleString("en-GB") + " ⭐"; } catch (e) {}
+    try {
+      if (window.SN && SN.walletLabel) mine = SN.walletLabel();
+      else if (window.SN && SN.avcGet) mine = Math.round(SN.avcGet()).toLocaleString("en-GB") + " ⭐";
+    } catch (e) {}
     body.innerHTML =
-      '<div class="who">' + face(u) + "<div><b>" + String(name).replace(/[<>]/g, "") + "</b><span>" + (inNow ? "IN · " + String(mail).replace(/[<>]/g, "") : "OUT") + "</span></div></div>" +
-      (inNow && mine ? '<p class="note">YOUR MONEY · ' + mine + "</p>" : "") +
-      (inNow
-        ? '<button type="button" class="go" data-act="youtube">' + (read("sn:yt", "") ? "YOUTUBE ON · REFRESH" : "AUTHORIZE YOUTUBE") + "</button>"
-        : "") +
-      (inNow
-        ? '<button type="button" class="go" data-act="out">SIGN OUT</button>'
-        : '<button type="button" class="go" data-act="google">GOOGLE</button>' +
-          '<input id="sn-mail" type="email" autocomplete="username" placeholder="Email">' +
-          '<input id="sn-pass" type="password" autocomplete="current-password" placeholder="Password, 8 characters">' +
-          '<button type="button" class="go" data-act="mail-in">SIGN IN</button>' +
-          '<button type="button" class="go" data-act="mail-up">CREATE ACCOUNT</button>') +
-      /* 4402: the role buttons show on every login card; signed out, a tap keeps the pick and starts Google sign-in */
-      '<p class="note sn-roles">' + (inNow ? "YOUR ROLE · " + (read("sn:role", "") || "none").toUpperCase() : "PICK A ROLE · then sign in") + '</p>' +
+      '<div class="who">' + face(u) + "<div><b>" + String(name).replace(/[<>]/g, "") + "</b><span>IN · " + String(mail).replace(/[<>]/g, "") + "</span></div></div>" +
+      (mine ? '<p class="note">YOUR MONEY · ' + mine + "</p>" : "") +
+      '<button type="button" class="go" data-act="out">SIGN OUT</button>' +
+      '<p class="note sn-roles">YOUR ROLE · ' + (read("sn:role", "") || "none").toUpperCase() + "</p>" +
       roleBtn("client", "CONSUMER") + roleBtn("vendor", "VENDOR") + roleBtn("driver", "DRIVER") +
-      (inNow
-        ? '<p class="note">Agent or ambassador: apply. Notis confirms.</p>' +
-          '<button type="button" class="go" data-act="terms">TERMS</button>' +
-          '<button type="button" class="go" data-act="role" data-role="vendor">APPLY VENDOR</button>' +
-          '<button type="button" class="go" data-act="role" data-role="driver">APPLY DRIVER</button>' +
-          '<button type="button" class="go" data-act="role" data-role="agent">APPLY AGENT</button>' +
-          '<button type="button" class="go" data-act="role" data-role="ambassador">APPLY AMBASSADOR</button>'
-        : "") +
-      '<p class="note">' + (inNow ? "Wallet is this account only. Pool is owner only." : "One Astranov account. Google, or email. Same profile on every app.") + "</p>";
+      '<p class="note">Agent or ambassador: apply. Notis confirms.</p>' +
+      '<button type="button" class="go" data-act="terms">TERMS</button>' +
+      '<button type="button" class="go" data-act="role" data-role="vendor">APPLY VENDOR</button>' +
+      '<button type="button" class="go" data-act="role" data-role="driver">APPLY DRIVER</button>' +
+      '<button type="button" class="go" data-act="role" data-role="agent">APPLY AGENT</button>' +
+      '<button type="button" class="go" data-act="role" data-role="ambassador">APPLY AMBASSADOR</button>' +
+      '<p class="note">Wallet is this account only. Pool is owner only.</p>';
   }
   function openMe() {
     css();
@@ -383,7 +381,7 @@
     var btn = document.getElementById("sn-me");
     if (btn && !btn.__sn4221) {
       btn.__sn4221 = true;
-      btn.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); if (window.SN && SN.openYou) { SN.openYou(); return; } openMe(); });
+      btn.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); openMe(); }); /* 4407: identity opens the account panel (name, email, avatar, SIGN IN / SIGN OUT), not the YOU tasks card */
     }
     var search = new URLSearchParams(location.search);
     var hash = location.hash || "";

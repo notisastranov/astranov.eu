@@ -1,0 +1,25 @@
+{
+  "shops": [
+    {
+      "id": "eirini",
+      "name": "Eirini",
+      "kind": "shop",
+      "address": "Rhodes",
+      "lat": 36.44305,
+      "lng": 28.2279,
+      "phone": "",
+      "status": "live",
+      "src": "listed",
+      "menu": [
+        {"name": "Greek coffee", "price": "2.50", "vol": "0.2 L", "kg": 0.2, "temp": "hot"},
+        {"name": "Freddo espresso", "price": "3.50", "vol": "0.3 L", "kg": 0.3, "temp": "cold"},
+        {"name": "Cheese pie", "price": "3.00", "vol": "1 piece", "kg": 0.18, "temp": "warm"},
+        {"name": "Spinach pie", "price": "3.50", "vol": "1 piece", "kg": 0.2, "temp": "warm"},
+        {"name": "Souvlaki", "price": "4.50", "vol": "1 piece", "kg": 0.22, "temp": "hot"},
+        {"name": "Greek salad", "price": "8.00", "vol": "1 bowl", "kg": 0.35, "temp": "cold"}
+      ]
+    }
+  ],
+  "client": {"id": "sample-client", "name": "Sample client", "role": "client", "lat": 36.4492, "lng": 28.2334, "address": "Rhodes drop", "owner": "sample"},
+  "driver": {"id": "sample-driver", "name": "Sample driver", "role": "driver", "lat": 36.4444, "lng": 28.2292, "free": true, "fleet": true}
+}

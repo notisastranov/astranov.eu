@@ -447,3 +447,10 @@ Tests: bake-4404/t lab4.js (desktop, no touch, faces+leaders+HUD+pixel check, bu
 2) Labels: a name is hidden if it touches any other pin's face or number badge (2 px margin, strict), overlaps its own face, has another pin's leader through it (2 px margin), or its own leader crosses any other name. Test: lab5.js (500x515, 500x600, 390, 1248x671).
 3) Zoom never re-hunts: with a hunt open, moveend ignores centre drift from zooming; only a real drag (within 2.5 s) that takes the view 15 km+ from the hunt's place re-seats. After a hunt fit, closeBelow = max(5, min(7, fit-3.5)), so 7 wheel notches out stay in the field with the same pins. Test: hunt7.js.
 4) Determinism: a query at a place is answered once per session (memory + sessionStorage); asking again shows that exact set. Across sessions, every real place seen for that query and place in the last 24 h is merged in (union saved, up to 80), so runs converge instead of drifting. Nothing synthetic. Test: hunt7.js (same page and after reload: identical set).
+
+## 4407 (merge main 4405 + signed-in mine + 4406 nits)
+1) Merge main 07d5d08e (live 4405): branch engine wins for index.html, app.js, sw.js, auth.js. DataNet menus/pages from main. Hide blocks sn-4379/sn-4382, app.js hide-of-ribbon, and #sn-bar stay out. Live favicon.ico 404 fixed with a root favicon.
+2) Identity (#sn-me): opens the account panel (not the YOU tasks card). Signed-in: Google name, email, avatar from the Supabase session + SIGN OUT. Guest: SIGN IN only.
+3) Wallet: personal chip reads the ledger via sn_my_balance only. Guest stays at ⭐ 0.00. If the ledger is unreadable (401 / missing RPC), show "⭐ unavailable" — never a local 3M / books / OWNER_CAPITAL figure. Pool remains owner-only inside the sheet.
+4) 4406 nits: a leader that crosses a neighbouring pin's face/number (2 px) is removed and the pin snaps home; closeBelow is always fitZoom − 3.5 (exactly 7 notches to Widest view), no absolute 5–7 clamp.
+Lockstep 4407; __SN_4407.

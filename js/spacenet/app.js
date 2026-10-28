@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again."; window.__SN_APPJS = true; /* 4393: the start watchdog sees app.js ran and never reloads it */
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4406"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4407"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -342,11 +342,18 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var bankSeen = false;
   var bankAsked = false;
   var bankRetry = 0;
-  var OWNER_CAPITAL = 3000000;
+  var bankFail = false; /* 4407: ledger unreadable (401 / missing RPC / network) — never invent a number */
+  /* 4407: personal wallet is the ledger only (sn_my_balance). No OWNER_CAPITAL, no local 3M, no pool as the chip. */
   function shownMoney() {
-    if (ownerMail()) return supplyView().pool;
-    var n = Math.max(myMoney(), bankBal);
-    return Math.round(n);
+    if (!signed()) return 0;
+    if (bankSeen) return Math.round(bankBal);
+    return 0;
+  }
+  function walletLabel() {
+    if (!signed()) return "0.00 ⭐";
+    if (bankSeen) return Number(bankBal).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " ⭐";
+    if (bankFail || (bankAsked && window.__snBalStatus && window.__snBalStatus !== 200)) return "⭐ unavailable";
+    return "⭐ …";
   }
   function pullBank() {
     if (!signed()) return;
@@ -384,34 +391,25 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }).then(function (pack) {
       var row = pack && Array.isArray(pack.rows) ? pack.rows[0] : null;
       if (!row) {
+        /* 4407: no ledger row (RPC missing / 401 / empty) — honest unavailable, never a local 3M or books figure */
+        if (window.__snBalStatus && window.__snBalStatus !== 200) bankFail = true;
+        else if (window.__snBalRpc === false) bankFail = true;
         paintMoney();
-        if (!bankSeen && signed() && bankRetry < 1) { bankRetry++; setTimeout(pullBank, 2500); } /* 4362: one retry, no poll storm */
+        if (!bankSeen && !bankFail && signed() && bankRetry < 1) { bankRetry++; setTimeout(pullBank, 2500); }
         return;
       }
       var db = Number(row.avc_balance);
       if (!isFinite(db)) db = Number(row.balance);
-      if (!isFinite(db) || db < 0) return;
-      bankSeen = true;
+      if (!isFinite(db) || db < 0) { bankFail = true; paintMoney(); return; }
+      bankSeen = true; bankFail = false;
       bankBal = db;
-      var local = avcGet();
-      if (db > local) avcSet(db);
-      else if (local > db && local > 0 && window.__snBalPatch === true) { /* 4357: the client never raises its own balance */
-        bankBal = local;
-        fetch(pack.cfg.sb + "/rest/v1/profiles?id=eq." + encodeURIComponent(pack.id), {
-          method: "PATCH",
-          headers: {
-            apikey: pack.cfg.anon,
-            Authorization: "Bearer " + pack.tok,
-            "Content-Type": "application/json",
-            Prefer: "return=minimal"
-          },
-          body: JSON.stringify({ avc_balance: local, balance: local })
-        }).catch(function () {});
-      }
+      /* mirror the ledger into localStorage for offline display only — never the other way around */
+      try { localStorage.setItem(walletKey(), String(db)); localStorage.setItem("sn:avc", String(db)); } catch (eM) {}
       paintMoney();
     }).catch(function () {
+      bankFail = true;
       paintMoney();
-      if (!bankSeen && signed() && bankRetry < 1) { bankRetry++; setTimeout(pullBank, 2500); } /* 4362: one retry, no poll storm */
+      if (!bankSeen && signed() && bankRetry < 1) { bankRetry++; setTimeout(pullBank, 2500); }
     });
   }
   function myMoney() {
@@ -538,12 +536,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     btn.setAttribute("aria-label", "Wallet");
     btn.title = "Wallet";
     if (!signed()) {
-      if (tgt) tgt.textContent = "0 ⭐ · guest";
+      bankSeen = false; bankFail = false; bankAsked = false; bankBal = 0;
+      if (tgt) tgt.textContent = "0.00 ⭐ · guest"; /* 4407: guest stays at ⭐ 0.00 — never a made-up number */
       return;
     }
     if (!bankAsked) { bankAsked = true; pullBank(); }
-    var n = shownMoney();
-    if (tgt) tgt.textContent = n.toLocaleString("en-GB") + " ⭐";
+    if (tgt) tgt.textContent = walletLabel();
   }
   function signed() {
     try {
@@ -1604,7 +1602,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -3451,7 +3449,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4406&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4407&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -5529,6 +5527,23 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
           });
         });
       }
+      /* 4407: a leader that crosses a neighbouring pin's face or number is removed and the pin snaps home (dense centre at 500 px) */
+      leads.slice().forEach(function (sg) {
+        var hitPin = faces.some(function (f) {
+          if (!f.mk || f.mk === sg.mk) return false;
+          var r = { left: f.r.left - 2, right: f.r.right + 2, top: f.r.top - 2, bottom: f.r.bottom + 2 };
+          for (var t = 0.08; t <= 0.92; t += 0.04) { var x = sg.x0 + sg.dx * t, y = sg.y0 + sg.dy * t; if (x > r.left && x < r.right && y > r.top && y < r.bottom) return true; }
+          return false;
+        });
+        if (!hitPin) return;
+        var pin = sg.mk.querySelector(".sn-pin");
+        var ld = sg.mk.querySelector(".sn-lead");
+        if (pin) pin.style.transform = "";
+        if (ld) ld.style.display = "none";
+        sg.mk.classList.remove("sn-moved");
+        sg.mk.classList.add("sn-lbl-off");
+        sg.mk.classList.remove("sn-lbl-short");
+      });
       function coveredAt(l) {
         if (!document.elementFromPoint) return false;
         var bb = l.mk.querySelector("b"); if (!bb) return false;
@@ -5572,7 +5587,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4406";
+    return "/you.png?v=4407";
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -6573,7 +6588,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         } catch (eR) {}
       }, ms);
     });
-    closeBelow = Math.max(5, Math.min(7, z - 3.5)); /* 4406: seven wheel notches out after a hunt fit stay in the field with the same pins */ try { if (map.getMinZoom() > closeBelow) map.setMinZoom(closeBelow); } catch (eMz) {} /* 4404: a few wheel notches out keep the field (intermediate levels); only real low zoom leaves for the globe */
+    closeBelow = Math.round((z - 3.5) * 2) / 2; /* 4407: always exactly 7 notches (0.5 each) from the hunt fit to Widest view — no absolute 5–7 clamp that changed the count by fit zoom */ try { map.setMinZoom(closeBelow); } catch (eMz) {}
     huntView.fitted = true;
     try { paintShopsOnMap(); } catch (e3) {}
   }
@@ -7304,7 +7319,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   function robotSrc() {
     var style = botSpec().style || "spartan";
     if (style !== "courier" && style !== "wire") style = "spartan";
-    return "/js/spacenet/robots/" + style + ".jpg?v=4406";
+    return "/js/spacenet/robots/" + style + ".jpg?v=4407";
   }
   function robotFilter() {
     var c = botSpec().color;
@@ -9908,11 +9923,13 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       money.addEventListener("click", function (e) {
         e.preventDefault(); e.stopPropagation();
         if (!signed()) {
-          openSheet("⭐", '<p class="note">0 ⭐ · guest. No fake money. LOGIN to keep a balance.</p><button type="button" class="sheet-go primary" data-act="needlogin">LOGIN</button>');
+          openSheet("⭐", '<p class="note">0.00 ⭐ · guest. No fake money. SIGN IN to keep a balance.</p><button type="button" class="sheet-go primary" data-act="needlogin">SIGN IN</button>');
           return;
         }
-        var html = '<p class="note">' + shownMoney().toLocaleString("en-GB") + " ⭐ on this account.</p>";
-        if (ownerMail()) html += '<p class="note">Pool ' + Math.round(poolGet()).toLocaleString("en-GB") + " ⭐ · owner only.</p>";
+        var html = bankSeen
+          ? ('<p class="note">' + Number(bankBal).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " ⭐ on this account (ledger).</p>")
+          : ('<p class="note">⭐ balance unavailable' + (window.__snBalStatus ? (" · ledger " + window.__snBalStatus) : "") + ". No made-up number.</p>");
+        if (ownerMail() && bankSeen) html += '<p class="note">Pool ' + Math.round(poolGet()).toLocaleString("en-GB") + " ⭐ · owner only.</p>";
         html += '<input id="sn-add-eur" inputmode="decimal" placeholder="How many euro" />' +
           '<button type="button" class="sheet-go primary" data-act="add-eur">ADD WITH PAYPAL</button>' +
           '<button type="button" class="sheet-go" data-act="withdraw">WITHDRAW</button>';
@@ -12389,7 +12406,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
@@ -12441,7 +12458,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       hunt: hunt,
       askAdmin: askAdmin,
       quoteDelivery: quoteDelivery,
-      paintMoney: paintMoney, avcGet: avcGet,
+      paintMoney: paintMoney, avcGet: avcGet, walletLabel: walletLabel,
       openFleet: openFleet,
       openSupport: openSupport,
       myMoney: myMoney,
