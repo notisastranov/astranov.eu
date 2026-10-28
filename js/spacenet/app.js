@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again."; window.__SN_APPJS = true; /* 4393: the start watchdog sees app.js ran and never reloads it */
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4409"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4411"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1679,7 +1679,24 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true; window.__SN_4411 = true;
+(function () { /* 4411: NORTH compass stacks above the real GPS rect at every width, so the two never collide */
+  function stackNorth() {
+    try {
+      var g = document.getElementById("gps"), c = document.getElementById("sn-compass");
+      if (!g || !c) return;
+      var gr = g.getBoundingClientRect();
+      if (!gr.height) return;
+      var b = Math.max(0, Math.round(window.innerHeight - gr.top + 8));
+      c.style.setProperty("bottom", b + "px", "important");
+      c.style.setProperty("right", Math.max(4, Math.round(window.innerWidth - gr.right + (gr.width - 48) / 2)) + "px", "important");
+      window.__snNorthGap = Math.round(gr.top - c.getBoundingClientRect().bottom);
+    } catch (e) {}
+  }
+  window.__snStackNorth = stackNorth;
+  setInterval(stackNorth, 400);
+  window.addEventListener("resize", stackNorth);
+})();
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -4015,8 +4032,9 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       "#sn-globe svg{width:22px;height:22px;display:block}",
       "#sn-architect{display:none!important}",
       "#sn-me{position:fixed!important;left:max(6px,env(safe-area-inset-left))!important;right:auto!important;top:max(6px,env(safe-area-inset-top))!important;bottom:auto!important;z-index:70!important}",
-      "#gps{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;top:auto!important;bottom:calc(var(--dock) + 16px)!important;z-index:280!important;pointer-events:auto!important}",
-      "#sn-compass{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;bottom:calc(var(--dock) + 112px)!important;top:auto!important;z-index:47!important;width:48px!important;height:48px!important;padding:0!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.95)!important;background:rgba(4,16,28,.96)!important;color:#4df0ff!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;box-shadow:0 0 12px rgba(77,240,255,.35)!important}",
+      /* 4411: GPS and NORTH share the right stack; both rise with --sheet-h so they never collide at 500 */
+      "#gps{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;top:auto!important;bottom:calc(var(--safe-b, 12px) + var(--dock) + var(--sheet-h, 0px) + 8px)!important;z-index:280!important;pointer-events:auto!important}",
+      "#sn-compass{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;bottom:calc(var(--safe-b, 12px) + var(--dock) + var(--sheet-h, 0px) + 88px)!important;top:auto!important;z-index:280!important;width:48px!important;height:48px!important;padding:0!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.95)!important;background:rgba(4,16,28,.96)!important;color:#4df0ff!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;box-shadow:0 0 12px rgba(77,240,255,.35)!important}",
       "#sn-compass .lbl{display:block!important;font:800 8px/1 system-ui!important;letter-spacing:.06em!important}",
       "#sn-compass .tgt{display:block!important;font:800 14px/1 system-ui!important}",
       "#sn-compass.head{color:#7dff9a!important;border-color:#7dff9a!important}",
@@ -9383,6 +9401,16 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     athina: { label: "Athens, Greece", lat: 37.9838, lng: 23.7275 },
     rhodes: { label: "Rhodes, Greece", lat: 36.4349, lng: 28.2176 },
     rodos: { label: "Rhodes, Greece", lat: 36.4349, lng: 28.2176 },
+    crete: { label: "Crete, Greece", lat: 35.3391, lng: 25.1333 }, /* 4411: island seat at its main town so a hunt has shops */
+    kriti: { label: "Crete, Greece", lat: 35.3391, lng: 25.1333 },
+    heraklion: { label: "Heraklion, Crete", lat: 35.3391, lng: 25.1333 },
+    iraklio: { label: "Heraklion, Crete", lat: 35.3391, lng: 25.1333 },
+    irakleio: { label: "Heraklion, Crete", lat: 35.3391, lng: 25.1333 },
+    chania: { label: "Chania, Crete", lat: 35.5138, lng: 24.0180 },
+    hania: { label: "Chania, Crete", lat: 35.5138, lng: 24.0180 },
+    rethymno: { label: "Rethymno, Crete", lat: 35.3655, lng: 24.4821 },
+    rethymnon: { label: "Rethymno, Crete", lat: 35.3655, lng: 24.4821 },
+    sitia: { label: "Sitia, Crete", lat: 35.2075, lng: 26.1050 },
     "orland park": { label: "Orland Park, Illinois", lat: 41.6303, lng: -87.8539 },
     orlandpark: { label: "Orland Park, Illinois", lat: 41.6303, lng: -87.8539 },
     wheaton: { label: "Wheaton, Illinois", lat: 41.8661, lng: -88.1070 }
@@ -9785,7 +9813,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     if (goAsk && landPlaceAsk(goAsk)) return;
     var bare = goToPlaceAsk("go to " + q);
     if (bare && bare.geo && landPlaceAsk(bare)) return;
-    if (/^(find|hunt|show)\b/i.test(q) || /\b(pizza|pizzeria|supermarket|grocery|groceries|pharmacy|pharmacies|cafe|coffee|restaurant|food|bakery|bakeries|hotel|market)(s|es)?\b/i.test(q) || /\b(?:plumb|electric|locksmith|mechanic|garage|dentist|doctor|clinic|hospital|vet|lawyer|notary|bank|atm|bakery|baker|butcher|barber|hair|florist|tailor|laundry|gym|taxi|carpenter|painter|roofer|glazier|kiosk|periptero|pub|fuel|petrol|parking|courier|repair|cleaner|builder|handyman|optician|bookshop)\w{0,5}\b/i.test(q)) { /* 4380: trade words hunt at once (plumber) */
+    if (/^(find|hunt|show)\b/i.test(q) || /\b(pizza|pizzeria|supermarket|grocery|groceries|pharmacy|pharmacies|cafe|coffee|restaurant|food|bakery|bakeries|shop|shops|store|stores|hotel|market)(s|es)?\b/i.test(q) || /\b(?:plumb|electric|locksmith|mechanic|garage|dentist|doctor|clinic|hospital|vet|lawyer|notary|bank|atm|bakery|baker|butcher|barber|hair|florist|tailor|laundry|gym|taxi|carpenter|painter|roofer|glazier|kiosk|periptero|pub|fuel|petrol|parking|courier|repair|cleaner|builder|handyman|optician|bookshop)\w{0,5}\b/i.test(q)) { /* 4380/4411: trade words hunt at once (plumber, shops) */
       var hq = q.replace(/^(find|hunt|show)\s+/i, "").trim();
       hunt(hq || q);
       askGrok(q, function (err, j) {
@@ -9795,11 +9823,35 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       }, 8000);
       return;
     }
+    /* 4411: a bare category ("shops", "supermarket") hunts at the place in view — never an IP city, never geocode as a place name */
+    var catQ = String(q || "").trim();
+    if (CATEGORY_TEXT.test(catQ) || /^(shops?|stores?|markets?|supermarkets?|grocer(?:y|ies)|cafes?|restaurants?|bakeries|pharmac(?:y|ies)|food)$/i.test(catQ)) {
+      if (huntSeatOk()) {
+        hunt(catQ);
+        askGrok(q, function (err, j) {
+          if (err || !j) return;
+          var text = j.say || j.text;
+          if (text && tq === talkSeq) sayIfIdle(text);
+        }, 8000);
+        return;
+      }
+      say("Name a place for " + catQ + ", or allow location. A bare category uses the place in view, never an IP guess.");
+      gpsFix(function (pt) {
+        if (tq !== talkSeq) return;
+        if (pt && isFinite(+pt.lat)) {
+          land(pt, false);
+          hunt(catQ);
+          return;
+        }
+        say("Where should I look for " + catQ + "? Try \"" + catQ + " in Heraklion\".");
+      });
+      return;
+    }
     /* 4385: a bare place name ("Heraklion", "Nairobi") geocodes globally and flies there; no seat, no anchor, no Grok
        round trip. Only when the world has no such place does the line go on to the helper */
     var bareQ = String(q || "").trim();
     if (/^[A-Za-z\u00C0-\u024F\u0370-\u03ff][A-Za-z\u00C0-\u024F\u0370-\u03ff .,'\-]{1,48}$/.test(bareQ) && bareQ.split(/[\s,]+/).filter(Boolean).length <= 4 &&
-        !GREETING.test(bareQ) && !/\b(hi|hey|hello|thanks|thank|yes|no|ok|okay|help|who|what|why|how|when|joke|dating|date|love|me|you|my|your|i|we|is|are|the|a|an|tell|show|find|open|close|support|wallet|monitor|scan|globe|streets|login|logout|sign|menu|order|orders|driver|vendor|client)\b/i.test(bareQ)) {
+        !GREETING.test(bareQ) && !/\b(hi|hey|hello|thanks|thank|yes|no|ok|okay|help|who|what|why|how|when|joke|dating|date|love|me|you|my|your|i|we|is|are|the|a|an|tell|show|find|open|close|support|wallet|monitor|scan|globe|streets|login|logout|sign|menu|order|orders|driver|vendor|client|shop|shops|store|market)\b/i.test(bareQ)) {
       var bseq = ++placeSeq;
       say("Finding " + bareQ + "…");
       geocodeFast(bareQ).then(function (r) {
@@ -12830,7 +12882,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true; window.__SN_4411 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
