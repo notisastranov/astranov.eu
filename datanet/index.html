@@ -6,77 +6,105 @@
 <title>DataNet</title>
 <style>
 html,body{margin:0;background:#02040a;color:#e8fbff;font:16px/1.4 system-ui}
-main{max-width:720px;margin:0 auto;padding:16px 16px 48px}
-a{color:#7ee9ff}
+main{max-width:760px;margin:0 auto;padding:16px 16px 64px}
 h1{font:800 22px/1 system-ui;letter-spacing:.14em;margin:8px 0}
 p{color:#9fd4ea}
-form{display:flex;gap:8px;margin:12px 0}
-input,button{height:40px;border-radius:999px;border:1px solid rgba(77,240,255,.65);background:#041018;color:#e8fbff;font:600 14px system-ui}
-input{flex:1;min-width:0;padding:0 12px}
+a{color:#7ee9ff}
+label{display:block;margin:8px 0 0;font:700 11px/1 system-ui;letter-spacing:.06em;color:#7ee9ff}
+input,button,select{height:40px;border-radius:10px;border:1px solid rgba(77,240,255,.55);background:#041018;color:#e8fbff;font:600 14px system-ui}
+input,select{width:100%;padding:0 10px;box-sizing:border-box}
 button{padding:0 14px}
-ul{list-style:none;padding:0;margin:0}
-li{display:flex;gap:8px;align-items:baseline;padding:8px 0;border-top:1px solid rgba(77,240,255,.2)}
-li b{color:#4df0ff;font:700 12px/1 system-ui;letter-spacing:.08em}
-li span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-li button{height:32px}
+.row{display:grid;grid-template-columns:1.4fr .6fr .6fr .5fr .6fr auto;gap:6px;margin-top:8px}
+.shop{border-top:1px solid rgba(77,240,255,.25);padding:12px 0}
+.shop h2{margin:0;font:800 16px system-ui}
+.acts{display:flex;gap:8px;margin-top:10px}
 </style>
 </head>
 <body>
 <main>
-<p><a href="https://astranov.eu">Earth</a> · <a href="https://servernet.astranov.eu">ServerNet</a></p>
 <h1>DATANET</h1>
-<p id="count">This device is the database. Nothing is sent to a paid host.</p>
-<form id="f">
-<input id="kind" placeholder="kind" value="note" aria-label="Kind"/>
-<input id="text" placeholder="Record" aria-label="Record" required/>
-<button type="submit">KEEP</button>
+<p>Shop menus live here. This is not the globe.</p>
+<form id="shop">
+<label>SHOP</label>
+<input id="shop-name" placeholder="Shop name" required/>
+<label>ADDRESS</label>
+<input id="shop-address" placeholder="Street and number"/>
+<div class="acts"><button type="submit">ADD SHOP</button></div>
 </form>
-<ul id="list"></ul>
+<div id="shops"></div>
 </main>
 <script>
-var KEY = "sn:ledger";
-function read(){ try { return JSON.parse(localStorage.getItem(KEY) || "[]") || []; } catch (e) { return []; } }
-function write(book){ localStorage.setItem(KEY, JSON.stringify(book.slice(-200))); paint(); }
-function textOf(row){
-  if (row == null) return "";
-  if (typeof row === "string") return row;
-  return row.text || row.name || row.id || JSON.stringify(row);
+var KEY = "dn:shops";
+var SEED = null;
+function read() {
+  try { return JSON.parse(localStorage.getItem(KEY) || "[]") || []; } catch (e) { return []; }
 }
-function paint(){
-  var book = read();
-  document.getElementById("count").textContent = book.length + " records on this device.";
-  var ul = document.getElementById("list");
-  ul.innerHTML = "";
-  book.slice().reverse().forEach(function (item, i) {
-    var li = document.createElement("li");
-    var b = document.createElement("b");
-    b.textContent = item.kind || "row";
-    var s = document.createElement("span");
-    s.textContent = textOf(item.row);
-    var x = document.createElement("button");
-    x.type = "button";
-    x.textContent = "DROP";
-    x.onclick = function () {
-      var all = read();
-      all.splice(all.length - 1 - i, 1);
-      write(all);
-    };
-    li.appendChild(b); li.appendChild(s); li.appendChild(x);
-    ul.appendChild(li);
-  });
+function write(rows) {
+  localStorage.setItem(KEY, JSON.stringify(rows));
+  paint();
 }
-document.getElementById("f").onsubmit = function (e) {
-  e.preventDefault();
-  var book = read();
-  book.push({ kind: document.getElementById("kind").value.trim() || "note", t: Date.now(), row: { text: document.getElementById("text").value.trim() } });
-  document.getElementById("text").value = "";
-  write(book);
+function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return {"&":"&","<":"<",">":">","\"":"""}[c]; }); }
+function paint() {
+  var box = document.getElementById("shops");
+  var rows = read();
+  box.innerHTML = rows.map(function (s, si) {
+    var menu = (s.menu || []).map(function (m, mi) {
+      return "<p>" + esc(m.name) + " · " + esc(m.price) + " · " + esc(m.vol || "") + " · " + esc(m.kg || "") + " kg · " + esc(m.temp || "") +
+        " <button type='button' data-drop='" + si + ":" + mi + "'>DROP</button></p>";
+    }).join("") || "<p>No items yet.</p>";
+    return "<section class='shop'><h2>" + esc(s.name) + "</h2><p>" + esc(s.address || "") + "</p>" + menu +
+      "<div class='row'>" +
+      "<input data-k='name' data-shop='" + si + "' placeholder='Item'/>" +
+      "<input data-k='price' data-shop='" + si + "' placeholder='Price'/>" +
+      "<input data-k='vol' data-shop='" + si + "' placeholder='Volume'/>" +
+      "<input data-k='kg' data-shop='" + si + "' placeholder='Kilos'/>" +
+      "<input data-k='temp' data-shop='" + si + "' placeholder='Temp'/>" +
+      "<button type='button' data-add='" + si + "'>ADD</button></div></section>";
+  }).join("");
+}
+function field(shop, key) {
+  var el = document.querySelector("[data-shop='" + shop + "'][data-k='" + key + "']");
+  return el ? el.value.trim() : "";
+}
+document.getElementById("shops").onclick = function (e) {
+  var t = e.target;
+  if (!t || !t.getAttribute) return;
+  var rows = read();
+  if (t.getAttribute("data-add") != null) {
+    var i = Number(t.getAttribute("data-add"));
+    var item = { name: field(i, "name"), price: field(i, "price"), vol: field(i, "vol"), kg: field(i, "kg"), temp: field(i, "temp") };
+    if (!item.name) return;
+    rows[i].menu = rows[i].menu || [];
+    rows[i].menu.push(item);
+    write(rows);
+  }
+  if (t.getAttribute("data-drop")) {
+    var parts = t.getAttribute("data-drop").split(":");
+    rows[Number(parts[0])].menu.splice(Number(parts[1]), 1);
+    write(rows);
+  }
 };
-try {
-  var mesh = new BroadcastChannel("astranov-mesh");
-  mesh.onmessage = function () { paint(); };
-} catch (e) {}
-paint();
+document.getElementById("shop").onsubmit = function (e) {
+  e.preventDefault();
+  var rows = read();
+  rows.unshift({
+    id: "s" + Date.now().toString(36),
+    name: document.getElementById("shop-name").value.trim(),
+    address: document.getElementById("shop-address").value.trim(),
+    lat: 36.44305,
+    lng: 28.2279,
+    status: "live",
+    menu: []
+  });
+  document.getElementById("shop-name").value = "";
+  document.getElementById("shop-address").value = "";
+  write(rows);
+};
+fetch("/datanet/menus.json").then(function (r) { return r.json(); }).then(function (j) {
+  SEED = j;
+  if (!read().length && j && j.shops) write(j.shops);
+  else paint();
+}).catch(function () { paint(); });
 </script>
 </body>
 </html>

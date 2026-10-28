@@ -8,8 +8,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4400"},
-        {"key": "X-Astranov-Ship", "value": "4400-real"}
+        {"key": "X-Astranov-Build", "value": "4401"},
+        {"key": "X-Astranov-Ship", "value": "4401-real"}
       ]
     },
     {
@@ -17,8 +17,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4400"},
-        {"key": "X-Astranov-Ship", "value": "4400-real"}
+        {"key": "X-Astranov-Build", "value": "4401"},
+        {"key": "X-Astranov-Ship", "value": "4401-real"}
       ]
     },
     {
@@ -44,6 +44,8 @@
     }
   ],
   "redirects": [
+    {"source": "/", "has": [{"type": "host", "value": "datanet.astranov.eu"}], "destination": "/datanet", "permanent": false},
+    {"source": "/index.html", "has": [{"type": "host", "value": "datanet.astranov.eu"}], "destination": "/datanet", "permanent": false},
     {"source": "/host", "destination": "/servernet", "permanent": false},
     {"source": "/host/", "destination": "/servernet", "permanent": false},
     {"source": "/hostnet", "destination": "/servernet", "permanent": false},
