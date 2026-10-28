@@ -3,14 +3,14 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4411"/>
+<meta name="astranov-build" content="4412"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%2714%27 fill=%27%2304101c%27/%3E%3Ccircle cx=%2732%27 cy=%2732%27 r=%2727%27 fill=%27none%27 stroke=%27%234df0ff%27 stroke-width=%274%27/%3E%3Ctext x=%2732%27 y=%2744%27 font-family=%27monospace%27 font-size=%2734%27 font-weight=%27800%27 text-anchor=%27middle%27 fill=%27%234df0ff%27%3EA%3C/text%3E%3C/svg%3E"/>
-<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4411"/>
+<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4412"/>
 <script>
 (function () {
   function kill(n) {
@@ -183,7 +183,13 @@ html,body{margin:0!important;padding:0!important}
 .sheet-apply,.sheet-x{width:48px!important;height:48px!important;min-width:0;padding:0!important;border:0;border-radius:0;background:#041018!important;font:800 26px/1 system-ui;box-shadow:none}
 .sheet-apply{color:#7dff9a!important}.sheet-x{color:#ff8a8a!important}
 
-.leaflet-container .leaflet-marker-pane img{width:40px!important;height:40px!important;max-width:40px!important;max-height:40px!important;object-fit:cover!important}.leaflet-marker-icon.sn-shop-pin{overflow:hidden!important;width:76px!important;height:62px!important}</style>
+.leaflet-container .leaflet-marker-pane img{width:40px!important;height:40px!important;max-width:40px!important;max-height:40px!important;object-fit:cover!important}.leaflet-marker-icon.sn-shop-pin{overflow:hidden!important;width:76px!important;height:62px!important}
+/* 4412: count bubble for dense pins at Crete-wide zoom — keeps Ηράκλειο label clear */
+.sn-cluster-pin .sn-cluster{display:flex;flex-direction:column;align-items:center;justify-content:center;width:72px;height:56px;border-radius:28px;background:rgba(8,28,42,.92);border:2px solid #4df0ff;color:#e8fbff;box-shadow:0 2px 10px rgba(0,0,0,.45)}
+.sn-cluster-pin .sn-cluster em{font-style:normal;font-weight:800;font-size:18px;line-height:1}
+.sn-cluster-pin .sn-cluster b{font-size:10px;font-weight:600;opacity:.9;margin-top:2px}
+.sn-web{display:block;font-size:12px;color:#7ee9ff;margin-top:2px;word-break:break-all}
+</style>
 <style id="sn-4374">
 #top{position:fixed!important;top:0!important;left:0!important;right:0!important;height:auto!important;max-height:none!important;overflow:visible!important;z-index:40!important}
 #island{height:auto!important;max-height:none!important;overflow:visible!important}
@@ -262,7 +268,7 @@ body.sn-scan #sn-radar-hud{animation-duration:1.1s}
 <div id="top">
   <div id="sn-topchrome-drag" class="sn-trivial-law" aria-hidden="true"></div>
   <div id="island">
-    <div class="r1"><button type="button" class="a" id="sn-brand-a">ASTRANOV</button><button type="button" class="s" id="sn-brand-s">Astranov.Eu SpaceNet V4411</button><span id="ver">V4411</span><button type="button" id="sn-signin" aria-label="Sign in with Google" title="Sign in with Google">SIGN IN</button><button type="button" id="sn-latest" aria-label="Latest version">LATEST</button><button type="button" id="sn-update" hidden>UPDATE NOW</button></div>
+    <div class="r1"><button type="button" class="a" id="sn-brand-a">ASTRANOV</button><button type="button" class="s" id="sn-brand-s">Astranov.Eu SpaceNet V4412</button><span id="ver">V4412</span><button type="button" id="sn-signin" aria-label="Sign in with Google" title="Sign in with Google">SIGN IN</button><button type="button" id="sn-latest" aria-label="Latest version">LATEST</button><button type="button" id="sn-update" hidden>UPDATE NOW</button></div>
     <div class="r2"><span id="sn-local">-</span><span id="sn-utc">-</span><span id="sn-wx"></span><span id="sn-node"></span><canvas id="sn-spark" width="120" height="28"></canvas></div>
   </div>
 
@@ -302,10 +308,10 @@ body.sn-scan #sn-radar-hud{animation-duration:1.1s}
 <div id="sn-sheet"><div class="bg"></div><div class="card" id="sn-sheet-card"></div></div>
 <div id="dock"><div id="panel"><div id="cli-drag" class="sn-trivial-law" aria-hidden="true"></div><div id="sn-tabs"></div><div id="line"></div><form id="f"><input id="in" autocomplete="off" enterkeyhint="send" placeholder="Command the HUD · show, hide, or reshape"/></form></div></div>
 <input id="sn-file" type="file" accept="image/*,application/pdf,text/*" hidden/>
-<script src="/js/vendor/leaflet.js?v=4411"></script>
-<script src="/js/spacenet/app.js?v=4411"></script>
-<script src="/js/spacenet/auth.js?v=4411"></script>
-<script src="/guardian.js?v=4411"></script>
+<script src="/js/vendor/leaflet.js?v=4412"></script>
+<script src="/js/spacenet/app.js?v=4412"></script>
+<script src="/js/spacenet/auth.js?v=4412"></script>
+<script src="/guardian.js?v=4412"></script>
 <script id="sn-helper-law">
 (function () {
   function signed() {
@@ -396,7 +402,7 @@ body.sn-scan #sn-radar-hud{animation-duration:1.1s}
       h.type = "button";
       h.id = "sn-helper";
       h.setAttribute("aria-label", "Helper");
-      h.innerHTML = '<img alt="" src="/js/spacenet/robots/spartan.jpg?v=4411">';
+      h.innerHTML = '<img alt="" src="/js/spacenet/robots/spartan.jpg?v=4412">';
       h.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); cmds(); });
       document.body.appendChild(h);
     }

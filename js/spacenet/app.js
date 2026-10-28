@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again."; window.__SN_APPJS = true; /* 4393: the start watchdog sees app.js ran and never reloads it */
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4411"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4412"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1679,7 +1679,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true; window.__SN_4411 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true; window.__SN_4411 = true; window.__SN_4412 = true;
 (function () { /* 4411: NORTH compass stacks above the real GPS rect at every width, so the two never collide */
   function stackNorth() {
     try {
@@ -4799,28 +4799,32 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       try { menu = JSON.parse(menu); } catch (e) { menuText = menu; menu = []; }
     }
     if (!Array.isArray(menu)) menu = [];
-    var osmT = row.osm_type || (/^(node|way|relation)$/.test(String(row.type || "")) ? row.type : "");
-    var osmI = row.osm_id || (osmT && row.id) || "";
+    var osmPass = String(row.osm || "");
+    var osmM = osmPass.match(/^(node|way|relation)[\/]?(\d+)$/i);
+    var osmT = row.osm_type || (osmM ? osmM[1].toLowerCase() : (/^(node|way|relation)$/.test(String(row.type || "")) ? row.type : ""));
+    var osmI = row.osm_id || (osmM ? osmM[2] : "") || (osmT && row.id) || "";
     return {
-      id: String(row.id || row.osm_id || (name + lat + lng)),
+      id: String(row.id || row.osm_id || (osmPass) || (name + lat + lng)),
       name: String(name).slice(0, 80),
       lat: lat,
       lng: lng,
       kind: row.kind || tags.amenity || tags.shop || ((row.class === "amenity" || row.class === "shop") && row.type ? row.type : "") || "shop",
-      phone: String(row.phone || tags.phone || tags["contact:phone"] || "").replace(/^[\s+0-]*$/, ""), /* 4380: a placeholder 0000000000 is no phone */
+      phone: String(row.phone || tags.phone || tags["contact:phone"] || xt.phone || xt["contact:phone"] || "").replace(/^[\s+0-]*$/, ""), /* 4380: a placeholder 0000000000 is no phone */
+      website: String(row.website || tags.website || tags["contact:website"] || xt.website || xt["contact:website"] || "").slice(0, 200),
       menu: menu,
-      photo: row.photo || "",
+      photo: row.photo || tags.image || xt.image || "",
       address: row.address || tags["addr:full"] || "",
       street: String(row.street || [tags["addr:street"], tags["addr:housenumber"]].filter(Boolean).join(" ") || "").slice(0, 120),
-      city: String(tags["addr:city"] || "").slice(0, 60),
-      postcode: String(tags["addr:postcode"] || "").slice(0, 16),
+      city: String(row.city || tags["addr:city"] || "").slice(0, 60),
+      postcode: String(row.postcode || tags["addr:postcode"] || "").slice(0, 16),
+      approx: row.approx != null ? !!row.approx : !(row.address || tags["addr:street"] || tags["addr:full"]),
       note: typeof row.note === "string" ? row.note.slice(0, 1200) : "",
       raw: String(typeof row.raw === "string" ? row.raw : (row.display_name || "")).slice(0, 400),
       hours: row.hours || tags.opening_hours || "",
       cuisine: row.cuisine || tags.cuisine || "",
       place: typeof row.place === "string" ? row.place.slice(0, 80) : "",
       menuText: String(menuText || "").slice(0, 1200),
-      osm: osmT && osmI ? String(osmT) + String(osmI) : "",
+      osm: osmT && osmI ? String(osmT) + "/" + String(osmI) : (osmPass || ""),
       owner: row.owner || row.customerPeer || "",
       src: row.src || "osm",
       status: row.status || ""
@@ -5263,8 +5267,54 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     /* 4338: every pin sits on its real spot; a crowded face moves aside with a leader line back to it (declutterPins) */
     var numbered = !!(huntView && !huntView.single && field.length > 1);
     var ordered = numbered ? findOrder(field) : null;
+    /* 4412: at Crete-wide / low zoom, dense Heraklion pins covering Ηράκλειο become one count bubble so the place label stays clear */
+    var zPaint = map.getZoom ? map.getZoom() : 14;
+    var clusterHide = {};
+    var clusterBubbles = [];
+    try {
+      if (zPaint <= 10.5 && field.length >= 6) {
+        var seatP = (huntView && huntView.origin) || activeSeat() || here;
+        var cells = {};
+        field.forEach(function (s, fi) {
+          if (!s || !isFinite(+s.lat)) return;
+          var ck = (+s.lat).toFixed(2) + "|" + (+s.lng).toFixed(2);
+          (cells[ck] = cells[ck] || []).push({ s: s, fi: fi });
+        });
+        Object.keys(cells).forEach(function (ck) {
+          var grp = cells[ck];
+          if (grp.length < 4) return;
+          var clat = 0, clng = 0;
+          grp.forEach(function (g) { clat += +g.s.lat; clng += +g.s.lng; });
+          clat /= grp.length; clng /= grp.length;
+          var nearLabel = seatP && isFinite(+seatP.lat) && haversineKm(seatP, { lat: clat, lng: clng }) < 3.5;
+          if (!nearLabel && grp.length < 8) return;
+          grp.forEach(function (g) { clusterHide[String(g.s.id || g.s.name || g.fi)] = 1; });
+          /* nudge bubble off the place-label centre so Ηράκλειο stays readable */
+          var blat = clat, blng = clng;
+          if (seatP && isFinite(+seatP.lat) && haversineKm(seatP, { lat: clat, lng: clng }) < 1.2) {
+            blat = clat - 0.035; blng = clng + 0.02;
+          }
+          clusterBubbles.push({ lat: blat, lng: blng, n: grp.length, members: grp.map(function (g) { return g.s; }) });
+        });
+      }
+    } catch (eCl) {}
+    clusterBubbles.forEach(function (cb) {
+      try {
+        var html = '<div class="sn-pin sn-cluster" title="' + cb.n + ' shops"><em>' + cb.n + '</em><b>' + cb.n + ' shops</b></div>';
+        var ic = L.divIcon({ className: "sn-shop-pin sn-cluster-pin", html: html, iconSize: [76, 62], iconAnchor: [38, 31] });
+        var markC = L.marker([cb.lat, cb.lng], { icon: ic, zIndexOffset: 700, bubblingMouseEvents: false, keyboard: false });
+        markC.__snShop = true; markC.__snCluster = true; markC.__snNo = 0;
+        markC.on("click", function (e) {
+          if (e && e.originalEvent) { try { L.DomEvent.stop(e.originalEvent); } catch (e0) {} }
+          try { map.setView([cb.lat, cb.lng], Math.min(14, Math.round(map.getZoom()) + 2), { animate: false }); } catch (eZ) {}
+        });
+        markC.addTo(map);
+        shopMarks.push(markC);
+      } catch (eCb) {}
+    });
     field.forEach(function (s, fi) {
       if (!s || s.kind === "task" || s.src === "task" || s.place === "task") return; /* 4375: tasks paint as task bubbles */
+      if (clusterHide[String(s.id || s.name || fi)]) return;
       var ll = [s.lat, s.lng];
       var no = ordered ? ordered.indexOf(s) + 1 : 0;
       var mark;
@@ -6715,7 +6765,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var keep = twinScore(b) > twinScore(a) ? b : a, other = keep === a ? b : a;
       var m = {};
       for (var k in keep) m[k] = keep[k];
-      ["phone", "street", "address", "note", "raw", "hours", "cuisine", "photo", "osm", "menuText"].forEach(function (f) { if (!m[f] && other[f]) m[f] = other[f]; });
+      ["phone", "website", "street", "address", "note", "raw", "hours", "cuisine", "photo", "osm", "menuText", "city", "postcode"].forEach(function (f) { if (!m[f] && other[f]) m[f] = other[f]; });
       if ((!Array.isArray(m.menu) || !m.menu.length) && Array.isArray(other.menu) && other.menu.length) m.menu = other.menu;
       var akaSeen = {};
       akaSeen[foldTxt(m.name)] = 1;
@@ -6802,10 +6852,19 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   }
   function huntKey(s) { return String(s.id || "") + "|" + String(s.name || "").toLowerCase() + "|" + (+s.lat).toFixed(5) + "," + (+s.lng).toFixed(5); }
   /* 4378: the radius the hunt really used: near 5 km widened to 10 (10 when nothing is close), otherwise the 40 km city radius */
+  function huntCreteSpan() {
+    /* 4412: Crete / Sitia island hunts need ~150 km so Siteia / Menir are not dropped at the 40–50 km city cap */
+    var raw = String((huntView && (huntView.raw || huntView.nameQ)) || window.__snHuntRaw || "") + " " + String(seatName(activeSeat() || here) || "");
+    return /crete|kriti|κρήτ|sitia|siteia|σητεί/i.test(raw);
+  }
+  function huntSpanKm() {
+    if (huntView && huntView.near) return 10;
+    return huntCreteSpan() ? 150 : 40;
+  }
   function huntRadiusKm() {
     var c = window.__snHuntCap;
     if (huntView && huntView.near) return (c && c.near && c.km) ? Math.max(c.km, c.n ? c.km : 10) : 10;
-    return 40;
+    return (c && c.km) ? c.km : huntSpanKm();
   }
   function huntTrim(list) {
     var org = huntOrigin();
@@ -6813,7 +6872,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     var rows = (list || []).filter(function (s) { return huntProven(s) && (!ids || ids[huntKey(s)]); });
     if (!org || !isFinite(+org.lat)) return rows.sort(function (a, b) { return huntKey(a) < huntKey(b) ? -1 : 1; });
     rows.forEach(function (s) { s.__km = haversineKm(org, s); });
-    var cap = 40; /* 4378: the city radius the server searches (radius=40), so the empty text can name it */
+    var cap = huntSpanKm(); /* 4412: 40 local / 150 Crete-wide */
     if (huntView && huntView.near) {
       cap = 5;
       if (rows.filter(function (s) { return s.__km <= 5; }).length < 3) cap = 10;
@@ -6930,12 +6989,17 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         } catch (eR) {}
       }, ms);
     });
-    /* 4410: always exactly 3 integer zoom-outs from the fit to Widest (4th → globe).
-       Do NOT clamp to 8 — that collapsed a z9 fit to a single notch and made notch counts vary by fit zoom. */
+    /* 4412: floor is always startZ-3; notch count is a pure function of starting zoom (same start → same count).
+       Log plan for the suite. cityAcc reset so residual wheel delta cannot drop the first notch. */
     closeBelow = Math.max(3, Math.round(z) - 3);
-    try { cityWheelResetFloor(); } catch (eRF) { cityFloorGid = -1; cityWidestSaid = false; }
+    try { cityAcc = 0; cityAccT = 0; cityWheelResetFloor(); } catch (eRF) { cityFloorGid = -1; cityWidestSaid = false; }
     try { map.setMinZoom(closeBelow); } catch (eMz) {}
     try { if (map.getZoom() !== Math.round(map.getZoom())) map.setZoom(Math.round(map.getZoom()), { animate: false }); } catch (eIz) {}
+    var startZ = Math.round(map.getZoom());
+    var floorZ = Math.max(3, Math.round(closeBelow));
+    /* outs from start to floor (last announces Widest) + one globe; if already at floor: Widest announce + globe = 2 */
+    var expected = startZ <= floorZ ? 2 : (startZ - floorZ + 1);
+    window.__snNotchPlan = { startZ: startZ, floorZ: floorZ, expected: expected, at: Date.now() };
     huntView.fitted = true;
     try { paintShopsOnMap(); } catch (e3) {}
     try { setTimeout(labelGuard, 80); setTimeout(labelGuard, 600); setTimeout(declutterSoon, 100); } catch (eLg) {}
@@ -7041,11 +7105,14 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   var ADMIN_BIT = /municipal|regional|region|decentrali|δημοτικ|δημος|περιφερ|αποκεντρ|unit of|commune|ελλας|ελλαδα|greece|aegean|αιγαιου/i;
   function addrOf(s) {
     if (!s) return { text: "", approx: false };
-    if (s.address) return { text: String(s.address), approx: false };
+    /* 4412: real addr:* / Nominatim addressdetails first; approx only when we truly lack a street line */
+    if (s.address && s.approx === false) return { text: String(s.address), approx: false };
+    if (s.address && !s.approx) return { text: String(s.address), approx: false };
+    if (s.street) return { text: [s.street, [s.postcode, s.city].filter(Boolean).join(" ")].filter(Boolean).join(", "), approx: !!s.approx && !s.street };
+    if (s.address) return { text: String(s.address), approx: s.approx !== false };
     var nt = String(s.note || "");
     var m = nt.match(/Address:\s*(.{4,160}?(?:Greece|Ελλάδα|Ελλάς))/) || nt.match(/Address:\s*([^.]{4,140})/);
     if (m) return { text: m[1].trim(), approx: false };
-    if (s.street) return { text: [s.street, [s.postcode, s.city].filter(Boolean).join(" ")].filter(Boolean).join(", "), approx: false };
     var parts = String(s.raw || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean);
     if (parts.length && foldTxt(parts[0]) === foldTxt(s.name)) parts.shift();
     parts = parts.filter(function (x) { return !ADMIN_BIT.test(x); });
@@ -7093,7 +7160,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     huntView.fitted = false;
     var seat0 = activeSeat() || here;
     if (seat0 && isFinite(+seat0.lat)) huntView.origin = { lat: +seat0.lat, lng: +seat0.lng, name: seat0.name || "" };
-    shops = uniqPlaces((shops || []).filter(function (s) { return !seat0 || nearSeat(s, 50); }));
+    shops = uniqPlaces((shops || []).filter(function (s) { return !seat0 || nearSeat(s, huntNearKm()); }));
     if (huntView.nameQ && huntView.loose) {
       huntView.looseIds = {};
       shops.forEach(function (s0) { huntView.looseIds[String(s0.id || s0.name)] = 1; });
@@ -7246,18 +7313,19 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   function huntApi(q) {
     var seat = activeSeat() || here;
     if (!seat || !isFinite(+seat.lat)) return Promise.resolve([]);
+    var span = (huntView && huntView.near) ? 10 : huntSpanKm();
     var url = "/api/find?q=" + encodeURIComponent(q)
       + "&lat=" + Number(seat.lat).toFixed(4)
       + "&lng=" + Number(seat.lng).toFixed(4)
-      + (huntView && huntView.near ? "&bounded=1&radius=10&near=1" : "&bounded=1&radius=40&near=0"); /* 4376: near only for "X near Y" */
+      + (huntView && huntView.near ? "&bounded=1&radius=10&near=1" : "&bounded=1&radius=" + span + "&near=0"); /* 4412: Crete span 150 */
     return fetchJson(url, { signal: huntSig() }).then(function (j) {
       return ((j && j.places) || []).map(function (p) { p.src = "find"; return asPlace(p); })
-        .filter(function (p) { return p && nearSeat(p, 50); });
+        .filter(function (p) { return p && nearSeat(p, Math.max(50, span)); });
     });
   }
   /* 4354: Overpass 504s (or every source failing) never leave a hunt empty if this hunt found real pins here before:
      the last real answer per hunt and ~1 km seat is kept 24 h and used only when the live sources return nothing */
-  function huntSlim(r) { return { id: r.id, name: r.name, lat: r.lat, lng: r.lng, kind: r.kind, phone: r.phone || "", address: r.address || "", street: r.street || "", src: r.src || "", osm: r.osm || "" };; }
+  function huntSlim(r) { return { id: r.id, name: r.name, lat: r.lat, lng: r.lng, kind: r.kind, phone: r.phone || "", website: r.website || "", photo: r.photo || "", address: r.address || "", street: r.street || "", city: r.city || "", postcode: r.postcode || "", approx: !!r.approx, src: r.src || "", osm: r.osm || "" }; }
   function huntMemoKey(q, seat) { return "sn:hunt:" + foldTxt(String(q || "")).trim().slice(0, 40) + "@" + (seat && isFinite(+seat.lat) ? (+seat.lat).toFixed(2) + "," + (+seat.lng).toFixed(2) : "-"); }
   /* 4406: per session, a query at a place is answered once; asking again shows exactly that set (no re-fetch, no drift) */
   var huntMemo = {};
@@ -7608,12 +7676,18 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     if (src) return '<img class="sn-shop-hero" alt="" referrerpolicy="no-referrer" loading="lazy" data-mark="' + esc(mark) + '" src="' + String(src).replace(/"/g, "") + '">';
     return '<em title="No photo listed">' + mark + "</em>";
   }
-  function tileContact(phone, where) {
+    function tileContact(phone, where, website) {
     var tel = phone
       ? '<a class="sn-tel" href="tel:' + String(phone).replace(/[^\d+]/g, "") + '">' + esc(phone) + "</a>"
       : '<span class="sn-miss">No phone listed</span>';
     var addr = where ? '<span class="sn-miss">' + esc(where) + "</span>" : '<span class="sn-miss">No address listed</span>';
-    return tel + addr;
+    var web = "";
+    if (website && /^https?:\/\//i.test(String(website))) {
+      web = '<a class="sn-web" href="' + String(website).replace(/"/g, "") + '" target="_blank" rel="noopener noreferrer">' + esc(String(website).replace(/^https?:\/\//i, "").split("/")[0]) + "</a>";
+    } else {
+      web = '<span class="sn-miss">No website listed</span>';
+    }
+    return tel + addr + web;
   }
   function openTile(o) {
     o = o || {};
@@ -8109,7 +8183,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     } else {
       feeHtml = '<p class="note">Delivery · set a drop address</p>';
     }
-    var html = '<div class="sn-prof">' + tilePhoto(photoOf(s), "🏪") + "<div><b>" + esc(s.name || "Vendor") + "</b>" + tileContact(s.phone, where) + "</div></div>" +
+    var html = '<div class="sn-prof">' + tilePhoto(photoOf(s), "🏪") + "<div><b>" + esc(s.name || "Vendor") + "</b>" + tileContact(s.phone, where, s.website) + "</div></div>" +
       tools + /* 4377 (main V4372): EDIT MENU / DELETE / hours on your own test vendor */
       feeHtml +
       (ownsShop(s) ? '<div class="sn-dish"><input id="sn-dish" placeholder="Dish" /><input id="sn-dish-price" inputmode="decimal" placeholder="Price" /></div>' : '<div class="sn-dish"><input id="sn-dish" placeholder="What would you like?" /></div>') + /* 4382: the price field is the owner's */
@@ -8159,6 +8233,46 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         if (el) el.textContent = line;
         window.__snAddrFill = { name: s.name || "", text: line, inPage: !!(el && el.isConnected), at: Date.now() };
       });
+    }
+
+    /* 4412: pull real phone/website/addr and image from Nominatim lookup when the hold card is thin — never invent */
+    if (s.osm && (!s.phone || !s.address || !photoOf(s) || !s.website)) {
+      fetchJsonT("/api/find?op=lookup&osm=" + encodeURIComponent(String(s.osm).replace(/^(node|way|relation)(?=\d)/i, function (m0) { return m0 + "/"; })), { cache: "no-store" }, 7000).then(function (j) {
+        if (!j || !j.ok || !j.place) return;
+        var p = j.place;
+        if (p.phone && !s.phone) s.phone = p.phone;
+        if (p.website && !s.website) s.website = p.website;
+        if (p.photo && !s.photo) s.photo = p.photo;
+        if (p.address && (!s.address || s.approx)) { s.address = p.address; s.approx = !!p.approx; }
+        if (p.street && !s.street) s.street = p.street;
+        if (p.city && !s.city) s.city = p.city;
+        if (p.postcode && !s.postcode) s.postcode = p.postcode;
+        if (vendor !== s) return;
+        var prof = document.querySelector("#sn-sheet .sn-prof");
+        if (!prof) return;
+        var ad1 = addrOf(s);
+        var where1 = [ad1.text ? (ad1.approx ? "≈ " + ad1.text + " (approx. address)" : ad1.text) : "No address listed", kindBit].filter(Boolean).join(" · ");
+        var box = prof.querySelector("div");
+        if (box) {
+          var b = box.querySelector("b");
+          var nameBit = b ? b.outerHTML : "<b>" + esc(s.name || "Vendor") + "</b>";
+          box.innerHTML = nameBit + tileContact(s.phone, where1, s.website);
+        }
+        if (p.photo) {
+          var hero = prof.querySelector("img.sn-shop-hero, em");
+          if (hero && hero.tagName === "EM") {
+            var img = document.createElement("img");
+            img.className = "sn-shop-hero"; img.alt = ""; img.loading = "lazy";
+            img.referrerPolicy = "no-referrer"; img.setAttribute("data-mark", "🏪");
+            img.src = String(p.photo);
+            img.addEventListener("error", function () {
+              var em = document.createElement("em"); em.title = "Photo unavailable"; em.textContent = "🏪";
+              if (img.parentNode) img.parentNode.replaceChild(em, img);
+            });
+            hero.parentNode.replaceChild(img, hero);
+          }
+        }
+      }).catch(function () {});
     }
     progMoveUntil = Date.now() + 600;
     /* 4409/4410/4410c: a hold opens the card without moving the camera; freeze the view while the sheet settles */
@@ -9478,6 +9592,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     try { if (typeof paintShopsOnMap === "function") paintShopsOnMap(); } catch (e) {}
     try { if (typeof paintPulse === "function") paintPulse(); } catch (e2) {}
   }
+  function huntNearKm() { return Math.max(50, huntSpanKm()); }
   function nearSeat(pt, maxKm) {
     var seat = activeSeat() || here;
     if (!seat || !isFinite(+seat.lat) || !pt || !isFinite(+pt.lat)) return false;
@@ -12882,7 +12997,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true; window.__SN_4411 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true; window.__SN_4411 = true; window.__SN_4412 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
