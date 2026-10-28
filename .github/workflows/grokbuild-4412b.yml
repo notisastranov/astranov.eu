@@ -1,0 +1,43 @@
+name: grokbuild 4412b (trade+place hunt; Sitia/Menir expand; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4412b.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix4412b
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          git fetch origin main
+          MAIN_TIP="$(git rev-parse origin/main)"
+          base64 -d .grokbuild/fix4412b.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "f5653474701e206959191043e657b2756cfac39a7d6e377106e5b7cded6671c0"
+          gunzip -c /tmp/f.gz > /tmp/fix4412b.patch
+          test "$(sha256sum /tmp/fix4412b.patch | cut -d' ' -f1)" = "c5ef331383f8548b97eb9148d676c6f2c7180869b9c045d408f1a58c25cccbe7"
+          git rm -rq .grokbuild || true
+          git rm -f .github/workflows/grokbuild-4412b.yml || true
+          git rm -f .github/workflows/grokbuild-4412.yml || true
+          T0="$(git write-tree)"
+          test "$T0" = "821dff288187af8e45e92c2365747e8a8ea6da46" || { echo "tree0 $T0"; exit 1; }
+          git apply --index /tmp/fix4412b.patch
+          grep -q 'trade word always hunts' lib/http/find.js
+          grep -q 'peel every remaining PLACE_HINT' lib/http/find.js
+          grep -q 'Super Market Menir' lib/http/find.js
+          grep -q 'var VER = "4412"' sw.js
+          test "$(cat VERSION)" = "4412"
+          T="$(git write-tree)"
+          test "$T" = "7fecf7b6d4121a53c14a3f457948e54c010b21d0" || { echo "tree $T"; exit 1; }
+          C="$(git commit-tree "$T" -p HEAD -p "$MAIN_TIP" -m "merge main ($(git rev-parse --short $MAIN_TIP)) + 4412b: trade+place queries always hunt (shops in Heraklion Crete no longer geocode-capped at 8); peel leftover place hints; expand Sitia/Menir on Crete spans. Keep 4412.")"
+          git update-ref refs/heads/grokbuild/4328-street-level-gps "$C"
+          git push origin grokbuild/4328-street-level-gps
+          echo "TIP $C"
