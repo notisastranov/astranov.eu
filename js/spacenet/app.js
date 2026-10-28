@@ -3884,7 +3884,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       "#sn-power{position:fixed!important;top:auto!important;left:max(8px,env(safe-area-inset-left))!important;right:auto!important;bottom:calc(var(--dock) + 16px)!important;width:48px!important;height:48px!important;transform:none!important;z-index:46!important}",
       "#sn-power svg{width:22px!important;height:22px!important}",
       "#sn-support{position:fixed!important;top:0!important;right:max(2px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;width:32px!important;height:32px!important;font-size:14px!important;transform:none!important;z-index:60!important}",
-      "#sn-money{position:fixed!important;top:72px!important;left:max(6px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;transform:none!important;z-index:46!important;overflow:visible!important}",
+      "#sn-money{position:fixed!important;top:96px!important;left:max(6px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;transform:none!important;z-index:46!important;overflow:visible!important}",
       "#sn-globe{position:fixed!important;top:64px!important;right:max(6px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;z-index:60!important;width:40px!important;height:40px!important;padding:0!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.95)!important;background:rgba(4,16,28,.96)!important;color:#4df0ff!important;display:flex!important;align-items:center!important;justify-content:center!important}",
       "#sn-globe svg{width:22px;height:22px;display:block}",
       "#sn-architect{display:none!important}",
@@ -3907,7 +3907,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       "form#f{display:flex!important;width:100%!important;gap:0!important;align-items:center!important;min-height:48px!important;padding:0!important;margin:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}",
       "input#in{flex:1!important;min-width:0!important;width:auto!important;min-height:48px!important;border:0!important;border-radius:0!important;background:transparent!important;padding-left:56px!important;padding-right:104px!important}",
       "#sn-pulse{display:none!important}",
-      "#sn-money{display:inline-flex!important;flex-direction:column!important;align-items:flex-start!important;justify-content:flex-start!important;gap:4px!important;width:max-content!important;max-width:none!important;min-width:max-content!important;overflow:visible!important;flex-wrap:nowrap!important;clip-path:none!important;top:56px!important}#sn-money .lbl{display:block!important;visibility:visible!important;opacity:1!important;align-items:center;height:auto!important;margin:0!important;padding:3px 8px!important;font:800 11px/1.1 ui-monospace,monospace!important;letter-spacing:.14em;color:#e8fbff!important;background:rgba(4,16,32,.96)!important;border:1px solid rgba(77,240,255,.85)!important;border-radius:6px!important;box-shadow:0 0 8px rgba(77,240,255,.35)!important;width:auto!important;flex:0 0 auto!important;white-space:nowrap!important;min-width:max-content!important;overflow:visible!important;position:relative;z-index:3;text-overflow:clip!important;text-shadow:none!important;pointer-events:none}#sn-money .tgt{padding:0 12px!important;flex:0 0 auto!important;white-space:nowrap!important;min-width:max-content!important;overflow:visible!important;position:relative;z-index:2}/* 4409: WALLET caption owns its own slot above the pill, full contrast at every width */",
+      "#sn-money{display:inline-flex!important;flex-direction:column!important;align-items:flex-start!important;justify-content:flex-start!important;gap:4px!important;width:max-content!important;max-width:none!important;min-width:max-content!important;overflow:visible!important;flex-wrap:nowrap!important;clip-path:none!important;top:96px!important}#sn-money .lbl{display:block!important;visibility:visible!important;opacity:1!important;align-items:center;height:auto!important;margin:0!important;padding:3px 8px!important;font:800 11px/1.1 ui-monospace,monospace!important;letter-spacing:.14em;color:#e8fbff!important;background:rgba(4,16,32,.96)!important;border:1px solid rgba(77,240,255,.85)!important;border-radius:6px!important;box-shadow:0 0 8px rgba(77,240,255,.35)!important;width:auto!important;flex:0 0 auto!important;white-space:nowrap!important;min-width:max-content!important;overflow:visible!important;position:relative;z-index:3;text-overflow:clip!important;text-shadow:none!important;pointer-events:none}#sn-money .tgt{padding:0 12px!important;flex:0 0 auto!important;white-space:nowrap!important;min-width:max-content!important;overflow:visible!important;position:relative;z-index:2}/* 4409: WALLET caption owns its own slot above the pill, full contrast at every width */",
       "#sn-tester.on{display:block!important}#sn-tester:not(.on){display:none!important}", /* 4381: admin / owner / ?testview=1 only */
       "#island{margin-top:0!important;padding-top:0!important}",
       "#sn-count{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;pointer-events:none;background:transparent}",
@@ -5167,11 +5167,12 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         }
       } catch (err3) {}
       mark.addTo(map);
-      try { var ie0 = mark.getElement && mark.getElement(); if (ie0) ie0.__snShopRow = s; } catch (eIe) {} /* 4395: the pin under a press at its start */
+      try { var ie0 = mark.getElement && mark.getElement(); if (ie0) { ie0.__snShopRow = s; ie0.__snLat = +s.lat; ie0.__snLng = +s.lng; ie0.__snId = s.id || s.name; } } catch (eIe) {} /* 4395/4409c: the pin under a press at its start + latlng for deterministic cull */
       /* 4396: the icon tap listener is bound after addTo (the icon does not exist before), so a long press on a pin always
          opens the pin pressed at its start, even when Leaflet drops the click after a hold */
       try {
         var ie1 = mark.getElement && mark.getElement();
+        if (ie1) { ie1.__snShopRow = s; ie1.__snLat = +s.lat; ie1.__snLng = +s.lng; ie1.__snId = s.id || s.name; }
         if (ie1 && !ie1.__snTap) {
           ie1.__snTap = true;
           ie1.style.pointerEvents = "auto";
@@ -5618,21 +5619,27 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         var x = mk.querySelector("img,em"); if (!x) return; var q = x.getBoundingClientRect(); if (!(q.width > 0)) return;
         sf.push({ mk: mk, r: q, no: parseInt(((mk.querySelector(".sn-no") || {}).textContent || "999"), 10) || 999 });
       });
+      /* 4409c: stable key first (never timing / badge paint order), then badge no */
       sf.sort(function (a, b) {
-        var d = a.no - b.no; if (d) return d;
-        var ka = String((a.mk && a.mk.__snShopRow && (a.mk.__snShopRow.id || a.mk.__snShopRow.name)) || a.mk && a.mk.__snId || ""), kb = String((b.mk && b.mk.__snShopRow && (b.mk.__snShopRow.id || b.mk.__snShopRow.name)) || b.mk && b.mk.__snId || "");
-        return ka < kb ? -1 : ka > kb ? 1 : 0;
+        var ka = String((a.mk && a.mk.__snShopRow && huntKey(a.mk.__snShopRow)) || (a.mk && a.mk.__snId) || (a.mk && a.mk.__snShopRow && (a.mk.__snShopRow.id || a.mk.__snShopRow.name)) || "");
+        var kb = String((b.mk && b.mk.__snShopRow && huntKey(b.mk.__snShopRow)) || (b.mk && b.mk.__snId) || (b.mk && b.mk.__snShopRow && (b.mk.__snShopRow.id || b.mk.__snShopRow.name)) || "");
+        if (ka !== kb) return ka < kb ? -1 : 1;
+        return (a.no || 999) - (b.no || 999);
       });
-      /* 4409: projected face boxes (fixed 40×40 at lat/lng) so culling is identical for the same zoom + centre */
+      /* 4409/4409c: projected face boxes (fixed 40×40 at lat/lng) — identical for the same zoom + centre; defer if rows not ready */
       try {
         if (map && map.latLngToContainerPoint) {
+          var ready = 0;
           sf.forEach(function (f) {
             var row = f.mk && f.mk.__snShopRow;
-            var lat = row ? +row.lat : NaN, lng = row ? +row.lng : NaN;
+            var lat = row ? +row.lat : +(f.mk && f.mk.__snLat), lng = row ? +row.lng : +(f.mk && f.mk.__snLng);
             if (!isFinite(lat) || !isFinite(lng)) return;
+            ready++;
             var p = map.latLngToContainerPoint([lat, lng]), cr0 = cityEl.getBoundingClientRect();
             f.r = { left: cr0.left + p.x - 20, right: cr0.left + p.x + 20, top: cr0.top + p.y - 40, bottom: cr0.top + p.y };
+            f._proj = true;
           });
+          if (sf.length && ready < sf.length) { declutterSoon(); return; }
         }
       } catch (eProj) {}
       var keptF = [], youF = [];
@@ -5786,8 +5793,10 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var mr = mo && getComputedStyle(mo).display !== "none" ? mo.getBoundingClientRect() : null;
       var mer = me && getComputedStyle(me).display !== "none" ? me.getBoundingClientRect() : null;
       if (mo && mer && mer.height) {
-        var wantTop = Math.round(mer.bottom + 8);
-        if (Math.abs((mr && mr.top) - wantTop) > 2) mo.style.setProperty("top", wantTop + "px", "important");
+        /* 4409c: WALLET slot stays under identity even when releaseChrome clears inline top */
+        var wantTop = Math.max(96, Math.round(mer.bottom + 8));
+        mo.style.setProperty("top", wantTop + "px", "important");
+        mo.style.setProperty("left", Math.round(mer.left) + "px", "important");
         mr = mo.getBoundingClientRect();
       }
       var L = Math.round(mr && mr.width ? mr.left : 6), y = mr && mr.height ? mr.bottom + 6 : (mer && mer.height ? mer.bottom + 56 : 120);
@@ -12377,11 +12386,15 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     ["sn-power", "sn-support", "sn-globe", "sn-architect", "sn-money", "plus", "go", "sn-me", "gps"].forEach(function (id) {
       var el = $(id);
       if (!el) return;
-      ["position", "left", "top", "right", "bottom", "margin", "z-index", "transform", "transform-origin"].forEach(function (k) {
+      var keys = ["position", "left", "top", "right", "bottom", "margin", "z-index", "transform", "transform-origin"];
+      /* 4409c: leave WALLET top/left to placeRibbon so the caption keeps its slot */
+      if (id === "sn-money") keys = keys.filter(function (k) { return k !== "top" && k !== "left"; });
+      keys.forEach(function (k) {
         el.style.removeProperty(k);
       });
       el.__zb = false;
     });
+    try { placeRibbon(); } catch (ePR) {}
     ["sn-gear", "sn-filter"].forEach(function (id) {
       var el = $(id);
       if (el && el.parentNode) el.parentNode.removeChild(el);
