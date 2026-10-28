@@ -1681,6 +1681,7 @@ window.__SN_4385 = true;
 window.__SN_4386 = true;
 window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true; window.__SN_4411 = true; window.__SN_4412 = true;
   window.__SN_4412F = true; /* 4412f: huntNearKm in merge + 12s api race */
+  window.__SN_4412G = true; /* 4412g: await API (no race-to-empty), trust server rows, warm cold path, fit after final */
 (function () { /* 4411: NORTH compass stacks above the real GPS rect at every width, so the two never collide */
   function stackNorth() {
     try {
@@ -6825,8 +6826,8 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       if (!seesShop(s)) return false;
       if (s.status === "pending" && !isAdmin() && !ownsShop(s)) return false;
       if (orderCopy(s) && !isAdmin() && !ownsShop(s)) return false; /* 4375: an order's vendor copy is not a public listing */
-      /* 4412f: Crete/Heraklion hunts keep island span (huntNearKm), not a hard 50 km city cap */
-      if (hasSeat && haversineKm(seat, s) > (huntView ? huntNearKm() : 50)) return false;
+      /* 4412g: server hunt rows keep the API set; other rows still use island/city span */
+      if (hasSeat && !s.fromServer && s.src !== "find" && haversineKm(seat, s) > (huntView ? huntNearKm() : 50)) return false;
       if (huntView && huntView.needle && !huntMatch(s, huntView.needle)) return false;
       if (huntView && huntView.nameQ && !huntView.pending) {
         if (huntView.single) { if (!(haversineKm(s, huntView.single) <= 0.08 && (!huntView.qc || nameHit(s, huntView.qc) || s.src === "listed"))) return false; }
@@ -6881,7 +6882,8 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       cap = 5;
       if (rows.filter(function (s) { return s.__km <= 5; }).length < 3) cap = 10;
     }
-    rows = rows.filter(function (s) { return s.__km <= cap; });
+    /* 4412g: never km/cap-drop the server's own rows */
+    rows = rows.filter(function (s) { return s.fromServer || s.src === "find" || s.__km <= cap; });
     rows.sort(function (a, b) { return (a.__km - b.__km) || (huntKey(a) < huntKey(b) ? -1 : huntKey(a) > huntKey(b) ? 1 : 0); });
     window.__snHuntCap = { km: cap, near: !!(huntView && huntView.near), n: rows.length, dropped: (list || []).length - rows.length };
     return rows;
@@ -7164,7 +7166,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     huntView.fitted = false;
     var seat0 = activeSeat() || here;
     if (seat0 && isFinite(+seat0.lat)) huntView.origin = { lat: +seat0.lat, lng: +seat0.lng, name: seat0.name || "" };
-    shops = uniqPlaces((shops || []).filter(function (s) { return !seat0 || nearSeat(s, huntNearKm()); }));
+    shops = uniqPlaces((shops || []).filter(function (s) { return !seat0 || s.fromServer || s.src === "find" || nearSeat(s, huntNearKm()); })); /* 4412g: keep server set */
     if (huntView.nameQ && huntView.loose) {
       huntView.looseIds = {};
       shops.forEach(function (s0) { huntView.looseIds[String(s0.id || s0.name)] = 1; });
@@ -7322,10 +7324,32 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       + "&lat=" + Number(seat.lat).toFixed(4)
       + "&lng=" + Number(seat.lng).toFixed(4)
       + (huntView && huntView.near ? "&bounded=1&radius=10&near=1" : "&bounded=1&radius=" + span + "&near=0"); /* 4412: Crete span 150 */
-    return fetchJson(url, { signal: huntSig() }).then(function (j) {
-      return ((j && j.places) || []).map(function (p) { p.src = "find"; return asPlace(p); })
-        .filter(function (p) { return p && nearSeat(p, Math.max(50, span)); });
-    });
+    /* 4412g: own 45s abort — never share huntSig(), so the 15s watchdog cannot kill the server hunt */
+    var ctrl = (typeof AbortController !== "undefined") ? new AbortController() : null;
+    var tApi = setTimeout(function () { try { if (ctrl) ctrl.abort(); } catch (eA) {} }, 45000);
+    return fetchJson(url, ctrl ? { signal: ctrl.signal } : {}).then(function (j) {
+      clearTimeout(tApi);
+      /* 4412g: trust the server's radius — never re-filter with client nearSeat/cap */
+      return ((j && j.places) || []).map(function (p) {
+        var row = asPlace(p);
+        if (row) { row.src = "find"; row.fromServer = true; }
+        return row;
+      }).filter(Boolean);
+    }).catch(function () { clearTimeout(tApi); return []; });
+  }
+  /* 4412g: warm the cold /api/find path (first hit ~30s) without fakes — fire-and-forget shops at the seat */
+  function warmHunt(seat) {
+    try {
+      seat = seat || activeSeat() || here;
+      if (!seat || !isFinite(+seat.lat)) return;
+      var k = (+seat.lat).toFixed(2) + "," + (+seat.lng).toFixed(2);
+      if (warmHunt._at && warmHunt._at[k] && Date.now() - warmHunt._at[k] < 600000) return;
+      warmHunt._at = warmHunt._at || {};
+      warmHunt._at[k] = Date.now();
+      var span = huntCreteSpan() ? 150 : 40;
+      var url = "/api/find?q=shops&lat=" + Number(seat.lat).toFixed(4) + "&lng=" + Number(seat.lng).toFixed(4) + "&bounded=1&radius=" + span + "&near=0";
+      fetch(url, { cache: "no-store" }).catch(function () {});
+    } catch (eW) {}
   }
   /* 4354: Overpass 504s (or every source failing) never leave a hunt empty if this hunt found real pins here before:
      the last real answer per hunt and ~1 km seat is kept 24 h and used only when the live sources return nothing */
@@ -7474,6 +7498,17 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     window.__snHuntId = mySeq;
     /* 4381: every hunt ends with a reply within 15 s: pins, or an honest 0 */
     var hvWatch = huntView;
+    /* 4412g: soft 15s note only — never abort the server hunt. Hard finalize at 45s if still empty. */
+    setTimeout(function () {
+      if (!live() || huntView !== hvWatch || huntDoneN != null) return;
+      var nShown = (window.__snFindShown || []).length;
+      if (!nShown) {
+        huntSlow = { q: q, at: Date.now() };
+        say("Still searching " + q + "… the map service is slow.");
+        try { openSheet("FIND · …", '<p class="note sn-msg">Still finding ' + esc(q) + " at " + esc(seatName(activeSeat() || here)) + "…</p>"); } catch (eO) {}
+      }
+      window.__snHuntTimeout = { q: q, id: hvWatch.id, n: nShown, soft: true, t: Date.now() };
+    }, 15000);
     setTimeout(function () {
       if (!live() || huntView !== hvWatch || huntDoneN != null) return;
       try { abortHuntNet(); } catch (eW) {}
@@ -7485,12 +7520,12 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         huntDoneN = nShown;
         markHunt(nShown, "timeout");
         if (!nShown) {
-          try { openSheet("FIND · 0", '<p class="note sn-msg">No answer for ' + esc(q) + " in 15 s at " + esc(seatName(activeSeat() || here)) + ". Try again, or name a place.</p>"); } catch (eO) {}
-          say("No answer for " + q + " in 15 s. Try again, or name a place.");
+          try { openSheet("FIND · 0", '<p class="note sn-msg">No answer for ' + esc(q) + " in 45 s at " + esc(seatName(activeSeat() || here)) + ". Try again, or name a place.</p>"); } catch (eO) {}
+          say("No answer for " + q + " in 45 s. Try again, or name a place.");
         }
       }
       window.__snHuntTimeout = { q: q, id: hvWatch.id, n: nShown, t: Date.now() };
-    }, 15000);
+    }, 45000);
     nextHuntNear = false;
     window.__snFindShown = [];
     huntDoneN = null;
@@ -7529,54 +7564,81 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       /* 4404: one 4.5 s budget. Every source that answered in time is merged (server boxed OSM, browser Nominatim /
          Overpass, our listings, the last real answer here); a server answer that lands later still joins this hunt.
          Nothing waits 11 s any more, and an empty slow run says so honestly with a retry hint. */
+      try { warmHunt(seat0); } catch (eWh) {}
       var apiP = huntApi(named || q).catch(function () { return []; });
-      var apiLate = true;
-      apiP.then(function () { apiLate = false; });
+      var apiDone = false;
+      var apiRows = null;
+      apiP.then(function (rows) { apiDone = true; apiRows = rows || []; });
       var mergeIn = function (packs) {
         packs[0] = (packs[0] || []).map(function (p) { if (p) p.src = "listed"; return p; });
-        var outside = uniqPlaces([].concat(packs[1] || [], packs[2] || [], packs[3] || []));
-        if (huntView) huntView.via = (packs[1] && packs[1].length) ? "server" : "browser";
-        var merged = uniqPlaces([].concat(packs[0] || [], outside, shops && huntView && huntView.ids ? shops.filter(function (s) { return s && huntView.ids[huntKey(s)]; }) : []))
-          .filter(function (p) { return nearSeat(p, huntNearKm()); }); /* 4412f */
+        var server = (packs[1] || []).slice(); /* 4412g: keep every server row — no client km/cap drop */
+        var browser = uniqPlaces([].concat(packs[2] || [], packs[3] || []))
+          .filter(function (p) { return p && (p.fromServer || p.src === "find" || nearSeat(p, huntNearKm())); });
+        var listed = (packs[0] || []).filter(function (p) { return p && nearSeat(p, huntNearKm()); });
+        if (huntView) huntView.via = server.length ? "server" : "browser";
+        var merged = uniqPlaces([].concat(listed, server, browser, shops && huntView && huntView.ids ? shops.filter(function (s) { return s && huntView.ids[huntKey(s)]; }) : []));
         if (huntView && huntView.nameQ) merged = nameField(merged, packs, huntView.nameQ);
         merged = huntCache(named || q, seat0, merged);
         if (huntView) { huntView.ids = {}; merged.forEach(function (p) { if (p) huntView.ids[huntKey(p)] = 1; }); }
         return merged;
       };
+      var packsHold = [[], [], [], []];
+      var paintFinal = function (packs) {
+        if (!live()) return;
+        var merged = mergeIn(packs);
+        shops = merged;
+        huntSlow = null;
+        huntCtrl = null;
+        findWanted = true;
+        showFound();
+        huntMemoSave(memoKey);
+        try { huntFitWanted = true; fitHunt(); } catch (eFit) {} /* 4412g: fit after final render */
+      };
+      var paintPartial = function (packs) {
+        if (!live() || apiDone) return;
+        var merged = mergeIn(packs);
+        if (!merged.length) {
+          huntSlow = { q: q, at: Date.now() };
+          say("Still searching " + q + " at " + seatName(seat0) + "…");
+          try { openSheet("FIND · …", '<p class="note sn-msg">Finding ' + esc(q) + " at " + esc(seatName(seat0)) + "…</p>"); } catch (eSl) {}
+          return;
+        }
+        shops = merged;
+        findWanted = true;
+        if (huntView) huntView.pending = true;
+        try {
+          paintShopsOnMap();
+          renderFind(fieldShops());
+          paintPulse();
+        } catch (eP) {}
+        say("Still searching " + q + "… " + merged.length + " so far.");
+      };
+      /* 4412g: never race API to []. Browser sources may paint early; final render waits for apiP. */
       Promise.all([
         huntRace(spaceP, 4000),
-        huntRace(apiP, 12000), /* 4412f: server hunt often 3–8s; 4.5s raced empty and dropped Menir/full set */
+        Promise.resolve([]),
         huntRace(huntNominatim(named || q), 4000),
         huntRace(huntOverpass(named || q), 2500)
       ]).then(function (packs) {
         if (!live()) return;
-        var merged = mergeIn(packs);
-        shops = merged;
-        if (apiLate && !merged.length) {
-          /* the server hunt is still out: say so honestly, keep listening for it until the 15 s watchdog */
-          huntSlow = { q: q, at: Date.now() };
-          say("Still searching " + q + " at " + seatName(seat0) + "… the map service is slow. Tap GO to retry.");
-          try { openSheet("FIND · …", '<p class="note sn-msg">The map service is slow for ' + esc(q) + " at " + esc(seatName(seat0)) + ". Pins appear here as soon as it answers, or tap GO to retry.</p>"); } catch (eSl) {}
+        packsHold = packs;
+        if (apiDone) {
+          packs[1] = apiRows || [];
+          paintFinal(packs);
         } else {
-          huntCtrl = null;
-          showFound();
-          huntMemoSave(memoKey);
-        }
-        if (apiLate) {
-          apiP.then(function (rows) {
-            if (!live() || !rows || !rows.length) return;
-            packs[1] = rows;
-            shops = uniqPlaces((shops || []).concat(mergeIn(packs)));
-            huntSlow = null;
-            findWanted = true;
-            showFound();
-            huntMemoSave(memoKey);
-          });
+          paintPartial(packs);
         }
       }).catch(function () {
         if (!live()) return;
-        say("Hunt timed out. Try again, or name the city.");
-        showFound();
+        if (!apiDone) {
+          huntSlow = { q: q, at: Date.now() };
+          say("Still searching " + q + "…");
+        }
+      });
+      apiP.then(function (rows) {
+        if (!live()) return;
+        packsHold[1] = rows || [];
+        paintFinal(packsHold);
       });
     };
     if (looksPlace && !huntSeatOk()) {
@@ -9623,6 +9685,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       try { progMoveUntil = Date.now() + 600; map.setView([aim.lat, aim.lng], 15, { animate: false }); map.invalidateSize({ pan: false }); } catch (e) {}
     }
     pullListings();
+    try { warmHunt(lastSeat); } catch (eWm) {}
     landAt = Date.now();
     var want = { lat: lastSeat.lat, lng: lastSeat.lng };
     [250, 900, 2000, 4000].forEach(function (ms) {
