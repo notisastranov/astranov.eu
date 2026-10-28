@@ -282,7 +282,7 @@
     var short = inNow ? String(u.name || String(u.email).split("@")[0] || "YOU").split(/\s+/)[0].replace(/[<>"&]/g, "").slice(0, 10) : "";
     btn.setAttribute("data-who", inNow ? who : "");
     /* 4383: a guest sees YOU too (it opens the YOU panel: where, tasks, and LOG IN inside), never a bare LOGIN */
-    btn.innerHTML = '<span class="lbl">' + (inNow ? (short || "YOU") : "YOU") + '</span><span class="tgt">' + (inNow ? '<img alt="" src="' + String((u && u.photo) || "/you.png?v=4408").replace(/"/g, "") + '">' : '<span class="ph">?</span>') + "</span>";
+    btn.innerHTML = '<span class="lbl">' + (inNow ? (short || "YOU") : "YOU") + '</span><span class="tgt">' + (inNow ? '<img alt="" src="' + String((u && u.photo) || "/you.png?v=4409").replace(/"/g, "") + '">' : '<span class="ph">?</span>') + "</span>";
     if (window.SN && SN.paintMoney) SN.paintMoney();
   }
   /* 4401: from main 4399 — pick your role from the login card */
@@ -295,7 +295,7 @@
     if (!body) return;
     var u = user();
     var inNow = !!(u && u.email);
-    /* 4408: account panel — signed-in Google session (name, email, avatar) + SIGN OUT; guest sees SIGN IN only */
+    /* 4409+4408: account panel — signed-in Google session (name, email, avatar) + SIGN OUT; guest sees SIGN IN only */
     if (!inNow) {
       body.innerHTML =
         '<div class="who"><span class="ph">?</span><div><b>Guest</b><span>OUT</span></div></div>' +

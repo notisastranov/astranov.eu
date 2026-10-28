@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again."; window.__SN_APPJS = true; /* 4393: the start watchdog sees app.js ran and never reloads it */
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4408"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4409"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1678,7 +1678,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -3907,7 +3907,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       "form#f{display:flex!important;width:100%!important;gap:0!important;align-items:center!important;min-height:48px!important;padding:0!important;margin:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}",
       "input#in{flex:1!important;min-width:0!important;width:auto!important;min-height:48px!important;border:0!important;border-radius:0!important;background:transparent!important;padding-left:56px!important;padding-right:104px!important}",
       "#sn-pulse{display:none!important}",
-      "#sn-money .lbl{display:inline-flex!important;align-items:center;height:40px;padding:0 6px 0 12px;font:800 10px/1 ui-monospace,monospace!important;letter-spacing:.14em;color:#4df0ff!important;width:auto!important;flex:0 0 auto!important;white-space:nowrap!important;min-width:max-content!important;overflow:visible!important;position:relative;z-index:2;padding-right:10px!important;text-overflow:clip!important}#sn-money{display:inline-flex!important;align-items:center!important;gap:0!important;width:max-content!important;max-width:none!important;min-width:max-content!important;overflow:visible!important;flex-wrap:nowrap!important;clip-path:none!important}#sn-money .tgt{padding-left:6px!important;padding-right:12px!important;flex:0 0 auto!important;white-space:nowrap!important;min-width:max-content!important;overflow:visible!important}/* 4408: WALLET caption never clipped at 500 px */",
+      "#sn-money{display:inline-flex!important;flex-direction:column!important;align-items:flex-start!important;justify-content:flex-start!important;gap:4px!important;width:max-content!important;max-width:none!important;min-width:max-content!important;overflow:visible!important;flex-wrap:nowrap!important;clip-path:none!important;top:56px!important}#sn-money .lbl{display:block!important;visibility:visible!important;opacity:1!important;align-items:center;height:auto!important;margin:0!important;padding:3px 8px!important;font:800 11px/1.1 ui-monospace,monospace!important;letter-spacing:.14em;color:#e8fbff!important;background:rgba(4,16,32,.96)!important;border:1px solid rgba(77,240,255,.85)!important;border-radius:6px!important;box-shadow:0 0 8px rgba(77,240,255,.35)!important;width:auto!important;flex:0 0 auto!important;white-space:nowrap!important;min-width:max-content!important;overflow:visible!important;position:relative;z-index:3;text-overflow:clip!important;text-shadow:none!important;pointer-events:none}#sn-money .tgt{padding:0 12px!important;flex:0 0 auto!important;white-space:nowrap!important;min-width:max-content!important;overflow:visible!important;position:relative;z-index:2}/* 4409: WALLET caption owns its own slot above the pill, full contrast at every width */",
       "#sn-tester.on{display:block!important}#sn-tester:not(.on){display:none!important}", /* 4381: admin / owner / ?testview=1 only */
       "#island{margin-top:0!important;padding-top:0!important}",
       "#sn-count{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;pointer-events:none;background:transparent}",
@@ -5135,6 +5135,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       mark.__snShop = true;
       mark.__snNo = no;
       mark.__snId = s.id || s.name;
+      mark.__snLat = +s.lat; mark.__snLng = +s.lng;
       try { var orgK = huntOrigin(); mark.__snKm = orgK && isFinite(+orgK.lat) ? haversineKm(orgK, s) : fi; } catch (eK) { mark.__snKm = fi; }
       mark.bindTooltip((s.name || "shop") + (s.aka ? " · " + s.aka : "") + tipExtra, { direction: "top", sticky: true });
       if (s.src === "listed" && (ownsShop(s) || isAdmin())) {
@@ -5188,7 +5189,13 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     declutterSoon(); declutterLate();
     /* FIND always equals the pins: a late source that changes the field re-renders the open FIND */
     if (huntView && findOnSheet && huntView.rendered !== findIds(field)) renderFind(field);
-    if (huntView && !huntView.fitted && field.length && cityOn && !huntFitWanted) { huntFitWanted = true; setTimeout(function () { try { fitHunt(); } catch (eF) {} }, 0); }
+    if (huntView && field.length && cityOn) {
+      var fid = findIds(field);
+      if (!huntView.fitted || huntView.fitIds !== fid) {
+        huntView.fitted = false;
+        if (!huntFitWanted) { huntFitWanted = true; setTimeout(function () { try { fitHunt(); } catch (eF) {} }, 0); }
+      }
+    }
     if (isAdmin()) paintAdminPins();
     else { paintOwnDrivers(); paintFleet(); }
     paintOrders();
@@ -5386,7 +5393,12 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     if (!cityEl) return;
     var r0 = cityEl.getBoundingClientRect(), vb = mapVisBox();
     var T = r0.top + vb.t, B = r0.top + vb.b, LF = r0.left + 4, RT = r0.left + vb.W - 4;
-    var marks = shopMarks.slice().sort(function (a, b) { return ((a.__snNo || 0) - (b.__snNo || 0)) || ((a.__snKm || 0) - (b.__snKm || 0)); });
+    var marks = shopMarks.slice().sort(function (a, b) {
+      var d = ((a.__snNo || 0) - (b.__snNo || 0)) || ((a.__snKm || 0) - (b.__snKm || 0));
+      if (d) return d;
+      var ka = String(a.__snId || ""), kb = String(b.__snId || "");
+      return ka < kb ? -1 : ka > kb ? 1 : 0;
+    });
     var items = [];
     marks.forEach(function (m) {
       var el = m.getElement && m.getElement();
@@ -5425,6 +5437,15 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         if (q.bottom < T || q.top > B) return;
         placed.push({ left: q.left, right: q.right, top: q.top, bottom: q.bottom });
       });
+      /* 4409: seat / hunt place-name zone (OSM "Ηράκλειο" etc.) is an obstacle so pins / leaders clear it */
+      try {
+        var seatP = (huntView && huntView.origin) || activeSeat() || here;
+        if (seatP && isFinite(+seatP.lat) && map.latLngToContainerPoint) {
+          var sp = map.latLngToContainerPoint([+seatP.lat, +seatP.lng]);
+          var sx = r0.left + sp.x, sy = r0.top + sp.y;
+          placed.push({ left: sx - 70, right: sx + 70, top: sy - 18, bottom: sy + 18, placeLbl: true });
+        }
+      } catch (ePl) {}
     } catch (eOb) {}
     function segThrough(r) {
       var n = 0;
@@ -5587,7 +5608,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       });
       labs.sort(function (a, b) { return a.no - b.no; });
       /* 4405: HUD chips/buttons over the map hide a label under them too */
-      ["sn-money", "sn-globe", "sn-me", "gps", "sn-compass", "sn-hunt-n", "sn-power-tag"].forEach(function (id) {
+      ["sn-money", "sn-globe", "sn-me", "gps", "sn-compass", "sn-hunt-n", "sn-power-tag", "sn-you-where"].forEach(function (id) {
         var x = $(id); if (!x) return; var cs = getComputedStyle(x), q = x.getBoundingClientRect();
         if (cs.display !== "none" && cs.visibility !== "hidden" && +cs.opacity > 0 && q.width > 2 && q.height > 2) faces.push({ mk: null, r: q });
       });
@@ -5597,7 +5618,23 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         var x = mk.querySelector("img,em"); if (!x) return; var q = x.getBoundingClientRect(); if (!(q.width > 0)) return;
         sf.push({ mk: mk, r: q, no: parseInt(((mk.querySelector(".sn-no") || {}).textContent || "999"), 10) || 999 });
       });
-      sf.sort(function (a, b) { return a.no - b.no; });
+      sf.sort(function (a, b) {
+        var d = a.no - b.no; if (d) return d;
+        var ka = String((a.mk && a.mk.__snShopRow && (a.mk.__snShopRow.id || a.mk.__snShopRow.name)) || a.mk && a.mk.__snId || ""), kb = String((b.mk && b.mk.__snShopRow && (b.mk.__snShopRow.id || b.mk.__snShopRow.name)) || b.mk && b.mk.__snId || "");
+        return ka < kb ? -1 : ka > kb ? 1 : 0;
+      });
+      /* 4409: projected face boxes (fixed 40×40 at lat/lng) so culling is identical for the same zoom + centre */
+      try {
+        if (map && map.latLngToContainerPoint) {
+          sf.forEach(function (f) {
+            var row = f.mk && f.mk.__snShopRow;
+            var lat = row ? +row.lat : NaN, lng = row ? +row.lng : NaN;
+            if (!isFinite(lat) || !isFinite(lng)) return;
+            var p = map.latLngToContainerPoint([lat, lng]), cr0 = cityEl.getBoundingClientRect();
+            f.r = { left: cr0.left + p.x - 20, right: cr0.left + p.x + 20, top: cr0.top + p.y - 40, bottom: cr0.top + p.y };
+          });
+        }
+      } catch (eProj) {}
       var keptF = [], youF = [];
       Array.prototype.forEach.call(host.querySelectorAll(".leaflet-marker-icon:not(.sn-shop-pin)"), function (mk) {
         var x = mk.querySelector("img,em"); if (!x) return; var q = x.getBoundingClientRect(); if (q.width > 0 && getComputedStyle(x).visibility !== "hidden") youF.push({ mk: mk, r: q });
@@ -5688,6 +5725,28 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         var cr = chip.getBoundingClientRect(), under = cr.width > 0 && (keptF.some(function (f) { return rectHit(cr, f.r); }) || kept.some(function (k) { return rectHit(cr, k.r); }));
         chip.classList.toggle("sn-chip-off", !!under);
       }
+      /* 4409: fade our place-name veil when pins sit on the seat label zone (OSM city name stays under the veil) */
+      try {
+        var veil = $("sn-place-veil");
+        if (!veil) {
+          veil = document.createElement("div");
+          veil.id = "sn-place-veil";
+          veil.style.cssText = "position:fixed;z-index:45;pointer-events:none;border-radius:8px;background:rgba(4,14,28,.55);opacity:0;transition:opacity .2s;display:none";
+          document.body.appendChild(veil);
+        }
+        var seatP2 = (huntView && huntView.origin) || activeSeat() || here;
+        if (seatP2 && isFinite(+seatP2.lat) && map && map.latLngToContainerPoint && cityOn) {
+          var pp = map.latLngToContainerPoint([+seatP2.lat, +seatP2.lng]), crr = cityEl.getBoundingClientRect();
+          var vr = { left: crr.left + pp.x - 70, right: crr.left + pp.x + 70, top: crr.top + pp.y - 18, bottom: crr.top + pp.y + 18 };
+          var hitP = keptF.some(function (f) { return rectHit(vr, f.r); }) || kept.some(function (k) { return rectHit(vr, k.r); });
+          veil.style.left = Math.round(vr.left) + "px";
+          veil.style.top = Math.round(vr.top) + "px";
+          veil.style.width = Math.round(vr.right - vr.left) + "px";
+          veil.style.height = Math.round(vr.bottom - vr.top) + "px";
+          veil.style.display = hitP ? "block" : "none";
+          veil.style.opacity = hitP ? "1" : "0";
+        } else { veil.style.display = "none"; veil.style.opacity = "0"; }
+      } catch (eV) {}
     } catch (e) {}
   }
   setInterval(labelGuard, 500);
@@ -5700,7 +5759,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4408";
+    return "/you.png?v=4409";
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -6631,16 +6690,28 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   function mapVisBox() {
     var el = $("city");
     var W = el ? el.clientWidth : window.innerWidth, H = el ? el.clientHeight : window.innerHeight;
-    var cr = el ? el.getBoundingClientRect() : { top: 0, bottom: H, left: 0 };
-    var t = 16, b = H - 16;
+    var cr = el ? el.getBoundingClientRect() : { top: 0, bottom: H, left: 0, right: W };
+    var t = 16, b = H - 16, l = 8, r = W - 8;
     var isl = visRect($("island"));
     if (isl) t = Math.max(t, isl.bottom - cr.top + 8);
+    /* 4409: fold HUD chrome into the visible box so fitBounds / declutter clear the guest pill, hunt chip, wallet, YOU */
+    ["sn-money", "sn-hunt-n", "sn-me", "sn-you-where", "sn-globe", "sn-power-tag", "sn-compass"].forEach(function (id) {
+      var x = $(id); if (!x) return;
+      var cs = getComputedStyle(x), q = x.getBoundingClientRect();
+      if (cs.display === "none" || cs.visibility === "hidden" || +cs.opacity === 0 || q.width < 2 || q.height < 2) return;
+      var top = q.top - cr.top, bot = q.bottom - cr.top, left = q.left - cr.left, right = q.right - cr.left;
+      if (top < H * 0.5 && bot > t - 4) t = Math.max(t, bot + 10);
+      if (bot > H * 0.55 && top < b + 4) b = Math.min(b, top - 10);
+      if (left < W * 0.42 && right > l) l = Math.max(l, right + 8);
+      if (right > W * 0.58 && left < r) r = Math.min(r, left - 8);
+    });
     var card = visRect($("sn-sheet-card"));
     if (card && card.top < cr.bottom) b = Math.min(b, card.top - cr.top - 8);
     var pulse = visRect($("sn-pulse"));
     if (pulse && pulse.top < cr.bottom) b = Math.min(b, pulse.top - cr.top - 8);
     if (b - t < 160) b = Math.min(H - 16, t + 160);
-    return { l: 0, t: t, r: W, b: b, W: W, H: H };
+    if (r - l < 120) { l = 8; r = W - 8; }
+    return { l: l, t: t, r: r, b: b, W: W, H: H };
   }
   function huntOrigin() {
     var o = huntView && huntView.origin;
@@ -6674,29 +6745,35 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     if (org && isFinite(+org.lat)) pts.push([+org.lat, +org.lng]);
     var vb = mapVisBox();
     var top = vb.t, bot = vb.H - vb.b;
+    var narrow = (vb.W || window.innerWidth) <= 520;
+    var padL = Math.max(narrow ? 48 : 56, (vb.l || 0) + 12);
+    var padT = top + (narrow ? 64 : 56);
+    var padR = Math.max(narrow ? 48 : 56, vb.W - (vb.r || vb.W) + 12);
+    var padB = bot + (narrow ? 72 : 62);
     try { map.setMinZoom(9); } catch (e0) {}
     progMoveUntil = Date.now() + 800;
     try {
-      /* a pin is 62 px tall, anchored mid, with its label under it: pad the ribbon (top) and the sheet (bottom) for that */
-      map.fitBounds(L.latLngBounds(pts), { paddingTopLeft: [56, top + 56], paddingBottomRight: [56, bot + 62], maxZoom: 16, animate: false });
+      /* 4409: pad for chrome at every width so western / far pins stay on-screen after a search (esp. 500 px) */
+      map.fitBounds(L.latLngBounds(pts), { paddingTopLeft: [padL, padT], paddingBottomRight: [padR, padB], maxZoom: 16, animate: false });
     } catch (e1) {}
     var z = map.getZoom();
     if (z < 9) { progMoveUntil = Date.now() + 800; try { map.setZoom(9, { animate: false }); } catch (e2) {} z = 9; }
-    for (var tries = 0; tries < 4 && z > 9; tries++) {
+    for (var tries = 0; tries < 5 && z > 9; tries++) {
       var vb2 = mapVisBox(), bad = false;
       pts.forEach(function (q) {
         try {
           var cq = map.latLngToContainerPoint(q);
-          if (cq.y < vb2.t + 40 || cq.y > vb2.b - 46 || cq.x < 38 || cq.x > vb2.W - 38) bad = true;
+          if (cq.y < vb2.t + 40 || cq.y > vb2.b - 46 || cq.x < vb2.l + 36 || cq.x > vb2.r - 36) bad = true;
         } catch (eq) {}
       });
       if (!bad) break;
       progMoveUntil = Date.now() + 800;
-      try { map.fitBounds(L.latLngBounds(pts), { paddingTopLeft: [56, top + 56], paddingBottomRight: [56, bot + 62], maxZoom: Math.max(9, Math.round(z) - 1), animate: false }); } catch (e4) {}
+      try { map.fitBounds(L.latLngBounds(pts), { paddingTopLeft: [padL, padT], paddingBottomRight: [padR, padB], maxZoom: Math.max(9, Math.round(z) - 1), animate: false }); } catch (e4) {}
       try { if (map.getZoom() !== Math.round(map.getZoom())) map.setZoom(Math.round(map.getZoom()), { animate: false }); } catch (eFz) {}
       z = map.getZoom();
     }
-    huntView.fitVB = { t: vb.t, b: vb.b };
+    huntView.fitVB = { t: vb.t, b: vb.b, l: vb.l, r: vb.r };
+    huntView.fitIds = findIds(field);
     huntView.fitAt = Date.now();
     declutterSoon(); declutterLate();
     [450, 1300].forEach(function (ms) {
@@ -6718,7 +6795,14 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   function findOrder(list) {
     var seat0 = huntOrigin();
     var shown = (list || []).slice();
-    if (seat0) shown.sort(function (a, b) { return haversineKm(seat0, a) - haversineKm(seat0, b); });
+    /* 4409: stable order for the same seat — distance, then huntKey (never timing / insertion order) */
+    shown.sort(function (a, b) {
+      var da = seat0 && isFinite(+seat0.lat) ? haversineKm(seat0, a) : 0;
+      var db = seat0 && isFinite(+seat0.lat) ? haversineKm(seat0, b) : 0;
+      if (da !== db) return da - db;
+      var ka = huntKey(a), kb = huntKey(b);
+      return ka < kb ? -1 : ka > kb ? 1 : 0;
+    });
     return shown;
   }
   function renderFind(list) {
@@ -7928,7 +8012,10 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       });
     }
     progMoveUntil = Date.now() + 600;
-    try { if (map && isFinite(+s.lat)) map.panTo([+s.lat, +s.lng], { animate: false }); } catch (e) {}
+    /* 4409: a hold opens the card without moving the camera; a tap / FIND row may still frame the shop */
+    if (!(window.__snHold && Date.now() - window.__snHold < 2200)) {
+      try { if (map && isFinite(+s.lat)) map.panTo([+s.lat, +s.lng], { animate: false }); } catch (e) {}
+    }
   }
   function canMove(pt) { return !!(pt && pt.id && (isAdmin() || (pt.owner && pt.owner === me()))); }
   function armMove(id, name) {
@@ -12582,7 +12669,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
