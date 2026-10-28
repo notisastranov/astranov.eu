@@ -24,7 +24,10 @@ jobs:
           gunzip -c /tmp/f.gz > /tmp/fix4408b.patch
           test "$(sha256sum /tmp/fix4408b.patch | cut -d' ' -f1)" = "b6f83576727189614fd3b082280588fca63dcc950d5e5a411e64c7cb9c19c71e"
           git rm -rq .grokbuild || true
-          git rm -f .github/workflows/grokbuild-4408.yml .github/workflows/grokbuild-4408b.yml || true
+          # one path per git rm — a missing pathspec aborts the whole command
+          git rm -f .github/workflows/grokbuild-4408.yml || true
+          git rm -f .github/workflows/grokbuild-4408b.yml || true
+          git rm -f .github/workflows/grokbuild-4408c.yml || true
           T0="$(git write-tree)"
           test "$T0" = "361bd9ca5f9c8d2e03936888663f5c3c34c1fe14" || { echo "tree0 $T0"; git log --oneline -5; exit 1; }
           git apply --index /tmp/fix4408b.patch
