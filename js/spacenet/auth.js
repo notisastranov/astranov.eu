@@ -215,7 +215,17 @@
       "#sn-me-sheet .bar{display:flex;align-items:center;gap:8px;margin:0 0 10px}" +
       "#sn-me-sheet .ttl{flex:1;font:800 11px system-ui;letter-spacing:.16em;color:#7ee9ff}" +
       "#sn-me-sheet .x,#sn-me-sheet button.go{height:40px;padding:0 12px;border:1px solid rgba(126,233,255,.35);background:rgba(4,16,28,.9);color:#e8fbff;border-radius:10px}" +
-      "#sn-me-sheet button.go{display:block;width:100%;margin:8px 0 0;font:800 13px system-ui;color:#7ee9ff}" +
+      "#sn-me-sheet button.go{display:flex;width:100%;margin:8px 0 0;align-items:center;gap:10px;font:800 13px system-ui;color:#7ee9ff;text-align:left}" +
+      "#sn-me-sheet button.role{justify-content:space-between}" +
+      "#sn-me-sheet button.role i{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:18px;border:1px solid rgba(126,233,255,.35);background:transparent;color:#6a8ea0}" +
+      "#sn-me-sheet button.role b{flex:1}" +
+      "#sn-me-sheet button.role em{font:800 11px system-ui;letter-spacing:.12em;color:#6a8ea0}" +
+      "#sn-me-sheet button.role.on{border-color:#1a3cff;background:rgba(26,60,255,.22);color:#fff}" +
+      "#sn-me-sheet button.role.on i{background:#1a3cff;color:#fff;border-color:#1a3cff}" +
+      "#sn-me-sheet button.role.on em{color:#7eb0ff}" +
+      "#sn-me-sheet button.role.client.on i{background:#0b6b45;border-color:#0b6b45}" +
+      "#sn-me-sheet button.role.driver.on i{background:#1a3cff;border-color:#1a3cff}" +
+      "#sn-me-sheet button.role.vendor.on i{background:#9a3412;border-color:#9a3412}" +
       "#sn-me-sheet .who{display:flex;align-items:center;gap:10px;margin:0 0 12px}" +
       "#sn-me-sheet .who img,#sn-me-sheet .who .ph{width:52px;height:52px;border-radius:99px;object-fit:cover;background:rgba(77,240,255,.12);display:flex;align-items:center;justify-content:center;color:#4df0ff;font-size:22px}" +
       "#sn-me-sheet input{display:block;width:100%;height:40px;margin:8px 0 0;padding:0 10px;border:1px solid rgba(126,233,255,.28);background:rgba(4,16,28,.9);color:#e8fbff;border-radius:10px}" +
@@ -256,19 +266,23 @@
     var tel = (u && u.phone) || read("sn:phone", "") || "";
     var mine = "";
     try { if (inNow && window.SN && SN.avcGet) mine = Math.round(SN.avcGet()).toLocaleString("en-GB") + " AV€"; } catch (e) {}
-    var roleNow = "";
-    try { roleNow = localStorage.getItem("sn:role") || ""; } catch (e) {}
-    function roleBtn(id, label) {
-      return '<button type="button" class="go" data-act="role-set" data-role="' + id + '">' + (roleNow === id ? "ON · " : "") + label + "</button>";
+    var roles = { client: false, driver: false, vendor: false };
+    try {
+      var saved = JSON.parse(localStorage.getItem("sn:roles") || "null");
+      if (saved && typeof saved === "object") roles = saved;
+    } catch (e) {}
+    function roleBtn(id, label, glyph) {
+      var on = !!roles[id];
+      return '<button type="button" class="go role ' + id + (on ? " on" : "") + '" data-act="role-set" data-role="' + id + '"><i>' + glyph + "</i><b>" + label + "</b><em>" + (on ? "ON" : "OFF") + "</em></button>";
     }
     body.innerHTML =
       '<div class="who">' + face(u) + "<div><b>" + String(name).replace(/[<>]/g, "") + "</b><span>" + (inNow ? String(mail).replace(/[<>]/g, "") : "Not signed in") + "</span></div></div>" +
       (inNow && mine ? '<p class="note">' + mine + "</p>" : "") +
       (inNow
-        ? roleBtn("client", "CONSUMER") + roleBtn("vendor", "VENDOR") + roleBtn("driver", "DRIVER") +
+        ? roleBtn("client", "CLIENT", "C") + roleBtn("driver", "DRIVER", "D") + roleBtn("vendor", "VENDOR", "V") +
           '<button type="button" class="go" data-act="out">SIGN OUT</button>'
         : '<button type="button" class="go" data-act="google">GOOGLE</button>') +
-      '<p class="note">' + (inNow ? "One role at a time." : "Google login.") + "</p>";
+      '<p class="note">' + (inNow ? "All three can be on together." : "Google login.") + "</p>";
   }
   function openMe() {
     css();
@@ -293,8 +307,13 @@
           if (!user() || !user().email) { google(); return; }
           var role = b.getAttribute("data-role") || "";
           if (role !== "client" && role !== "vendor" && role !== "driver") return;
-          try { localStorage.setItem("sn:role", role); } catch (err) {}
-          talk(role === "client" ? "Consumer." : role === "vendor" ? "Vendor." : "Driver.");
+          var now = { client: false, driver: false, vendor: false };
+          try { now = JSON.parse(localStorage.getItem("sn:roles") || "null") || now; } catch (err) {}
+          now[role] = !now[role];
+          if (window.SN && SN.setRoleOn) SN.setRoleOn(role, !!now[role]);
+          else {
+            try { localStorage.setItem("sn:roles", JSON.stringify(now)); } catch (err2) {}
+          }
           fillBody();
           return;
         }

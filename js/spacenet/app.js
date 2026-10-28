@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4401";
+  var VER = "4402";
 
   var latestVer = "";
   var INTRO_MS = 13000;
@@ -1007,16 +1007,17 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (Math.abs(grew - 1) < 0.03) return;
         if (cityOn && map) {
           var z = map.getZoom() || 16;
-          if (grew > 1.08) {
-            try { map.setZoom(Math.min(19, z + 1)); } catch (e) {}
-          } else if (grew < 0.92 && z <= 12) {
+          var step = Math.max(-0.8, Math.min(0.8, (grew - 1) * 4));
+          if (Math.abs(step) < 0.02) return;
+          var nz = Math.max(12, Math.min(19, z + step));
+          if (grew < 1 && z <= 12.2) {
             closeCity();
             cam.dist = 0.95;
             markTier(0.95);
             say("National");
-          } else {
-            try { map.setZoom(Math.max(12, z - 1)); } catch (e2) {}
+            return;
           }
+          try { map.setZoom(nz); } catch (e2) {}
           return;
         }
         var nd = cam.dist / Math.max(0.97, Math.min(1.03, grew));
@@ -1240,7 +1241,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function zoomSmooth(dir, sx, sy) {
     if (cityOn && map) {
       var z = map.getZoom() || 16;
-      if (dir > 0 && z <= 14) {
+      if (dir > 0 && z <= 12) {
         closeCity();
         fly = null;
         cam.dist = 0.95;
@@ -1509,7 +1510,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
             try { map.setView([pt.lat, pt.lng], cityZoom || 16, { animate: true }); } catch (e) {}
             if (youMark) { try { youMark.setLatLng([pt.lat, pt.lng]); } catch (e2) {} }
           } else if (pt) land(pt, false);
-          say("GPS recalibrated.");
+          say("You are here.");
         });
       }, true);
     }
@@ -1534,7 +1535,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     cityOn = true;
     el.classList.add("on");
     if (!map) {
-      map = L.map(el, { zoomControl: false, attributionControl: false, minZoom: 12, maxZoom: 19, scrollWheelZoom: false }).setView([pt.lat, pt.lng], 16);
+      map = L.map(el, { zoomControl: false, attributionControl: false, minZoom: 12, maxZoom: 19, zoomSnap: 0.25, zoomDelta: 0.5, touchZoom: true, scrollWheelZoom: false }).setView([pt.lat, pt.lng], 16);
       applyMapLook();
       if (!el.__snWheel) {
         el.__snWheel = function (e) {
@@ -1551,7 +1552,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         try {
           var z = map.getZoom();
           if (z > 13) cityZoom = z;
-          if (userLeave && z <= 14) {
+          if (userLeave && z <= 12) {
             userLeave = false;
             closeCity();
             zoomToDist(0.92);
@@ -1606,7 +1607,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (e.button) return;
         if (e.target && e.target.closest && e.target.closest(".leaflet-marker-icon,.sheet-go,.sheet-x,.sheet-apply,#sn-sheet")) return;
         dropHold();
-        try { if (map.dragging) map.dragging.disable(); } catch (err) {}
         holdPt = { x: e.clientX, y: e.clientY, t: Date.now(), ev: e };
         holdTimer = setTimeout(fireHold, 3000);
       }, true);
@@ -1631,7 +1631,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (youMark) try { map.removeLayer(youMark); } catch (e) {}
     youMark = null;
     if (here && isFinite(here.lat)) {
-      youMark = L.marker([here.lat, here.lng], { icon: robotIcon(), zIndexOffset: 900, keyboard: false, bubblingMouseEvents: false }).addTo(map);
+      youMark = L.marker([here.lat, here.lng], { icon: L.divIcon({ className: "sn-you-pin", html: '<span class="sn-loc"></span>', iconSize: [28, 28], iconAnchor: [14, 14] }), zIndexOffset: 900, keyboard: false, bubblingMouseEvents: false }).addTo(map);
       youMark.on("click", function (ev) {
         if (ev && ev.originalEvent) L.DomEvent.stop(ev.originalEvent);
         openYou();
@@ -2224,8 +2224,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-tools{display:flex!important;gap:6px!important;align-items:center!important;overflow-x:auto!important;pointer-events:auto!important;height:40px!important}",
       "#sn-tools #sn-power,#sn-tools #sn-money,#sn-tools #sn-me,#sn-tools #gps,#sn-tools #sn-support,#sn-tools #sn-nav{position:static!important;transform:none!important;top:auto!important;right:auto!important;bottom:auto!important;left:auto!important;flex:none!important}",
       "#sn-tools #gps,#sn-tools #sn-power,#sn-tools #sn-support{width:36px!important;height:36px!important;min-width:36px!important;min-height:36px!important;max-width:36px!important;max-height:36px!important}",
-      "#sn-role{height:32px!important;min-width:32px!important;padding:0 8px!important;border-radius:999px!important;border:1px solid rgba(77,240,255,.7)!important;background:rgba(4,14,28,.9)!important;color:#9fd4ea!important;font:800 11px system-ui!important}",
-      "#sn-role.on{background:#1a3cff!important;color:#fff!important;border-color:#1a3cff!important}"
+      "#sn-count.on{display:flex!important;visibility:visible!important;z-index:220!important;pointer-events:none!important}",
+      "#sn-count.on b{display:block!important;color:#1a4dff!important;text-shadow:0 0 12px #1a3cff,0 0 28px #1a3cff,0 0 60px #0828c8!important}",
+      "@keyframes sn-price-flash{0%,100%{opacity:1;color:#1a4dff;text-shadow:0 0 8px #1a3cff,0 0 22px #1a3cff,0 0 42px #0828c8}50%{opacity:.35;color:#7eb0ff;text-shadow:0 0 4px #1a3cff}}",
+      ".sn-offer-top{flex:none!important;display:grid!important;grid-template-columns:72px 1fr auto!important;align-items:center!important;gap:8px!important;padding:0 12px 8px!important}",
+      ".sn-offer-price{text-align:center!important;font:800 40px/1 system-ui!important;color:#1a4dff!important;animation:sn-price-flash .7s ease-in-out infinite!important}",
+      ".sn-offer-yes,.sn-offer-no{height:44px!important;padding:0 14px!important;border-radius:999px!important;font:800 13px system-ui!important}",
+      ".sn-offer-yes{background:#1a3cff!important;color:#fff!important;border:0!important}",
+      ".sn-offer-no{background:transparent!important;color:#9ec0ff!important;border:1px solid rgba(26,60,255,.6)!important}",
+      ".sn-loc{width:22px;height:22px;border-radius:50%;background:#1a3cff;border:3px solid #fff;box-shadow:0 0 0 6px rgba(26,60,255,.35),0 0 16px #1a3cff;display:block}"
     ].join("");
     document.head.appendChild(s);
   }
@@ -2237,7 +2244,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (el) return el;
     el = document.createElement("div");
     el.id = "sn-offer";
-    el.innerHTML = '<div class="sn-offer-handle" aria-label="Drag"></div><div class="sn-offer-price"></div><div class="sn-offer-scroll"></div><div class="sn-offer-act"></div>';
+    el.innerHTML = '<div class="sn-offer-handle" aria-label="Drag"></div><div class="sn-offer-top"><button type="button" class="sn-offer-no" data-act="offer-no">NO</button><div class="sn-offer-price"></div><button type="button" class="sn-offer-yes" data-act="offer-yes">ACCEPT</button></div><div class="sn-offer-scroll"></div>';
     document.body.appendChild(el);
     var handle = el.querySelector(".sn-offer-handle");
     var drag = null;
@@ -2335,8 +2342,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     el.querySelector(".sn-offer-scroll").innerHTML = rows.join("") || "<p><b>Offer</b><span>No extra fields.</span></p>";
     var price = el.querySelector(".sn-offer-price");
     if (price) price.textContent = job.fee != null && job.fee !== "" ? job.fee + " AV€" : "OFFER";
-    var act = el.querySelector(".sn-offer-act");
-    act.innerHTML = (job.vendor && job.drop) ? '<button type="button" data-act="offer-yes" data-id="' + esc(job.id) + '">ACCEPT</button><button type="button" data-act="offer-no" data-id="' + esc(job.id) + '">DECLINE</button>' : "";
+    var yes = el.querySelector(".sn-offer-yes");
+    var no = el.querySelector(".sn-offer-no");
+    if (yes) yes.setAttribute("data-id", job.id || "");
+    if (no) no.setAttribute("data-id", job.id || "");
     el.style.height = Math.round(window.innerHeight * 0.3) + "px";
     el.classList.add("on");
     frameOffer(job);
@@ -2493,9 +2502,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       el.id = "sn-tester";
       document.body.appendChild(el);
     }
-    el.style.display = "block";
-    el.classList.toggle("stale", faults.length > 0);
-    el.textContent = "TESTER · " + note;
+    el.textContent = "";
+    el.style.display = "none";
     window.__snDemo = { ok: !faults.length, note: note, t: Date.now() };
   }
   var liveMarks = {};
@@ -2508,6 +2516,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (!blocked(p.peer, p.customerPeer)) blocks.push({ from: p.peer, to: p.customerPeer, why: p.note || "", fromRole: p.how || "", toRole: p.query || "" });
       });
       (j.shops || []).forEach(function (s) {
+        return;
         if (!s || !s.id || !isFinite(+s.lat)) return;
         var have = null;
         shops.forEach(function (x) { if (x && x.id === s.id) have = x; });
@@ -2515,6 +2524,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         shops.unshift({ id: s.id, name: s.name || "vendor", lat: +s.lat, lng: +s.lng, phone: s.phone || "", src: "live", status: s.status || "live", owner: s.customerPeer || "" });
       });
       (j.drivers || []).forEach(function (d) {
+        return;
         if (!d || !d.id || !isFinite(+d.lat)) return;
         var have = null;
         people.forEach(function (p) { if (p && p.id === d.id) have = p; });
@@ -3289,9 +3299,21 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     absorbJobVendors();
     shopMarks.forEach(function (m) { try { map.removeLayer(m); } catch (e) {} });
     shopMarks = [];
+    var focus = null;
+    jobs.forEach(function (j) {
+      if (focus || !j || j.received || j.cancelled || !j.vendor || !j.drop) return;
+      if (!isFinite(+j.vendor.lat) || !isFinite(+j.drop.lat)) return;
+      focus = j;
+    });
     shops.forEach(function (s) {
       if (!s || s.kind === "task" || s.src === "task" || s.place === "task") return;
       if (!isFinite(s.lat) || !isFinite(s.lng)) return;
+      if (s.src && s.src !== "listed") return;
+      if (s.id === "eirini") return;
+      if (focus) {
+        var same = (s.id && focus.vendor && focus.vendor.id === s.id) || (s.name && focus.vendor && s.name === focus.vendor.name);
+        if (!same) return;
+      }
       if (!seesShop(s)) return;
       if ((s.status === "pending" || s.status === "incomplete") && !isAdmin()) return;
       var mark = L.marker([s.lat, s.lng], { icon: faceIcon("vendor", s.photo, s.name || "shop"), zIndexOffset: 500, draggable: !!(isAdmin() && s.src === "listed"), bubblingMouseEvents: false, keyboard: false });
@@ -3316,6 +3338,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       mark.addTo(map);
       shopMarks.push(mark);
     });
+    if (focus && focus.drop && isFinite(+focus.drop.lat)) {
+      var dropMark = L.marker([+focus.drop.lat, +focus.drop.lng], { icon: faceIcon("client", focus.drop.photo, focus.drop.name || "Client"), zIndexOffset: 700, keyboard: false, bubblingMouseEvents: false });
+      dropMark.addTo(map);
+      shopMarks.push(dropMark);
+      return;
+    }
     if (isAdmin()) paintAdminPins();
     else { paintOwnDrivers(); paintFleet(); }
     paintOrders();
@@ -3332,9 +3360,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     try { b = map.getBounds(); } catch (e) {}
     var vis = b && pts.some(function (p) { try { return b.contains(L.latLng(+p.lat, +p.lng)); } catch (e) { return false; } });
     rosterShown = true;
-    if (vis) return;
-    map.setView([+pts[0].lat, +pts[0].lng], 16, { animate: false });
-    say((pts[0].name || "Vendor") + " is on the map.");
+    return;
   }
   function paintFleet() {
     if (!map || typeof L === "undefined") return;
@@ -4283,21 +4309,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!here) locate(function (pt) { land(pt, false); go(); });
     else go();
   }
-  function pullListings() {
-    if (!here) return;
-    var url = "/api/space?lat=" + Number(here.lat).toFixed(2) + "&lng=" + Number(here.lng).toFixed(2);
-    fetchJson(url, { cache: "no-store" }).then(function (j) {
-      var rows = (j && (j.shops || j.rows || [])) || [];
-      rows.forEach(function (r) {
-        if (r && (r.kind === "task" || r.place === "task")) { ingestTask(r); return; }
-        var p = asPlace(r);
-        if (p) shops.push(p);
-      });
-
-      shops = uniqPlaces(shops);
-      if (shops.length && cityOn) paintShopsOnMap();
-    });
-  }
+  function pullListings() { return; }
   function behalf(job) {
     if (!isAdmin() || !job) return "";
     function go(act, label) { return '<button type="button" class="sheet-go" data-act="' + act + '" data-id="' + job.id + '">' + label + "</button>"; }
@@ -6184,7 +6196,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (short) openLeft();
       });
       power.addEventListener("pointercancel", cancelHold);
-      power.addEventListener("pointerleave", function () { if (holdP) cancelHold(); });
       power.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); });
     }
     var globe = $("sn-globe");
@@ -8131,27 +8142,23 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     if (role === "driver" && !on && rideArm === "me-driver") rideArm = null;
   }
-  function loadSampleMenu() {
-    fetch("/datanet/menus.json", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {
-      if (!j) return;
-      (j.shops || []).forEach(function (s) {
-        if (!s || !s.id) return;
-        if (shops.some(function (x) { return x && x.id === s.id; })) return;
-        s.src = "listed";
-        s.status = s.status || "live";
-        shops.unshift(s);
-      });
-      if (j.client && isFinite(+j.client.lat) && !(homeDrop && homeDrop.id === j.client.id)) {
-        if (!people.some(function (p) { return p && p.id === j.client.id; })) people.push(j.client);
-        if (!homeDrop) homeDrop = j.client;
-      }
-      if (j.driver && isFinite(+j.driver.lat) && !people.some(function (p) { return p && p.id === j.driver.id; })) {
-        j.driver.fleet = true;
-        j.driver.free = true;
-        people.push(j.driver);
-      }
-      if (cityOn) paintShopsOnMap();
-    }).catch(function () {});
+  function dropFakes() {
+    shops = shops.filter(function (s) { return s && s.id !== "eirini" && s.name !== "Eirini" && (!s.src || s.src === "listed"); });
+    people = people.filter(function (p) {
+      if (!p) return false;
+      if (p.id === "sample-driver" || p.id === "sample-client") return false;
+      if (p.name === "Sample driver" || p.name === "Sample client") return false;
+      if (p.fleet && p.id !== "me-driver") return false;
+      return true;
+    });
+    if (homeDrop && (homeDrop.id === "sample-client" || homeDrop.name === "Sample client")) homeDrop = null;
+    jobs = jobs.filter(function (j) { return j && !(j.vendor && (j.vendor.id === "eirini" || j.vendor.name === "Eirini")) && !j.agent; });
+    try {
+      var mine = JSON.parse(localStorage.getItem("sn:mine") || "[]") || [];
+      localStorage.setItem("sn:mine", JSON.stringify(mine.filter(function (r) { return r && r.id !== "eirini" && r.name !== "Eirini"; })));
+      localStorage.setItem("sn:people", JSON.stringify(people));
+      if (!homeDrop) localStorage.removeItem("sn:home");
+    } catch (e) {}
   }
   function boot() {
     sheetLaw();
@@ -8194,15 +8201,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         tools.appendChild(power);
         var meBtn = document.getElementById("sn-me");
         if (meBtn) tools.appendChild(meBtn);
-        ["client", "driver", "vendor"].forEach(function (role) {
-          var b = document.createElement("button");
-          b.type = "button";
-          b.id = "sn-role-" + role;
-          b.className = "sn-role";
-          b.setAttribute("data-role", role);
-          b.textContent = role === "client" ? "CLIENT" : role === "driver" ? "DRIVER" : "VENDOR";
-          tools.appendChild(b);
-        });
         var nav = document.getElementById("sn-nav");
         if (nav) tools.appendChild(nav);
         var support = document.getElementById("sn-support");
@@ -8210,31 +8208,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         tools.appendChild(money);
         var gps = document.getElementById("gps");
         if (gps) tools.appendChild(gps);
-        paintRoles();
-        tools.addEventListener("click", function (ev) {
-          var hit = ev.target && ev.target.closest && ev.target.closest(".sn-role");
-          if (!hit) return;
-          ev.preventDefault();
-          var role = hit.getAttribute("data-role");
-          var on = !rolesGet()[role];
-          setRoleOn(role, on);
-        });
       }
-    }
-    loadSampleMenu();
-    var meArm = document.getElementById("sn-me");
-    if (meArm && !meArm.__snArm) {
-      meArm.__snArm = true;
-      meArm.addEventListener("click", function (e) {
-        if (!rolesGet().driver || rideArm === "me-driver") return;
-        e.preventDefault();
-        e.stopPropagation();
-        var pt = (here && isFinite(+here.lat)) ? here : ((aim && isFinite(+aim.lat)) ? aim : { lat: 36.44305, lng: 28.2279 });
-        placeMeDriver(pt, true);
-        rideArm = "me-driver";
-        if (!cityOn) openCity(pt);
-        say("You are the driver. Tap the map to place yourself.");
-      }, true);
     }
     var seek = document.getElementById("sn-seek");
     if (seek && !seek.__sn) {
@@ -8312,6 +8286,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     try { homeDrop = JSON.parse(localStorage.getItem("sn:home") || "null"); } catch (e) {}
     try { driverPin = JSON.parse(localStorage.getItem("sn:driver") || "null"); } catch (e) {}
     try { people = JSON.parse(localStorage.getItem("sn:people") || "[]") || []; } catch (e2) { people = []; }
+    dropFakes();
     locate(function (pt) {
       if (seated || !pt) return;
       here = { lat: pt.lat, lng: pt.lng };
@@ -8462,6 +8437,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       robotFace: robotSvg,
       openYou: openYou,
       paintYou: paintYouIcon,
+      setRoleOn: setRoleOn,
+      rolesGet: rolesGet,
 
       projectTest: function (lat, lng) { return project(lat, lng, cam); }
     };
