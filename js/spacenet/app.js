@@ -1679,7 +1679,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -3029,14 +3029,15 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
             roT = setTimeout(function () {
               try {
                 if (!(map && cityOn && !(window.__snGrip && window.__snGrip.dragging()) && Date.now() - (window.__snGripAt || 0) > 400)) return;
-                map.invalidateSize({ pan: false });
-                /* 4410d: sheet/chrome resize during a hold must not leave a drifted centre */
+                /* 4410e: during a hold keep the latlng centre (pan:true); still force-reset if anything drifted */
+                var holding = !!(window.__snHold && Date.now() - window.__snHold < 6000 && window.__snHoldView);
+                map.invalidateSize({ pan: holding ? true : false });
                 var hv = window.__snHoldView;
                 if (hv && window.__snHold && Date.now() - window.__snHold < 6000 && isFinite(+hv.lat)) {
                   var c1 = map.getCenter();
                   if (map.getZoom() !== hv.z || Math.abs(c1.lat - hv.lat) > 1e-9 || Math.abs(c1.lng - hv.lng) > 1e-9) {
                     progMoveUntil = Date.now() + 400;
-                    map.setView([+hv.lat, +hv.lng], hv.z, { animate: false });
+                    map.setView([+hv.lat, +hv.lng], hv.z, { animate: false, reset: true });
                   }
                 }
               } catch (eR) {}
@@ -3271,7 +3272,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         holdPt = null;
         if (!map) return;
         window.__snHold = Date.now();
-        /* 4410d: freeze the centre BEFORE the shop card opens (sheet RO / invalidateSize drifts getCenter) */
+        /* 4410d/4410e: freeze the centre BEFORE the shop card opens; restore uses setView({reset:true}) because plain setView is a no-op after invalidateSize({pan:false}) */
         try {
           if (map) {
             var c0 = map.getCenter();
@@ -8154,7 +8155,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
           var cHoldLng = hv && isFinite(+hv.lng) ? +hv.lng : map.getCenter().lng;
           var zHold = hv && isFinite(+hv.z) ? +hv.z : map.getZoom();
           if (!(hv && isFinite(+hv.lat))) window.__snHoldView = { lat: cHoldLat, lng: cHoldLng, z: zHold, at: Date.now() };
-          [0, 40, 120, 280, 600, 900, 1300, 1800].forEach(function (ms) {
+          [0, 40, 120, 280, 600, 900, 1300, 1800, 2400, 3200].forEach(function (ms) { /* 4410e: longer settle */
             setTimeout(function () {
               try {
                 if (!window.__snHoldView || Date.now() - window.__snHoldView.at > 6000) return;
@@ -8162,7 +8163,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
                 var c1 = map.getCenter();
                 if (map.getZoom() !== zHold || Math.abs(c1.lat - cHoldLat) > 1e-9 || Math.abs(c1.lng - cHoldLng) > 1e-9) {
                   progMoveUntil = Date.now() + 400;
-                  map.setView([cHoldLat, cHoldLng], zHold, { animate: false });
+                  map.setView([cHoldLat, cHoldLng], zHold, { animate: false, reset: true }); /* 4410e */
                 }
               } catch (eFr) {}
             }, ms);
@@ -12829,7 +12830,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
