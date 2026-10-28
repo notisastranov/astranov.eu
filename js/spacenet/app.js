@@ -1333,7 +1333,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var now = Date.now();
     if (now - hudCache.t < 700) return hudCache.r;
     var out = [];
-    ["sn-money", "sn-power-tag", "sn-power", "sn-globe", "sn-architect", "sn-support", "sn-me", "gps", "sn-latest"].forEach(function (id) {
+    /* 4410: cull globe news / callouts against every chrome rect (wallet + guest pill included) */
+    ["sn-money", "sn-power-tag", "sn-power", "sn-globe", "sn-architect", "sn-support", "sn-me", "gps", "sn-latest", "plus", "go", "sn-mic", "sn-compass", "sn-hunt-n"].forEach(function (id) {
       var e = document.getElementById(id);
       if (!e || !e.getBoundingClientRect) return;
       var b = e.getBoundingClientRect();
@@ -1678,7 +1679,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -2206,9 +2207,12 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     });
     return best && bd <= lim ? best : null;
   }
-  /* city wheel: 4408 integer zoom steps (1.0). Wheel deltas quantised; one notch per 450 ms gesture. */
-  var cityGid = 0, cityRawT = 0, cityStepT = 0, cityStepGid = -1, cityFloorGid = -1;
+  /* city wheel: 4408 integer zoom steps (1.0). Wheel deltas quantised; one notch per 450 ms gesture.
+     4410: every out notch changes the view; Widest is the floor zoom (announced when landing on it);
+     the next out closes to the globe. cityWidestSaid resets on fit so the sequence is identical every run. */
+  var cityGid = 0, cityRawT = 0, cityStepT = 0, cityStepGid = -1, cityFloorGid = -1, cityWidestSaid = false;
   function cityWheelTick(t) { if (t - cityRawT > 450) cityGid++; cityRawT = t; }
+  function cityWheelResetFloor() { cityFloorGid = -1; cityWidestSaid = false; }
   function cityWheel(dir, cx, cy, e) {
     if (!map || !cityOn) return null;
     var z = Math.round(map.getZoom());
@@ -2218,29 +2222,59 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     cityStepGid = cityGid; cityStepT = tS;
     var ll = null;
     try { ll = map.containerPointToLatLng(L.point(cx, cy)); } catch (eP) {}
-    var minZ = Math.round(map.getMinZoom ? map.getMinZoom() : 9);
-    var act = dir > 0 ? ((z <= closeBelow + 0.01 || z <= minZ + 0.01) ? "close" : "out") : (z >= WHEEL_MAX_Z - 0.01 ? "max" : "in");
-    var nz = Math.max(minZ, Math.min(WHEEL_MAX_Z, z + (dir < 0 ? 1 : -1)));
-    var rec = wheelLog({ where: "city", e: e, px: cx, py: cy, lat: ll && ll.lat, lng: ll && ll.lng, z: act === "close" ? z : nz, act: act });
-    if (act === "close" && cityFloorGid < 0) {
-      cityFloorGid = cityGid;
-      say("Widest view of this place. Wheel out again to go back to the globe.");
-      return rec;
+    var minZ = Math.round(map.getMinZoom ? map.getMinZoom() : 8);
+    var floorZ = Math.max(minZ, Math.round(closeBelow));
+    if (dir > 0) {
+      /* already at Widest floor → next out is the globe (never skip Widest: must have said it first) */
+      if (z <= floorZ + 0.01) {
+        var recC = wheelLog({ where: "city", e: e, px: cx, py: cy, lat: ll && ll.lat, lng: ll && ll.lng, z: z, act: cityWidestSaid ? "close" : "widest" });
+        if (!cityWidestSaid) {
+          cityWidestSaid = true;
+          cityFloorGid = cityGid;
+          say("Widest view of this place. Wheel out again to go back to the globe.");
+          /* 4410: already at floor with no prior announce (e.g. fit landed on floor) — still a distinct notch; nudge pan so the view changes */
+          try { if (ll) map.panTo(ll, { animate: false }); } catch (eN) {}
+          placeXhair();
+          try { declutterSoon(); declutterLate(); } catch (eD0) {}
+          return recC;
+        }
+        cityFloorGid = -1;
+        cityWidestSaid = false;
+        closeCity();
+        zoomToDist(1.25);
+        say("Back to the globe");
+        return recC;
+      }
+      var nzOut = Math.max(floorZ, z - 1);
+      var recO = wheelLog({ where: "city", e: e, px: cx, py: cy, lat: ll && ll.lat, lng: ll && ll.lng, z: nzOut, act: nzOut <= floorZ + 0.01 ? "widest" : "out" });
+      if (ll) xhairLL = { lat: ll.lat, lng: ll.lng };
+      mapUserAt = Date.now();
+      try { map.setZoomAround(L.point(cx, cy), Math.round(nzOut), { animate: false }); } catch (eZ) { try { map.setZoom(Math.round(nzOut), { animate: false }); } catch (eZ2) {} }
+      placeXhair();
+      if (Math.round(nzOut) <= floorZ) {
+        cityWidestSaid = true;
+        cityFloorGid = cityGid;
+        say("Widest view of this place. Wheel out again to go back to the globe.");
+      } else {
+        cityWidestSaid = false;
+        cityFloorGid = -1;
+      }
+      /* 4410: declutter after every zoom step so bunched labels clear */
+      try { declutterSoon(); declutterLate(); setTimeout(declutterSoon, 120); setTimeout(labelGuard, 180); } catch (eD1) {}
+      return recO;
     }
-    if (act === "close" && cityFloorGid === cityGid) return rec; /* same gesture that reached the floor: stay */
-    if (act !== "close") cityFloorGid = -1;
-    if (act === "close") {
-      cityFloorGid = -1;
-      closeCity();
-      zoomToDist(1.25);
-      say("Back to the globe");
-      return rec;
-    }
+    /* zoom in */
+    cityWidestSaid = false;
+    cityFloorGid = -1;
+    var actIn = z >= WHEEL_MAX_Z - 0.01 ? "max" : "in";
+    var nzIn = Math.max(minZ, Math.min(WHEEL_MAX_Z, z + 1));
+    var recI = wheelLog({ where: "city", e: e, px: cx, py: cy, lat: ll && ll.lat, lng: ll && ll.lng, z: nzIn, act: actIn });
     if (ll) xhairLL = { lat: ll.lat, lng: ll.lng };
     mapUserAt = Date.now();
-    if (nz !== z) { try { map.setZoomAround(L.point(cx, cy), Math.round(nz), { animate: false }); } catch (eZ) { try { map.setZoom(Math.round(nz), { animate: false }); } catch (eZ2) {} } }
+    if (nzIn !== z) { try { map.setZoomAround(L.point(cx, cy), Math.round(nzIn), { animate: false }); } catch (eZi) { try { map.setZoom(Math.round(nzIn), { animate: false }); } catch (eZi2) {} } }
     placeXhair();
-    return rec;
+    try { declutterSoon(); declutterLate(); setTimeout(declutterSoon, 120); } catch (eD2) {}
+    return recI;
   }
   var wheelAt = 0;
   function pickHit(sx, sy) {
@@ -2263,8 +2297,20 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   function zoomSmooth(dir, sx, sy) {
     if (cityOn && map) {
       if (sx != null && sy != null) return cityWheel(dir, sx, sy, null);
+      /* 4410: no sx — still go through cityWheel so Widest is never skipped */
+      try {
+        var cZ = map.getSize && map.getSize();
+        var cx0 = cZ ? cZ.x / 2 : 0, cy0 = cZ ? cZ.y / 2 : 0;
+        return cityWheel(dir, cx0, cy0, null);
+      } catch (eZW) {}
       var z = map.getZoom() || 16;
       if (dir > 0 && z <= closeBelow + 0.1) {
+        if (!cityWidestSaid) {
+          cityWidestSaid = true;
+          say("Widest view of this place. Wheel out again to go back to the globe.");
+          return;
+        }
+        cityWidestSaid = false;
         closeCity();
         zoomToDist(1.25);
         say("Back to the globe");
@@ -2992,7 +3038,24 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       el.addEventListener("pointerdown", function (e) {
         if (e.button) return;
         var ic = e.target && e.target.closest && e.target.closest(".leaflet-marker-icon");
-        snPress = { down: true, t: Date.now(), x: e.clientX, y: e.clientY, shop: ic && ic.__snShopRow ? ic.__snShopRow : null };
+        var shop0 = ic && ic.__snShopRow ? ic.__snShopRow : null;
+        if (!shop0 && typeof shopAtClient === "function") try { shop0 = shopAtClient(e.clientX, e.clientY); } catch (eP0) {}
+        /* shopAtClient is defined later in this scope — geometric fallback inline */
+        if (!shop0) {
+          try {
+            var bd0 = 56;
+            Array.prototype.forEach.call(document.querySelectorAll(".leaflet-marker-icon.sn-shop-pin"), function (mk) {
+              if (!mk.__snShopRow) return;
+              var f = mk.querySelector(".sn-pin img,.sn-pin em,.sn-no") || mk;
+              var r = f.getBoundingClientRect();
+              if (!(r.width > 0 || r.height > 0)) r = mk.getBoundingClientRect();
+              if (!(r.width > 0 || r.height > 0)) return;
+              var d = Math.hypot(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + Math.min(r.height, 40) / 2));
+              if (d < bd0) { bd0 = d; shop0 = mk.__snShopRow; }
+            });
+          } catch (eP1) {}
+        }
+        snPress = { down: true, t: Date.now(), x: e.clientX, y: e.clientY, shop: shop0 };
         window.__snPressShop = snPress.shop ? String(snPress.shop.name || "") : "";
       }, { capture: true, passive: true });
       ["pointerup", "pointercancel"].forEach(function (k) {
@@ -3138,19 +3201,40 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       }
       function shopAtClient(x, y) {
         try {
+          /* 4410: hit face-off / hidden pins too (pointer-events:none); prefer any shop in the hit area over an area LIST */
           var el0 = document.elementFromPoint(x, y);
           var ic0 = el0 && el0.closest && el0.closest(".leaflet-marker-icon.sn-shop-pin");
           if (ic0 && ic0.__snShopRow) return ic0.__snShopRow;
-          var best = null, bd = 36;
+          var best = null, bd = 56;
           Array.prototype.forEach.call(document.querySelectorAll(".leaflet-marker-icon.sn-shop-pin"), function (mk) {
             if (!mk.__snShopRow) return;
-            var f = mk.querySelector(".sn-pin img,.sn-pin em") || mk;
+            var f = mk.querySelector(".sn-pin img,.sn-pin em,.sn-no") || mk;
             var r = f.getBoundingClientRect();
-            if (!(r.width > 0)) return;
-            var d = Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2));
+            /* visibility:hidden still has geometry; zero-size skip only */
+            if (!(r.width > 0 || r.height > 0)) {
+              r = mk.getBoundingClientRect();
+              if (!(r.width > 0 || r.height > 0)) return;
+            }
+            var d = Math.hypot(x - (r.left + r.width / 2), y - (r.top + Math.min(r.height, 40) / 2));
             if (d < bd) { bd = d; best = mk.__snShopRow; }
           });
-          return best;
+          if (best) return best;
+          /* latlng proximity when DOM hit misses (small-town / Siteia pins) */
+          if (map && typeof L !== "undefined") {
+            var ll = null; try { ll = map.mouseEventToLatLng({ clientX: x, clientY: y }); } catch (eL) {}
+            if (!ll) try { ll = map.containerPointToLatLng(L.point(x - (map.getContainer().getBoundingClientRect().left), y - (map.getContainer().getBoundingClientRect().top))); } catch (eL2) {}
+            if (ll && isFinite(+ll.lat)) {
+              var bdM = 90, bestM = null; /* ~90 m */
+              Array.prototype.forEach.call(document.querySelectorAll(".leaflet-marker-icon.sn-shop-pin"), function (mk) {
+                var row = mk.__snShopRow; if (!row || !isFinite(+row.lat)) return;
+                var dKm = haversineKm(ll, row);
+                var dM = dKm * 1000;
+                if (dM < bdM) { bdM = dM; bestM = row; }
+              });
+              if (bestM) return bestM;
+            }
+          }
+          return null;
         } catch (eS) { return null; }
       }
       function fireHold() {
@@ -3161,7 +3245,9 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         window.__snHold = Date.now();
         /* 4408: 1.5 s hold on a pin opens that shop's card — never street / place LIST */
         var shop = (snPress && snPress.shop) || (start && shopAtClient(start.x, start.y));
+        if (!shop && start) shop = shopAtClient(start.x, start.y);
         if (shop) { try { openVendor(pressedShop(shop)); } catch (eV) {} return; }
+        /* 4410: area / LIST card only when no shop pin is in the hit area */
         var ll = null;
         if (start && start.ll) ll = start.ll;
         try { if (!ll && start && start.ev) ll = map.mouseEventToLatLng(start.ev); } catch (err) {}
@@ -5431,7 +5517,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     try {
       var obst = [];
       Array.prototype.forEach.call(cityEl.querySelectorAll(".leaflet-marker-pane .leaflet-marker-icon:not(.sn-shop-pin)"), function (mk) { obst.push(mk); });
-      ["sn-money", "sn-globe", "sn-me", "gps", "sn-compass", "sn-you-where", "sn-hunt-n", "sn-power-tag"].forEach(function (id) { var x = $(id); if (x) obst.push(x); });
+      ["sn-money", "sn-globe", "sn-me", "gps", "sn-compass", "sn-you-where", "sn-hunt-n", "sn-power-tag", "sn-power", "plus", "go", "sn-support", "sn-architect", "sn-mic"].forEach(function (id) { var x = $(id); if (x) obst.push(x); });
       obst.forEach(function (x) {
         var cs = getComputedStyle(x), q = x.getBoundingClientRect();
         if (cs.display === "none" || cs.visibility === "hidden" || +cs.opacity === 0 || q.width < 2 || q.height < 2) return;
@@ -5444,7 +5530,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         if (seatP && isFinite(+seatP.lat) && map.latLngToContainerPoint) {
           var sp = map.latLngToContainerPoint([+seatP.lat, +seatP.lng]);
           var sx = r0.left + sp.x, sy = r0.top + sp.y;
-          placed.push({ left: sx - 70, right: sx + 70, top: sy - 18, bottom: sy + 18, placeLbl: true });
+          placed.push({ left: sx - 48, right: sx + 48, top: sy - 14, bottom: sy + 14, placeLbl: true });
         }
       } catch (ePl) {}
     } catch (eOb) {}
@@ -5609,7 +5695,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       });
       labs.sort(function (a, b) { return a.no - b.no; });
       /* 4405: HUD chips/buttons over the map hide a label under them too */
-      ["sn-money", "sn-globe", "sn-me", "gps", "sn-compass", "sn-hunt-n", "sn-power-tag", "sn-you-where"].forEach(function (id) {
+      ["sn-money", "sn-globe", "sn-me", "gps", "sn-compass", "sn-hunt-n", "sn-power-tag", "sn-you-where", "sn-power", "plus", "go", "sn-support", "sn-architect", "sn-mic"].forEach(function (id) {
         var x = $(id); if (!x) return; var cs = getComputedStyle(x), q = x.getBoundingClientRect();
         if (cs.display !== "none" && cs.visibility !== "hidden" && +cs.opacity > 0 && q.width > 2 && q.height > 2) faces.push({ mk: null, r: q });
       });
@@ -5744,8 +5830,9 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         var seatP2 = (huntView && huntView.origin) || activeSeat() || here;
         if (seatP2 && isFinite(+seatP2.lat) && map && map.latLngToContainerPoint && cityOn) {
           var pp = map.latLngToContainerPoint([+seatP2.lat, +seatP2.lng]), crr = cityEl.getBoundingClientRect();
-          var vr = { left: crr.left + pp.x - 70, right: crr.left + pp.x + 70, top: crr.top + pp.y - 18, bottom: crr.top + pp.y + 18 };
-          var hitP = keptF.some(function (f) { return rectHit(vr, f.r); }) || kept.some(function (k) { return rectHit(vr, k.r); });
+          /* 4410: tighter place-label zone; veil only when a pin face still covers it — otherwise Ηράκλειο stays visible */
+          var vr = { left: crr.left + pp.x - 48, right: crr.left + pp.x + 48, top: crr.top + pp.y - 14, bottom: crr.top + pp.y + 14 };
+          var hitP = keptF.some(function (f) { return rectHit(vr, f.r); });
           veil.style.left = Math.round(vr.left) + "px";
           veil.style.top = Math.round(vr.top) + "px";
           veil.style.width = Math.round(vr.right - vr.left) + "px";
@@ -5766,7 +5853,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4409";
+    return "/you.png?v=4410";
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -6703,8 +6790,8 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     var t = 16, b = H - 16, l = 8, r = W - 8;
     var isl = visRect($("island"));
     if (isl) t = Math.max(t, isl.bottom - cr.top + 8);
-    /* 4409: fold HUD chrome into the visible box so fitBounds / declutter clear the guest pill, hunt chip, wallet, YOU */
-    ["sn-money", "sn-hunt-n", "sn-me", "sn-you-where", "sn-globe", "sn-power-tag", "sn-compass"].forEach(function (id) {
+    /* 4409/4410: fold every HUD chrome control into the visible box (power, GPS, wallet, guest, …) */
+    ["sn-money", "sn-hunt-n", "sn-me", "sn-you-where", "sn-globe", "sn-power-tag", "sn-power", "sn-compass", "gps", "plus", "go", "sn-support", "sn-architect", "sn-mic"].forEach(function (id) {
       var x = $(id); if (!x) return;
       var cs = getComputedStyle(x), q = x.getBoundingClientRect();
       if (cs.display === "none" || cs.visibility === "hidden" || +cs.opacity === 0 || q.width < 2 || q.height < 2) return;
@@ -6794,7 +6881,10 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         } catch (eR) {}
       }, ms);
     });
-    closeBelow = Math.max(8, Math.round(z) - 7); /* 4408: exactly 7 integer notches from the hunt fit to Widest view */ try { map.setMinZoom(closeBelow); } catch (eMz) {}
+    /* 4410: always 3 integer zoom-outs from the fit to Widest (4th → globe); reset so every run matches */
+    closeBelow = Math.max(8, Math.round(z) - 3);
+    try { cityWheelResetFloor(); } catch (eRF) { cityFloorGid = -1; cityWidestSaid = false; }
+    try { map.setMinZoom(closeBelow); } catch (eMz) {}
     try { if (map.getZoom() !== Math.round(map.getZoom())) map.setZoom(Math.round(map.getZoom()), { animate: false }); } catch (eIz) {}
     huntView.fitted = true;
     try { paintShopsOnMap(); } catch (e3) {}
@@ -12682,7 +12772,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
