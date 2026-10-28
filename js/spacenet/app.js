@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4402";
+  var VER = "4403";
 
   var latestVer = "";
   var INTRO_MS = 13000;
@@ -146,6 +146,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   var homeDrop = null;
   var driverPin = null;
   var rideArm = null;
+  var placeSelf = 0;
   var dropArm = null;
   var people = [];
   function isAdmin() {
@@ -186,6 +187,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function ownerMail() {
     try {
       var u = window.SNAuth && SNAuth.user && SNAuth.user();
+      if (!u) { try { u = JSON.parse(localStorage.getItem("sn:user") || "null"); } catch (err) {} }
       var mail = String((u && u.email) || "").toLowerCase();
       return mail === "notisastranov@gmail.com" || mail === "info@astranov.eu";
     } catch (e) { return false; }
@@ -1396,7 +1398,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     b.classList.toggle("head", driveMode === "head");
     var lbl = b.querySelector(".lbl");
     var tgt = b.querySelector(".tgt");
-    if (lbl) lbl.textContent = driveMode === "head" ? "DRIVE" : "NORTH";
+    if (lbl) lbl.textContent = driveMode === "head" ? "DRIVE" : "DRONE";
     if (tgt) tgt.textContent = driveMode === "head" ? String(Math.round(heading) || 0) : "N";
   }
   function applyBearing() {
@@ -1472,7 +1474,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     b.type = "button";
     b.id = "sn-compass";
     b.setAttribute("aria-label", "Compass");
-    b.innerHTML = '<span class="lbl">NORTH</span><span class="tgt">N</span>';
+    b.innerHTML = '<span class="lbl">DRONE</span><span class="tgt">N</span>';
     var gps = $("gps");
     if (gps && gps.parentNode) gps.parentNode.insertBefore(b, gps);
     else document.body.appendChild(b);
@@ -1502,6 +1504,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         ev.preventDefault(); ev.stopPropagation();
         seekHold = null;
         adminPin = false;
+        placeSelf = 0;
+        var meBtn = $("sn-me");
+        if (meBtn) meBtn.classList.remove("arm");
         var seed = here || hereLive;
         if (seed && isFinite(+seed.lat)) land({ lat: +seed.lat, lng: +seed.lng, how: "saved" }, false);
         freshFix(function (pt) {
@@ -1519,7 +1524,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       comp.__sn = true;
       comp.addEventListener("click", function (ev) {
         ev.preventDefault(); ev.stopPropagation();
-        openCompass();
+        if (driveMode === "head") armNorth();
+        else armDrive();
+        say(driveMode === "head" ? "Drive." : "Drone.");
       });
     }
     paintCompass();
@@ -1568,6 +1575,21 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         var ll = e && e.latlng;
         if (!ll) return;
         if (rideArm) { nudgeArmed(ll); return; }
+        if (placeSelf) {
+          here = { lat: +ll.lat, lng: +ll.lng };
+          adminPin = true;
+          window.__SN_HERE = here;
+          try { localStorage.setItem("sn:here", JSON.stringify(here)); } catch (err) {}
+          if (!cityOn) openCity(here);
+          if (youMark) {
+            try { youMark.setLatLng([here.lat, here.lng]); } catch (err2) {}
+          }
+          placeSelf = 2;
+          var node = youMark && youMark.getElement && youMark.getElement();
+          if (node) node.classList.add("sn-me-on");
+          say("Placed. Tap the map to move yourself.");
+          return;
+        }
         listPt = { lat: +ll.lat, lng: +ll.lng };
         openMapMenu(listPt);
       });
@@ -1638,7 +1660,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       });
     }
     paintShopsOnMap();
-    pullListings();
+    crawlReal();
     paintNav();
     setTimeout(function () { if (map) map.invalidateSize(); }, 80);
   }
@@ -1682,16 +1704,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     listPt = { lat: pt.lat, lng: pt.lng };
     listAlt = altitudeFromDist(cam.dist);
     var html = '<button type="button" class="sheet-go primary" data-act="form-vendor">LIST A VENDOR</button>' +
-      '<button type="button" class="sheet-go" data-act="form-drop">LIST A CLIENT</button>';
-    if (isAdmin()) {
-      html += '<button type="button" class="sheet-go" data-act="shell" data-k="vendor">Empty vendor · only me</button>' +
-        '<button type="button" class="sheet-go" data-act="shell" data-k="driver">Empty driver · only me</button>' +
-        '<button type="button" class="sheet-go" data-act="shell" data-k="client">Empty client · only me</button>' +
-        '<button type="button" class="sheet-go primary" data-act="i-am-driver">I AM THE DRIVER HERE</button>' +
-        '<button type="button" class="sheet-go" data-act="run-offer">Start the order · closest driver</button>' +
-        '<button type="button" class="sheet-go" data-act="admin-gps">Move me here</button>';
-    }
-
+      '<button type="button" class="sheet-go" data-act="form-post">POST</button>';
     openTile({ kind: "list", title: "LIST", html: html });
   }
   function persistListing(row) {
@@ -2232,7 +2245,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       ".sn-offer-yes,.sn-offer-no{height:44px!important;padding:0 14px!important;border-radius:999px!important;font:800 13px system-ui!important}",
       ".sn-offer-yes{background:#1a3cff!important;color:#fff!important;border:0!important}",
       ".sn-offer-no{background:transparent!important;color:#9ec0ff!important;border:1px solid rgba(26,60,255,.6)!important}",
-      ".sn-loc{width:22px;height:22px;border-radius:50%;background:#1a3cff;border:3px solid #fff;box-shadow:0 0 0 6px rgba(26,60,255,.35),0 0 16px #1a3cff;display:block}"
+      "#sn-tools #sn-power.on{background:#1a3cff!important;color:#fff!important;border-color:#7eb0ff!important;animation:sn-power-pulse 1s ease-in-out infinite!important}",
+      "#sn-tools #sn-power.idle{background:#c41414!important;color:#fff!important;border-color:#ff5a5a!important;animation:none!important}",
+      "@keyframes sn-power-pulse{0%,100%{box-shadow:0 0 0 0 rgba(26,60,255,.85)}50%{box-shadow:0 0 0 8px rgba(26,60,255,0)}}",
+      "#sn-tools #sn-compass,#sn-bar #sn-compass{position:static!important;display:flex!important;right:auto!important;bottom:auto!important;top:auto!important;left:auto!important;width:36px!important;height:36px!important;min-width:36px!important;flex:none!important}",
+      "#sn-me.arm{box-shadow:0 0 0 3px #1a3cff,0 0 16px #1a3cff!important;animation:sn-power-pulse 1s ease-in-out infinite!important}",
+      ".sn-loc{width:22px;height:22px;border-radius:50%;background:#1a3cff;border:3px solid #fff;box-shadow:0 0 0 6px rgba(26,60,255,.35),0 0 16px #1a3cff;display:block}",
+      ".leaflet-marker-icon.sn-me-on .sn-loc{box-shadow:0 0 0 8px rgba(26,60,255,.5),0 0 18px #1a3cff!important}",
+      ".sn-offer-verify{flex:none!important;display:flex!important;gap:8px!important;padding:0 12px 8px!important}",
+      ".sn-offer-verify button{flex:1!important;height:36px!important;border-radius:999px!important;border:1px solid #1a3cff!important;background:#041018!important;color:#e8fbff!important;font:800 11px system-ui!important}"
     ].join("");
     document.head.appendChild(s);
   }
@@ -2244,19 +2265,20 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (el) return el;
     el = document.createElement("div");
     el.id = "sn-offer";
-    el.innerHTML = '<div class="sn-offer-handle" aria-label="Drag"></div><div class="sn-offer-top"><button type="button" class="sn-offer-no" data-act="offer-no">NO</button><div class="sn-offer-price"></div><button type="button" class="sn-offer-yes" data-act="offer-yes">ACCEPT</button></div><div class="sn-offer-scroll"></div>';
+    el.innerHTML = '<div class="sn-offer-handle" aria-label="Drag"></div><div class="sn-offer-top"><button type="button" class="sn-offer-no" data-act="offer-no">NO</button><div class="sn-offer-price"></div><button type="button" class="sn-offer-yes" data-act="offer-yes">ACCEPT</button></div><div class="sn-offer-verify"></div><div class="sn-offer-scroll"></div>';
     document.body.appendChild(el);
     var handle = el.querySelector(".sn-offer-handle");
     var drag = null;
-    handle.addEventListener("pointerdown", function (e) {
+    function startDrag(e) {
+      if (e.target && e.target.closest && e.target.closest("button")) return;
       drag = { y: e.clientY, h: el.offsetHeight };
-      try { handle.setPointerCapture(e.pointerId); } catch (err) {}
-    });
-    handle.addEventListener("pointermove", function (e) {
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
+    }
+    function moveDrag(e) {
       if (!drag) return;
       var max = Math.round(window.innerHeight * 0.86);
       el.style.height = Math.max(112, Math.min(max, drag.h + (drag.y - e.clientY))) + "px";
-    });
+    }
     function endDrag() {
       if (!drag) return;
       drag = null;
@@ -2265,8 +2287,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var target = h < full * 0.28 ? Math.round(full * 0.2) : h > full * 0.55 ? Math.round(full * 0.78) : Math.round(full * 0.42);
       el.style.height = target + "px";
     }
-    handle.addEventListener("pointerup", endDrag);
-    handle.addEventListener("pointercancel", endDrag);
+    [handle, el.querySelector(".sn-offer-top")].forEach(function (node) {
+      if (!node) return;
+      node.addEventListener("pointerdown", startDrag);
+      node.addEventListener("pointermove", moveDrag);
+      node.addEventListener("pointerup", endDrag);
+      node.addEventListener("pointercancel", endDrag);
+    });
     return el;
   }
   function closeOfferDrawer() {
@@ -2296,8 +2323,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       } catch (e) {}
     }, 200);
   }
+  function offersLive() {
+    try { return localStorage.getItem("sn:offers") === "1"; } catch (e) { return false; }
+  }
   function openOfferDrawer(job, drivers) {
-    if (!job) return;
+    if (!job || !offersLive()) return;
     var el = offerDrawer();
     var v = job.vendor || {};
     var d = job.drop || {};
@@ -2346,6 +2376,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var no = el.querySelector(".sn-offer-no");
     if (yes) yes.setAttribute("data-id", job.id || "");
     if (no) no.setAttribute("data-id", job.id || "");
+    var verify = el.querySelector(".sn-offer-verify");
+    if (verify) {
+      verify.innerHTML = isAdmin()
+        ? '<button type="button" data-act="driver-delivered" data-id="' + esc(job.id) + '">DRIVER VERIFIED</button><button type="button" data-act="client-got" data-id="' + esc(job.id) + '">CLIENT VERIFIED</button>'
+        : "";
+    }
     el.style.height = Math.round(window.innerHeight * 0.3) + "px";
     el.classList.add("on");
     frameOffer(job);
@@ -3308,7 +3344,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     shops.forEach(function (s) {
       if (!s || s.kind === "task" || s.src === "task" || s.place === "task") return;
       if (!isFinite(s.lat) || !isFinite(s.lng)) return;
-      if (s.src && s.src !== "listed") return;
+      if (s.src && s.src !== "listed" && s.src !== "live") return;
       if (s.id === "eirini") return;
       if (focus) {
         var same = (s.id && focus.vendor && focus.vendor.id === s.id) || (s.name && focus.vendor && s.name === focus.vendor.name);
@@ -3346,9 +3382,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     if (isAdmin()) paintAdminPins();
     else { paintOwnDrivers(); paintFleet(); }
-    paintOrders();
     revealRoster();
-    paintTasks();
 
   }
   var rosterShown = false;
@@ -4309,6 +4343,35 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!here) locate(function (pt) { land(pt, false); go(); });
     else go();
   }
+  var crawledAt = 0;
+  function crawlReal() {
+    if (!here || !isFinite(+here.lat)) return;
+    if (Date.now() - crawledAt < 60000) return;
+    crawledAt = Date.now();
+    var data = '[out:json][timeout:12];nwr["amenity"~"^(restaurant|cafe|fast_food|bar|pharmacy)$"](around:1200,' + here.lat + "," + here.lng + ");out center 12;";
+    fetch("https://overpass-api.de/api/interpreter", { method: "POST", body: data }).then(function (r) { return r.json(); }).then(function (j) {
+      ((j && j.elements) || []).forEach(function (el) {
+        var lat = el.lat || (el.center && el.center.lat);
+        var lng = el.lon || (el.center && el.center.lon);
+        if (!isFinite(+lat) || !isFinite(+lng)) return;
+        var id = "osm-" + el.type + el.id;
+        if (shops.some(function (s) { return s && s.id === id; })) return;
+        var tags = el.tags || {};
+        shops.push({
+          id: id,
+          name: tags.name || "Vendor",
+          lat: +lat,
+          lng: +lng,
+          src: "live",
+          status: "live",
+          kind: "shop",
+          address: [tags["addr:street"], tags["addr:housenumber"]].filter(Boolean).join(" "),
+          menu: []
+        });
+      });
+      if (cityOn) paintShopsOnMap();
+    }).catch(function () {});
+  }
   function pullListings() { return; }
   function behalf(job) {
     if (!isAdmin() || !job) return "";
@@ -4718,29 +4781,27 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         '<button type="button" data-act="pick-less" data-i="' + i + '">−</button><em class="n">0</em><button type="button" data-act="pick-more" data-i="' + i + '">+</button></div>';
     }).join("");
     if (!menu) menu = '<p class="note">No product on the menu yet.</p>';
-    var tools = "";
-    if (ownTestShop(s)) {
-      tools = '<button type="button" class="sheet-go" data-act="edit-vendor" data-id="' + esc(s.id) + '">EDIT MENU</button>' +
-        '<button type="button" class="sheet-go" data-act="delete-vendor" data-id="' + esc(s.id) + '">DELETE</button>' +
-        '<input id="sn-open-hours" placeholder="Opening hours" value="' + esc(s.hours || "") + '" />' +
-        '<input id="sn-open-sched" placeholder="Schedule" value="' + esc(s.schedule || "") + '" />';
-    }
-    var charged = jobs.filter(function (j) {
+    var tools = isAdmin()
+      ? '<button type="button" class="sheet-go" data-act="delete-vendor" data-id="' + esc(s.id) + '">DELETE</button>' +
+        '<button type="button" class="sheet-go" data-act="edit-vendor" data-id="' + esc(s.id) + '">EDIT</button>'
+      : "";
+    var mineJobs = jobs.filter(function (j) {
       if (!j || !j.vendor) return false;
       var same = (s.id && j.vendor.id === s.id) || (s.name && j.vendor.name === s.name);
-      if (!same || !(j.fee || j.lines)) return false;
-      return isAdmin() || j.client === me() || j.vendorOwner === me();
+      return same && (isAdmin() || j.client === me() || j.vendorOwner === me());
     });
-    var orders = charged.map(function (j) {
+    function jobBtn(j) {
       var items = (j.lines || []).map(function (l) { return (l.n || 1) + " " + (l.name || "item"); }).join(", ");
-      return '<div class="sn-ord"><b>' + esc(j.fee || 0) + " AV€</b><span>" + esc(items || "order") + "</span><em>" + esc(nextStep(j)) + "</em><em>" + esc(orderClock(j)) + "</em></div>";
-    }).join("");
+      var state = j.received ? "DONE" : j.cancelled ? "CANCELLED" : "PENDING";
+      return '<button type="button" class="sheet-go" data-act="open-job" data-id="' + esc(j.id) + '">' + esc(state + " · " + (j.fee || 0) + " AV€ · " + (items || "order")) + "</button>";
+    }
+    var orders = mineJobs.map(jobBtn).join("");
     var html = '<div class="sn-prof">' + tilePhoto(s.photo, "🏪") + "<div><b>" + esc(s.name || "Vendor") + "</b>" + tileContact(s.phone, where) + "</div></div>" +
       tools +
       '<div class="sn-dish"><input id="sn-dish" placeholder="Dish" /><input id="sn-dish-price" inputmode="decimal" placeholder="Price" /></div>' +
       '<p class="note">' + (isAdmin() ? "Green check closes even if this is empty." : "Type a dish, or tap +, then the green check.") + "</p>" +
       menu +
-      (orders ? '<p class="note">CHARGED</p>' + orders : "");
+      (orders ? '<p class="note">ORDERS</p>' + orders : "");
     openTile({ kind: "vendor", title: s.name || "VENDOR", html: html });
     try { if (map && isFinite(+s.lat)) map.panTo([+s.lat, +s.lng], { animate: false }); } catch (e) {}
   }
@@ -4750,7 +4811,17 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var bits = [pt.address, pt.floor ? "floor " + pt.floor : "", pt.bell ? "bell " + pt.bell : "", pt.schedule, pt.hours, pt.areas, pt.goods, pt.volume ? "vol " + pt.volume : "", pt.weight ? "wt " + pt.weight : ""].filter(Boolean);
     if (pt.rain) bits.push("rain");
     if (pt.night) bits.push("night");
-    var html = '<div class="sn-prof">' + tilePhoto(pt.photo, mark) + "<div><b>" + esc(pt.name || role) + "</b>" + tileContact(pt.phone, bits.join(" · ")) + "</div></div>";
+    var related = jobs.filter(function (j) {
+      if (!j) return false;
+      if (role === "driver") return String(j.driverId) === String(pt.id) || (pt.name && j.driver === pt.name);
+      return j.client === me() || (j.drop && pt.name && j.drop.name === pt.name);
+    });
+    var list = related.map(function (j) {
+      var items = (j.lines || []).map(function (l) { return l.name; }).filter(Boolean).join(", ");
+      var state = j.received ? "DONE" : "PENDING";
+      return '<button type="button" class="sheet-go" data-act="open-job" data-id="' + esc(j.id) + '">' + esc(state + " · " + (j.fee || 0) + " AV€ · " + (items || "order")) + "</button>";
+    }).join("");
+    var html = '<div class="sn-prof">' + tilePhoto(pt.photo, mark) + "<div><b>" + esc(pt.name || role) + "</b>" + tileContact(pt.phone, bits.join(" · ")) + "</div></div>" + list;
     openTile({ kind: role === "driver" ? "driver" : "client", title: (pt.name || role).toUpperCase(), html: html });
     try { if (map && isFinite(+pt.lat)) map.panTo([+pt.lat, +pt.lng], { animate: false }); } catch (e) {}
   }
@@ -6802,6 +6873,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         closeSheet();
         return;
       }
+      if (act === "open-job") {
+        var opened = null;
+        jobs.forEach(function (j) { if (j && String(j.id) === String(id)) opened = j; });
+        if (opened) openOfferDrawer(opened, freeDrivers(opened.vendor));
+        return;
+      }
       if (act === "offer-yes") {
         if (needLogin()) return;
         offerYes(t.getAttribute("data-id") || (function () { var sh = $("sn-sheet"); return sh && sh.getAttribute("data-job"); })());
@@ -8143,7 +8220,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (role === "driver" && !on && rideArm === "me-driver") rideArm = null;
   }
   function dropFakes() {
-    shops = shops.filter(function (s) { return s && s.id !== "eirini" && s.name !== "Eirini" && (!s.src || s.src === "listed"); });
+    shops = shops.filter(function (s) { return s && s.id !== "eirini" && s.name !== "Eirini" && (!s.src || s.src === "listed" || s.src === "live"); });
     people = people.filter(function (p) {
       if (!p) return false;
       if (p.id === "sample-driver" || p.id === "sample-client") return false;
@@ -8152,7 +8229,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       return true;
     });
     if (homeDrop && (homeDrop.id === "sample-client" || homeDrop.name === "Sample client")) homeDrop = null;
-    jobs = jobs.filter(function (j) { return j && !(j.vendor && (j.vendor.id === "eirini" || j.vendor.name === "Eirini")) && !j.agent; });
+    jobs = jobs.filter(function (j) {
+      if (!j || j.agent || j.test) return false;
+      if (j.vendor && (j.vendor.id === "eirini" || j.vendor.name === "Eirini")) return false;
+      return !!(j.vendor && j.drop);
+    });
+    if (!localStorage.getItem("sn:cleared-4403")) {
+      jobs = [];
+      try { localStorage.setItem("sn:cleared-4403", "1"); } catch (e3) {}
+    }
+    try { localStorage.setItem("sn:jobs", JSON.stringify(jobs)); } catch (e2) {}
     try {
       var mine = JSON.parse(localStorage.getItem("sn:mine") || "[]") || [];
       localStorage.setItem("sn:mine", JSON.stringify(mine.filter(function (r) { return r && r.id !== "eirini" && r.name !== "Eirini"; })));
@@ -8205,12 +8291,26 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         if (nav) tools.appendChild(nav);
         var support = document.getElementById("sn-support");
         if (support) tools.appendChild(support);
+        var comp = ensureCompass();
+        if (comp) tools.appendChild(comp);
         tools.appendChild(money);
         var gps = document.getElementById("gps");
         if (gps) tools.appendChild(gps);
       }
     }
     var seek = document.getElementById("sn-seek");
+    var mePick = document.getElementById("sn-me");
+    if (mePick && !mePick.__snPlace) {
+      mePick.__snPlace = true;
+      mePick.addEventListener("click", function (e) {
+        if (placeSelf) return;
+        placeSelf = 1;
+        mePick.classList.add("arm");
+        e.preventDefault();
+        e.stopPropagation();
+        say("Tap the map to place yourself.");
+      }, true);
+    }
     if (seek && !seek.__sn) {
       seek.__sn = true;
       seek.addEventListener("submit", function (e) {
@@ -8287,6 +8387,19 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     try { driverPin = JSON.parse(localStorage.getItem("sn:driver") || "null"); } catch (e) {}
     try { people = JSON.parse(localStorage.getItem("sn:people") || "[]") || []; } catch (e2) { people = []; }
     dropFakes();
+    try {
+      var purseUser = JSON.parse(localStorage.getItem("sn:user") || "null");
+      var purseMail = String((purseUser && purseUser.email) || "").toLowerCase();
+      if (purseMail === "notisastranov@gmail.com" || purseMail === "info@astranov.eu") {
+        var purseKey = "sn:avc:" + purseMail;
+        var purse = Number(localStorage.getItem(purseKey));
+        if (!isFinite(purse) || purse < 1) {
+          localStorage.setItem(purseKey, "3000000");
+          localStorage.setItem("sn:avc", "3000000");
+        }
+      }
+    } catch (e4) {}
+    paintMoney();
     locate(function (pt) {
       if (seated || !pt) return;
       here = { lat: pt.lat, lng: pt.lng };
