@@ -1,0 +1,46 @@
+name: grokbuild 4411 (sw lockstep + Crete/shops hunt + compass stack; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4411.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix4411
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          git fetch origin main
+          MAIN_TIP="$(git rev-parse origin/main)"
+          base64 -d .grokbuild/fix4411.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "104397c3e7d20c9b8bc9bc5e9c169e0b283b9010ee00adbac7097ae24d552454"
+          gunzip -c /tmp/f.gz > /tmp/fix4411.patch
+          test "$(sha256sum /tmp/fix4411.patch | cut -d' ' -f1)" = "e421b4bbd760e41f64dfff554ee4ffca7b4d02096cd0b47db3756e595989b900"
+          git rm -rq .grokbuild || true
+          git rm -f .github/workflows/grokbuild-4411.yml || true
+          git rm -f .github/workflows/grokbuild-4410e.yml || true
+          T0="$(git write-tree)"
+          test "$T0" = "5aa99d594d340208e766c418b08179496a912ebf" || { echo "tree0 $T0"; exit 1; }
+          git apply --index /tmp/fix4411.patch
+          grep -q 'var VER = "4411"' sw.js
+          grep -q 'sn-shell-4411' sw.js
+          test "$(cat VERSION)" = "4411"
+          grep -q '4411: a bare category' js/spacenet/app.js
+          grep -q 'window.__SN_4411' js/spacenet/app.js
+          grep -q 'inCreteBbox' lib/http/find.js
+          grep -q '4411: Overpass-only' lib/http/find.js
+          grep -q '__snStackNorth' js/spacenet/app.js
+          T="$(git write-tree)"
+          test "$T" = "9389cc8904a0d643acc0ac05731a9454f26cb119" || { echo "tree $T"; exit 1; }
+          C="$(git commit-tree "$T" -p HEAD -p "$MAIN_TIP" -m "merge main ($(git rev-parse --short $MAIN_TIP)) + 4411: sw.js VER lockstep with VERSION; Crete/Heraklion Greece ranking; bare category hunts at view (never IP); shopNear falls through to nominatim; NORTH stacks above GPS. Keep 4410e.")"
+          git update-ref refs/heads/grokbuild/4328-street-level-gps "$C"
+          git push origin grokbuild/4328-street-level-gps
+          echo "TIP $C"
