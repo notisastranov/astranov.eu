@@ -1,0 +1,43 @@
+name: grokbuild 4410c (hold freeze view + contain-hit shop; branch only, self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4410c.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix4410c
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          git fetch origin main
+          MAIN_TIP="$(git rev-parse origin/main)"
+          base64 -d .grokbuild/fix4410c.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "a49c1dbea14b13e60f8a88d30663897c6fa3ef3c2de1f126ade56998d7f93cd5"
+          gunzip -c /tmp/f.gz > /tmp/fix4410c.patch
+          test "$(sha256sum /tmp/fix4410c.patch | cut -d' ' -f1)" = "9ea107cfe4fc5b2184fe09f4ec1f492b209a7bb714a603d2b1ab63ca6e3919c7"
+          git rm -rq .grokbuild || true
+          git rm -f .github/workflows/grokbuild-4410c.yml || true
+          git rm -f .github/workflows/grokbuild-4410b.yml || true
+          git rm -f .github/workflows/grokbuild-4410.yml || true
+          T0="$(git write-tree)"
+          test "$T0" = "64c52c342e993f46059f19ccaed781963ad7a1ff" || { echo "tree0 $T0"; exit 1; }
+          git apply --index /tmp/fix4410c.patch
+          grep -q '__snHoldView' js/spacenet/app.js
+          grep -q 'prefer a marker box that CONTAINS' js/spacenet/app.js
+          grep -q 'window.__SN_4410C' js/spacenet/app.js
+          grep -q 'check before snPressing reschedule' js/spacenet/app.js
+          T="$(git write-tree)"
+          test "$T" = "ff3aac4e803bb0f66d296fd643e72793973bb2c5" || { echo "tree $T"; exit 1; }
+          C="$(git commit-tree "$T" -p HEAD -p "$MAIN_TIP" -m "merge main ($(git rev-parse --short $MAIN_TIP)) + 4410c: hold freezes map centre while shop card opens (no sheet-settle drift); prefer pin whose box contains the press; click/pointerup skip after hold; fitHunt hold-cancel before snPressing reschedule. Keep 4410b. Lockstep 4410")"
+          git update-ref refs/heads/grokbuild/4328-street-level-gps "$C"
+          git push origin grokbuild/4328-street-level-gps
+          echo "TIP $C"
