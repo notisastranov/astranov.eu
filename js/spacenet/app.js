@@ -1680,6 +1680,7 @@ window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
 window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true; window.__SN_4411 = true; window.__SN_4412 = true;
+  window.__SN_4412F = true; /* 4412f: huntNearKm in merge + 12s api race */
 (function () { /* 4411: NORTH compass stacks above the real GPS rect at every width, so the two never collide */
   function stackNorth() {
     try {
@@ -6824,7 +6825,8 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       if (!seesShop(s)) return false;
       if (s.status === "pending" && !isAdmin() && !ownsShop(s)) return false;
       if (orderCopy(s) && !isAdmin() && !ownsShop(s)) return false; /* 4375: an order's vendor copy is not a public listing */
-      if (hasSeat && haversineKm(seat, s) > 50) return false;
+      /* 4412f: Crete/Heraklion hunts keep island span (huntNearKm), not a hard 50 km city cap */
+      if (hasSeat && haversineKm(seat, s) > (huntView ? huntNearKm() : 50)) return false;
       if (huntView && huntView.needle && !huntMatch(s, huntView.needle)) return false;
       if (huntView && huntView.nameQ && !huntView.pending) {
         if (huntView.single) { if (!(haversineKm(s, huntView.single) <= 0.08 && (!huntView.qc || nameHit(s, huntView.qc) || s.src === "listed"))) return false; }
@@ -7233,7 +7235,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         rows = rows.filter(function (r) { return !/^(highway|boundary|place|landuse|natural|waterway|railway|route|bridge|mountain_pass)$/.test(String(r["class"] || r.category || "")); });
       }
       return Array.isArray(rows)
-        ? rows.map(function (r) { r.src = "nominatim"; return asPlace(r); }).filter(function (p) { return p && nearSeat(p, 50); })
+        ? rows.map(function (r) { r.src = "nominatim"; return asPlace(r); }).filter(function (p) { return p && nearSeat(p, huntNearKm()); }) /* 4412f */
         : [];
     });
   }
@@ -7358,7 +7360,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       /* 4406: the same query at the same place gives the same set: every real place seen here in the last 24 h (any source,
          any Nominatim page) is merged with this answer, and the merged set is what is saved, so runs converge, never shrink */
       if (outside.length && c0 && c0.rows && c0.rows.length && Date.now() - c0.t < 86400000) {
-        var unionR = uniqPlaces((rows || []).concat(c0.rows.map(function (r) { r.cached = true; return r; }).filter(function (p) { return nearSeat(p, 50) && (!needle || huntMatch(p, needle)); })));
+        var unionR = uniqPlaces((rows || []).concat(c0.rows.map(function (r) { r.cached = true; return r; }).filter(function (p) { return nearSeat(p, huntNearKm()) && (!needle || huntMatch(p, needle)); }))); /* 4412f */
         var realU = unionR.filter(function (r) { return r && (!needle || huntMatch(r, needle)); });
         try { localStorage.setItem(key, JSON.stringify({ t: c0.t, rows: realU.slice(0, 80).map(huntSlim) })); } catch (eU) {}
         window.__snHuntCache = { key: key, used: true, n: realU.length, topUp: true };
@@ -7373,7 +7375,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var c = JSON.parse(localStorage.getItem(key) || "null");
       if (c && c.rows && c.rows.length && Date.now() - c.t < 86400000) {
         window.__snHuntCache = { key: key, used: true, n: c.rows.length };
-        return uniqPlaces((rows || []).concat(c.rows.map(function (r) { r.cached = true; return r; }).filter(function (p) { return nearSeat(p, 50); })));
+        return uniqPlaces((rows || []).concat(c.rows.map(function (r) { r.cached = true; return r; }).filter(function (p) { return nearSeat(p, huntNearKm()); }))); /* 4412f */
       }
     } catch (e) {}
     window.__snHuntCache = { key: key, used: false, n: 0 };
@@ -7510,7 +7512,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
             var p = asPlace(r);
             if (p) p.src = p.src || "listed";
             return p;
-          }).filter(function (p) { return p && nearSeat(p, 50); });
+          }).filter(function (p) { return p && nearSeat(p, huntNearKm()); }); /* 4412f */
         }).catch(function () { return []; });
       }
       window.__snLastHunt = named || q;
@@ -7535,7 +7537,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         var outside = uniqPlaces([].concat(packs[1] || [], packs[2] || [], packs[3] || []));
         if (huntView) huntView.via = (packs[1] && packs[1].length) ? "server" : "browser";
         var merged = uniqPlaces([].concat(packs[0] || [], outside, shops && huntView && huntView.ids ? shops.filter(function (s) { return s && huntView.ids[huntKey(s)]; }) : []))
-          .filter(function (p) { return nearSeat(p, 50); });
+          .filter(function (p) { return nearSeat(p, huntNearKm()); }); /* 4412f */
         if (huntView && huntView.nameQ) merged = nameField(merged, packs, huntView.nameQ);
         merged = huntCache(named || q, seat0, merged);
         if (huntView) { huntView.ids = {}; merged.forEach(function (p) { if (p) huntView.ids[huntKey(p)] = 1; }); }
@@ -7543,7 +7545,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       };
       Promise.all([
         huntRace(spaceP, 4000),
-        huntRace(apiP, 4500),
+        huntRace(apiP, 12000), /* 4412f: server hunt often 3–8s; 4.5s raced empty and dropped Menir/full set */
         huntRace(huntNominatim(named || q), 4000),
         huntRace(huntOverpass(named || q), 2500)
       ]).then(function (packs) {
