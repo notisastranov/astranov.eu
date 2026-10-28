@@ -1679,7 +1679,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -3043,16 +3043,23 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         /* shopAtClient is defined later in this scope — geometric fallback inline */
         if (!shop0) {
           try {
-            var bd0 = 56;
+            var bd0 = 56, contain0 = null, cSc0 = 1e9;
             Array.prototype.forEach.call(document.querySelectorAll(".leaflet-marker-icon.sn-shop-pin"), function (mk) {
               if (!mk.__snShopRow) return;
               var f = mk.querySelector(".sn-pin img,.sn-pin em,.sn-no") || mk;
               var r = f.getBoundingClientRect();
               if (!(r.width > 0 || r.height > 0)) r = mk.getBoundingClientRect();
               if (!(r.width > 0 || r.height > 0)) return;
-              var d = Math.hypot(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + Math.min(r.height, 40) / 2));
+              var cx = r.left + r.width / 2, cy = r.top + Math.min(r.height, 40) / 2;
+              var d = Math.hypot(e.clientX - cx, e.clientY - cy);
+              var inside = e.clientX >= r.left - 6 && e.clientX <= r.right + 6 && e.clientY >= r.top - 6 && e.clientY <= r.bottom + 6;
+              if (inside) {
+                var sc = d + (mk.classList.contains("sn-face-off") ? 12 : 0);
+                if (sc < cSc0) { cSc0 = sc; contain0 = mk.__snShopRow; }
+              }
               if (d < bd0) { bd0 = d; shop0 = mk.__snShopRow; }
             });
+            if (contain0) shop0 = contain0;
           } catch (eP1) {}
         }
         snPress = { down: true, t: Date.now(), x: e.clientX, y: e.clientY, shop: shop0 };
@@ -3201,11 +3208,11 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       }
       function shopAtClient(x, y) {
         try {
-          /* 4410: hit face-off / hidden pins too (pointer-events:none); prefer any shop in the hit area over an area LIST */
+          /* 4410/4410c: hit face-off / hidden pins too; prefer a marker box that CONTAINS the press, then nearest face */
           var el0 = document.elementFromPoint(x, y);
           var ic0 = el0 && el0.closest && el0.closest(".leaflet-marker-icon.sn-shop-pin");
           if (ic0 && ic0.__snShopRow) return ic0.__snShopRow;
-          var best = null, bd = 56;
+          var contain = null, cScore = 1e9, best = null, bd = 56;
           Array.prototype.forEach.call(document.querySelectorAll(".leaflet-marker-icon.sn-shop-pin"), function (mk) {
             if (!mk.__snShopRow) return;
             var f = mk.querySelector(".sn-pin img,.sn-pin em,.sn-no") || mk;
@@ -3215,9 +3222,16 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
               r = mk.getBoundingClientRect();
               if (!(r.width > 0 || r.height > 0)) return;
             }
-            var d = Math.hypot(x - (r.left + r.width / 2), y - (r.top + Math.min(r.height, 40) / 2));
+            var cx = r.left + r.width / 2, cy = r.top + Math.min(r.height, 40) / 2;
+            var d = Math.hypot(x - cx, y - cy);
+            var inside = x >= r.left - 6 && x <= r.right + 6 && y >= r.top - 6 && y <= r.bottom + 6;
+            if (inside) {
+              var sc = d + (mk.classList.contains("sn-face-off") ? 12 : 0);
+              if (sc < cScore) { cScore = sc; contain = mk.__snShopRow; }
+            }
             if (d < bd) { bd = d; best = mk.__snShopRow; }
           });
+          if (contain) return contain;
           if (best) return best;
           /* latlng proximity when DOM hit misses (small-town / Siteia pins) */
           if (map && typeof L !== "undefined") {
@@ -5236,22 +5250,10 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
           try { L.DomEvent.preventDefault(e.originalEvent); } catch (err) {}
         }
         try { if (mark.closeTooltip) mark.closeTooltip(); } catch (err2) {}
+        /* 4410c: hold already opened the card — do not re-open (and never pan) */
+        if (window.__snHold && Date.now() - window.__snHold < 5000) return;
         openVendor(pressedShop(s));
       });
-      /* also catch taps that Leaflet routes to the icon DOM */
-      try {
-        var ic = mark.getElement && mark.getElement();
-        if (ic && !ic.__snTap) {
-          ic.__snTap = true;
-          ic.__snShopRow = s;
-          ic.style.pointerEvents = "auto";
-          ic.addEventListener("pointerup", function (ev) {
-            if (ev && ev.button) return;
-            ev.preventDefault(); ev.stopPropagation();
-            openVendor(pressedShop(s));
-          }, true);
-        }
-      } catch (err3) {}
       mark.addTo(map);
       try { var ie0 = mark.getElement && mark.getElement(); if (ie0) { ie0.__snShopRow = s; ie0.__snLat = +s.lat; ie0.__snLng = +s.lng; ie0.__snId = s.id || s.name; } } catch (eIe) {} /* 4395/4409c: the pin under a press at its start + latlng for deterministic cull */
       /* 4396: the icon tap listener is bound after addTo (the icon does not exist before), so a long press on a pin always
@@ -5264,6 +5266,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
           ie1.style.pointerEvents = "auto";
           ie1.addEventListener("pointerup", function (ev) {
             if (ev && ev.button) return;
+            if (window.__snHold && Date.now() - window.__snHold < 5000) return;
             if (!(snPress && snPress.shop && Math.abs(ev.clientX - snPress.x) < 12 && Math.abs(ev.clientY - snPress.y) < 12)) return;
             ev.preventDefault(); ev.stopPropagation();
             openVendor(pressedShop(s));
@@ -6828,10 +6831,10 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     huntFitWanted = false;
     if (!map || !cityOn || typeof L === "undefined" || !huntView) return;
     if (window.__snGrip && window.__snGrip.dragging()) return; /* 4341: never refit under a grip drag */
+    /* 4410c: a hold just opened a shop card — never refit/pan underneath it (check before snPressing reschedule) */
+    if (window.__snHold && Date.now() - window.__snHold < 5000) { huntFitWanted = false; return; }
     /* 4395: never auto re-zoom while a finger is on the map or a hold just fired: pins would slide under it (aimed at Lidl, got Cosmos) */
     if (snPressing()) { huntFitWanted = true; setTimeout(function () { try { fitHunt(); } catch (eR) {} }, 400); return; }
-    /* 4410: a hold just opened a shop card — never refit/pan underneath it */
-    if (window.__snHold && Date.now() - window.__snHold < 2800) { huntFitWanted = false; return; }
     if (huntView.fitAt && mapUserAt > huntView.fitAt) return;
     if (huntView.single) return; /* a name search centres its one place */
     var el = $("city");
@@ -6877,7 +6880,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     [450, 1300].forEach(function (ms) {
       setTimeout(function () {
         try {
-          if (!huntView || !huntView.fitted || !cityOn || snPressing() || mapUserAt > huntView.fitAt || (window.__snGripAt || 0) > huntView.fitAt || (window.__snHold && Date.now() - window.__snHold < 2800)) return;
+          if (!huntView || !huntView.fitted || !cityOn || snPressing() || mapUserAt > huntView.fitAt || (window.__snGripAt || 0) > huntView.fitAt || (window.__snHold && Date.now() - window.__snHold < 5000)) return;
           var v3 = mapVisBox();
           if (Math.abs(v3.t - huntView.fitVB.t) > 10 || Math.abs(v3.b - huntView.fitVB.b) > 10) fitHunt();
         } catch (eR) {}
@@ -8114,9 +8117,30 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       });
     }
     progMoveUntil = Date.now() + 600;
-    /* 4409/4410: a hold opens the card without moving the camera; a tap / FIND row may still frame the shop */
-    if (window.__snHold && Date.now() - window.__snHold < 2800) {
-      try { mapUserAt = Date.now(); huntFitWanted = false; } catch (eHu) {}
+    /* 4409/4410/4410c: a hold opens the card without moving the camera; freeze the view while the sheet settles */
+    var holdFresh = window.__snHold && Date.now() - window.__snHold < 5000;
+    var longPress = !!(snPress && snPress.shop && (Date.now() - snPress.t) >= 900 && (Date.now() - snPress.t) < 8000);
+    if (holdFresh || longPress) {
+      try {
+        mapUserAt = Date.now(); huntFitWanted = false;
+        if (map) {
+          var cHold = map.getCenter(), zHold = map.getZoom();
+          window.__snHoldView = { lat: cHold.lat, lng: cHold.lng, z: zHold, at: Date.now() };
+          [0, 40, 120, 280, 600, 1100].forEach(function (ms) {
+            setTimeout(function () {
+              try {
+                if (!window.__snHoldView || Date.now() - window.__snHoldView.at > 5000) return;
+                if (!(window.__snHold && Date.now() - window.__snHold < 5000) && !(snPress && snPress.shop && Date.now() - snPress.t >= 900 && Date.now() - snPress.t < 8000)) return;
+                var c1 = map.getCenter();
+                if (map.getZoom() !== zHold || Math.abs(c1.lat - cHold.lat) > 1e-9 || Math.abs(c1.lng - cHold.lng) > 1e-9) {
+                  progMoveUntil = Date.now() + 400;
+                  map.setView([cHold.lat, cHold.lng], zHold, { animate: false });
+                }
+              } catch (eFr) {}
+            }, ms);
+          });
+        }
+      } catch (eHu) {}
     } else {
       try { if (map && isFinite(+s.lat)) map.panTo([+s.lat, +s.lng], { animate: false }); } catch (e) {}
     }
@@ -12777,7 +12801,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
