@@ -235,7 +235,7 @@
     var s = document.createElement("style");
     s.id = "sn-me-css";
     s.textContent =
-      "#sn-me{position:fixed;left:max(10px,env(safe-area-inset-left));bottom:calc(env(safe-area-inset-bottom) + 78px);z-index:90;width:var(--u,40px);padding:0;border:0;background:transparent;color:#4df0ff}" +
+      "#sn-me{position:fixed;left:max(6px,env(safe-area-inset-left));top:max(6px,env(safe-area-inset-top));bottom:auto;z-index:90;width:var(--u,40px);padding:0;border:0;background:transparent;color:#4df0ff}" +
       "#sn-me .lbl{display:block;font:800 8px/1 system-ui;letter-spacing:.16em;text-align:center;margin:0 0 4px}" +
       "#sn-me .tgt{display:flex;align-items:center;justify-content:center;width:var(--u,40px);height:var(--u,40px);margin:0 auto;border-radius:999px;overflow:hidden;border:1.5px solid rgba(77,240,255,.95);background:rgba(4,16,28,.92)}" +
       "#sn-me img,#sn-me .ph{width:100%;height:100%;object-fit:cover;display:flex;align-items:center;justify-content:center;font:800 11px system-ui;color:#4df0ff}" +
@@ -282,7 +282,7 @@
     var short = inNow ? String(u.name || String(u.email).split("@")[0] || "YOU").split(/\s+/)[0].replace(/[<>"&]/g, "").slice(0, 10) : "";
     btn.setAttribute("data-who", inNow ? who : "");
     /* 4383: a guest sees YOU too (it opens the YOU panel: where, tasks, and LOG IN inside), never a bare LOGIN */
-    btn.innerHTML = '<span class="lbl">' + (inNow ? (short || "YOU") : "YOU") + '</span><span class="tgt">' + (inNow ? '<img alt="" src="' + String((u && u.photo) || "/you.png?v=4407").replace(/"/g, "") + '">' : '<span class="ph">?</span>') + "</span>";
+    btn.innerHTML = '<span class="lbl">' + (inNow ? (short || "YOU") : "YOU") + '</span><span class="tgt">' + (inNow ? '<img alt="" src="' + String((u && u.photo) || "/you.png?v=4408").replace(/"/g, "") + '">' : '<span class="ph">?</span>') + "</span>";
     if (window.SN && SN.paintMoney) SN.paintMoney();
   }
   /* 4401: from main 4399 — pick your role from the login card */
@@ -295,7 +295,7 @@
     if (!body) return;
     var u = user();
     var inNow = !!(u && u.email);
-    /* 4407: account panel — signed-in Google session (name, email, avatar) + SIGN OUT; guest sees SIGN IN only */
+    /* 4408: account panel — signed-in Google session (name, email, avatar) + SIGN OUT; guest sees SIGN IN only */
     if (!inNow) {
       body.innerHTML =
         '<div class="who"><span class="ph">?</span><div><b>Guest</b><span>OUT</span></div></div>' +
@@ -335,7 +335,7 @@
       sh.addEventListener("click", function (e) {
         var b = e.target.closest("[data-act]");
         var act = b && b.getAttribute("data-act");
-        if (act === "close") { e.stopPropagation(); sh.classList.remove("on"); return; } /* 4404: the ✕ closes only this card, not the pin card behind it */
+        if (act === "close") { e.preventDefault(); e.stopPropagation(); sh.classList.remove("on"); try { if (window.SN && SN.eatClicks) SN.eatClicks(400); } catch (eE) {} return; } /* 4408: close without click-through */
         if (act === "google") { google(); return; }
         if (act === "mail-in") { mailIn(); return; }
         if (act === "mail-up") { mailUp(); return; }
@@ -381,7 +381,7 @@
     var btn = document.getElementById("sn-me");
     if (btn && !btn.__sn4221) {
       btn.__sn4221 = true;
-      btn.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); openMe(); }); /* 4407: identity opens the account panel (name, email, avatar, SIGN IN / SIGN OUT), not the YOU tasks card */
+      btn.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); openMe(); }); /* 4408: identity opens the account panel (name, email, avatar, SIGN IN / SIGN OUT), not the YOU tasks card */
     }
     var search = new URLSearchParams(location.search);
     var hash = location.hash || "";

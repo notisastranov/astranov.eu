@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again."; window.__SN_APPJS = true; /* 4393: the start watchdog sees app.js ran and never reloads it */
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4407"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4408"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1602,7 +1602,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -2130,23 +2130,21 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     });
     return best && bd <= lim ? best : null;
   }
-  /* city wheel: our own 0.5-zoom steps around the cursor (Leaflet's default jumped 2 levels a notch, to z19 sea) */
-  /* 4405: wheel gestures: a burst of raw events (one notch on many mice / smooth scrolling sends 3-8 events) is one gesture;
-     a gesture steps at most once per 400 ms, and the field is left for the globe only by a NEW gesture made at the floor */
+  /* city wheel: 4408 integer zoom steps (1.0). Wheel deltas quantised; one notch per 450 ms gesture. */
   var cityGid = 0, cityRawT = 0, cityStepT = 0, cityStepGid = -1, cityFloorGid = -1;
   function cityWheelTick(t) { if (t - cityRawT > 450) cityGid++; cityRawT = t; }
   function cityWheel(dir, cx, cy, e) {
     if (!map || !cityOn) return null;
-    var z = map.getZoom();
+    var z = Math.round(map.getZoom());
     var tS = Date.now();
     if (!e) cityWheelTick(tS);
-    if (cityStepGid === cityGid && tS - cityStepT < 400) return null;
+    if (cityStepGid === cityGid && tS - cityStepT < 450) return null;
     cityStepGid = cityGid; cityStepT = tS;
     var ll = null;
     try { ll = map.containerPointToLatLng(L.point(cx, cy)); } catch (eP) {}
-    var minZ = map.getMinZoom ? map.getMinZoom() : 9;
+    var minZ = Math.round(map.getMinZoom ? map.getMinZoom() : 9);
     var act = dir > 0 ? ((z <= closeBelow + 0.01 || z <= minZ + 0.01) ? "close" : "out") : (z >= WHEEL_MAX_Z - 0.01 ? "max" : "in");
-    var nz = Math.max(minZ, Math.min(WHEEL_MAX_Z, z + (dir < 0 ? 0.5 : -0.5)));
+    var nz = Math.max(minZ, Math.min(WHEEL_MAX_Z, z + (dir < 0 ? 1 : -1)));
     var rec = wheelLog({ where: "city", e: e, px: cx, py: cy, lat: ll && ll.lat, lng: ll && ll.lng, z: act === "close" ? z : nz, act: act });
     if (act === "close" && cityFloorGid < 0) {
       cityFloorGid = cityGid;
@@ -2164,7 +2162,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     }
     if (ll) xhairLL = { lat: ll.lat, lng: ll.lng };
     mapUserAt = Date.now();
-    if (nz !== z) { try { map.setZoomAround(L.point(cx, cy), nz, { animate: false }); } catch (eZ) { try { map.setZoom(nz, { animate: false }); } catch (eZ2) {} } }
+    if (nz !== z) { try { map.setZoomAround(L.point(cx, cy), Math.round(nz), { animate: false }); } catch (eZ) { try { map.setZoom(Math.round(nz), { animate: false }); } catch (eZ2) {} } }
     placeXhair();
     return rec;
   }
@@ -2196,7 +2194,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         say("Back to the globe");
         return;
       }
-      var nz = Math.max(13, Math.min(19, z + (dir < 0 ? 0.7 : -0.7)));
+      var nz = Math.max(13, Math.min(19, Math.round(z) + (dir < 0 ? 1 : -1)));
       try {
         var tC = Date.now();
         var gC = !!(wheelG && tC - wheelG.t < 400 && Math.abs((sx || 0) - wheelG.x) <= 4 && Math.abs((sy || 0) - wheelG.y) <= 4);
@@ -2710,8 +2708,8 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     if (!isFinite(plat) || !isFinite(plng) || Math.abs(plat) > 90 || Math.abs(plng) > 180) return;
     aim = { lat: plat, lng: plng, name: pt.name || (aim && aim.name) || "" };
     tierI = 3;
-    cursorHold = null; fly = null; closeBelow = opts.zoom ? opts.zoom : 12.5;
-    var openZ = opts.zoom || 16;
+    cursorHold = null; fly = null; closeBelow = opts.zoom ? Math.round(+opts.zoom) : 12;
+    var openZ = Math.round(opts.zoom || 16);
     if (DEBUG_WHEEL) xhairLL = { lat: plat, lng: plng };
     var el = $("city");
     if (!el || typeof L === "undefined") return;
@@ -2777,12 +2775,23 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       if (huntFitWanted) { try { fitHunt(); } catch (eFit) {} }
     }
     if (!map) {
-      map = L.map(el, { zoomControl: false, attributionControl: false, minZoom: 8, maxZoom: 19, zoomSnap: 0.5, zoomDelta: 0.5, scrollWheelZoom: false, doubleClickZoom: false });
+      map = L.map(el, { zoomControl: false, attributionControl: false, minZoom: 8, maxZoom: 19, zoomSnap: 1, zoomDelta: 1, scrollWheelZoom: false, doubleClickZoom: false }); /* 4408: integer zoom only */
       try { window.__snMap = map; } catch (eW) {}
       var osmT = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19, minZoom: 8, crossOrigin: "anonymous", /* 4377: CORS (both OSM servers send ACAO *) so a 200 key-wall tile can be read */
+        maxZoom: 19, minZoom: 8, maxNativeZoom: 19, zoomOffset: 0, crossOrigin: "anonymous",
         errorTileUrl: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
       }).addTo(map);
+      /* 4408: never request fractional-zoom tiles (/6.5/… CORS); coerce coords.z to int */
+      (function () {
+        var _get = osmT.getTileUrl && osmT.getTileUrl.bind(osmT);
+        if (_get) {
+          osmT.getTileUrl = function (coords) {
+            var c = L.point(coords.x, coords.y);
+            c.z = Math.round(+coords.z);
+            return _get(c);
+          };
+        }
+      })();
       /* a tile the OSM server refuses falls back once to the same tile from the OSM Germany community server (keyless, same
          data and sea colour, z19). 4351: CARTO now answers every tile with a grey "API KEY REQUIRED" image (HTTP 200), so it is
          gone as a fallback. OSM refusing 8 tiles in a row (no OSM tile loaded in between: blocked, 429) switches the whole layer
@@ -2799,8 +2808,10 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
             tileSt.keyWall = (tileSt.keyWall || 0) + 1;
             var c = ev.coords, n = Math.pow(2, c.z), x = ((c.x % n) + n) % n;
             tl.__snAlt = 1;
-            tl.src = "https://tile.openstreetmap.de/" + c.z + "/" + x + "/" + c.y + ".png";
-            if (++tileSt.osmRun >= 8 && tileSt.src === "osm") { tileSt.src = "alt"; setTimeout(function () { try { osmT.setUrl(ALT_URL); } catch (eU) {} }, 0); }
+            try { tl.removeAttribute("crossorigin"); tl.crossOrigin = null; } catch (eC) {} /* 4408: .de often lacks ACAO — no CORS console spam */
+            tl.src = "https://tile.openstreetmap.de/" + Math.round(+c.z) + "/" + x + "/" + c.y + ".png";
+            /* 4408: never switch the whole layer to .de (that re-requests every tile with crossOrigin → CORS errors); keep per-tile fallback only */
+            if (++tileSt.osmRun >= 8) tileSt.src = "alt";
             return;
           }
           if (tileSt.src === "osm" && tl && !tl.__snAlt) tileSt.osmRun = 0;
@@ -2813,7 +2824,8 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
           if (tileSt.src === "alt" || t.__snAlt) { tileSt.altErr++; return; }
           t.__snAlt = 1;
           var n = Math.pow(2, c.z), x = ((c.x % n) + n) % n;
-          t.src = "https://tile.openstreetmap.de/" + c.z + "/" + x + "/" + c.y + ".png";
+          try { t.removeAttribute("crossorigin"); t.crossOrigin = null; } catch (eC2) {}
+          t.src = "https://tile.openstreetmap.de/" + Math.round(+c.z) + "/" + x + "/" + c.y + ".png";
           if (++tileSt.osmRun >= 8) {
             tileSt.src = "alt";
             setTimeout(function () { try { osmT.setUrl(ALT_URL); } catch (eU) {} }, 0);
@@ -3043,16 +3055,37 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var holdPt = null;
       var holdTimer = 0;
       window.__snHoldArm = true;
-      window.__snHoldDrag = "420/36";
+      window.__snHoldDrag = "1500/36";
       function dropHold() {
         if (holdTimer) { clearTimeout(holdTimer); holdTimer = 0; }
         holdPt = null;
+      }
+      function shopAtClient(x, y) {
+        try {
+          var el0 = document.elementFromPoint(x, y);
+          var ic0 = el0 && el0.closest && el0.closest(".leaflet-marker-icon.sn-shop-pin");
+          if (ic0 && ic0.__snShopRow) return ic0.__snShopRow;
+          var best = null, bd = 36;
+          Array.prototype.forEach.call(document.querySelectorAll(".leaflet-marker-icon.sn-shop-pin"), function (mk) {
+            if (!mk.__snShopRow) return;
+            var f = mk.querySelector(".sn-pin img,.sn-pin em") || mk;
+            var r = f.getBoundingClientRect();
+            if (!(r.width > 0)) return;
+            var d = Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2));
+            if (d < bd) { bd = d; best = mk.__snShopRow; }
+          });
+          return best;
+        } catch (eS) { return null; }
       }
       function fireHold() {
         var start = holdPt;
         holdTimer = 0;
         holdPt = null;
         if (!map) return;
+        window.__snHold = Date.now();
+        /* 4408: 1.5 s hold on a pin opens that shop's card — never street / place LIST */
+        var shop = (snPress && snPress.shop) || (start && shopAtClient(start.x, start.y));
+        if (shop) { try { openVendor(pressedShop(shop)); } catch (eV) {} return; }
         var ll = null;
         if (start && start.ll) ll = start.ll;
         try { if (!ll && start && start.ev) ll = map.mouseEventToLatLng(start.ev); } catch (err) {}
@@ -3060,13 +3093,14 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
           try { var c = map.getCenter(); ll = { lat: c.lat, lng: c.lng }; } catch (err2) {}
         }
         if (!ll || !isFinite(+ll.lat)) return;
-        window.__snHold = Date.now();
         listAt({ lat: +ll.lat, lng: +ll.lng });
       }
       el.addEventListener("contextmenu", function (e) {
         e.preventDefault();
         if (!map) return;
         dropHold();
+        var shop = shopAtClient(e.clientX, e.clientY);
+        if (shop) { window.__snHold = Date.now(); try { openVendor(pressedShop(shop)); } catch (eV) {} return; }
         var ll = null;
         try { ll = map.mouseEventToLatLng(e); } catch (err) {}
         if (!ll) return;
@@ -3075,13 +3109,11 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       });
       el.addEventListener("pointerdown", function (e) {
         if (e.button) return;
-        if (e.target && e.target.closest && e.target.closest(".leaflet-marker-icon,.sheet-go,.sheet-x,.sheet-apply,#sn-sheet")) return;
+        if (e.target && e.target.closest && e.target.closest(".sheet-go,.sheet-x,.sheet-apply,#sn-sheet")) return;
         dropHold();
-        /* 4373: main b2801bff turned map dragging off on every press (a pan then needed a fresh press); the branch keeps the map
-           draggable and cancels the hold once the press moves 36 px, so a pan is never a LIST */
         var ll0 = null; try { ll0 = map.mouseEventToLatLng(e); } catch (eL) {}
-        holdPt = { x: e.clientX, y: e.clientY, t: Date.now(), ev: e, ll: ll0 }; /* 4395: the hold point is fixed at press start */
-        holdTimer = setTimeout(fireHold, 420);
+        holdPt = { x: e.clientX, y: e.clientY, t: Date.now(), ev: e, ll: ll0 };
+        holdTimer = setTimeout(fireHold, 1500);
       }, true);
       el.addEventListener("pointermove", function (e) {
         if (!holdPt) return;
@@ -3773,14 +3805,14 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       "#sn-sheet.research #sn-sheet-body{max-height:calc(78vh - 52px)!important}",
       /* 4376 (main V4370): the card is as wide as its text, centred, 280..340 px; height stays the grip's (--sn-rest) */
       "#sn-sheet .card,#sn-sheet.tall .card,#sn-tasks .card,#sn-sheet.tile .card{left:50%!important;right:auto!important;width:max-content!important;min-width:min(280px,calc(100vw - 28px))!important;max-width:min(340px,calc(100vw - 28px))!important;transform:translateX(-50%)!important}",
-      "#sn-power{position:fixed!important;top:0!important;left:max(2px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;width:32px!important;height:32px!important;transform:none!important;z-index:60!important}",
-      "#sn-power svg{width:16px!important;height:16px!important}",
+      "#sn-power{position:fixed!important;top:auto!important;left:max(8px,env(safe-area-inset-left))!important;right:auto!important;bottom:calc(var(--dock) + 16px)!important;width:48px!important;height:48px!important;transform:none!important;z-index:46!important}",
+      "#sn-power svg{width:22px!important;height:22px!important}",
       "#sn-support{position:fixed!important;top:0!important;right:max(2px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;width:32px!important;height:32px!important;font-size:14px!important;transform:none!important;z-index:60!important}",
-      "#sn-money{position:fixed!important;top:40px!important;left:max(6px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;transform:none!important;z-index:46!important}",
+      "#sn-money{position:fixed!important;top:72px!important;left:max(6px,env(safe-area-inset-left))!important;right:auto!important;bottom:auto!important;transform:none!important;z-index:46!important;overflow:visible!important}",
       "#sn-globe{position:fixed!important;top:64px!important;right:max(6px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;z-index:60!important;width:40px!important;height:40px!important;padding:0!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.95)!important;background:rgba(4,16,28,.96)!important;color:#4df0ff!important;display:flex!important;align-items:center!important;justify-content:center!important}",
       "#sn-globe svg{width:22px;height:22px;display:block}",
       "#sn-architect{display:none!important}",
-      "#sn-me{position:fixed!important;left:max(8px,env(safe-area-inset-left))!important;right:auto!important;top:auto!important;bottom:calc(var(--dock) + 16px)!important;z-index:46!important}",
+      "#sn-me{position:fixed!important;left:max(6px,env(safe-area-inset-left))!important;right:auto!important;top:max(6px,env(safe-area-inset-top))!important;bottom:auto!important;z-index:70!important}",
       "#gps{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;top:auto!important;bottom:calc(var(--dock) + 16px)!important;z-index:280!important;pointer-events:auto!important}",
       "#sn-compass{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;bottom:calc(var(--dock) + 112px)!important;top:auto!important;z-index:47!important;width:48px!important;height:48px!important;padding:0!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.95)!important;background:rgba(4,16,28,.96)!important;color:#4df0ff!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;box-shadow:0 0 12px rgba(77,240,255,.35)!important}",
       "#sn-compass .lbl{display:block!important;font:800 8px/1 system-ui!important;letter-spacing:.06em!important}",
@@ -3799,7 +3831,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       "form#f{display:flex!important;width:100%!important;gap:0!important;align-items:center!important;min-height:48px!important;padding:0!important;margin:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}",
       "input#in{flex:1!important;min-width:0!important;width:auto!important;min-height:48px!important;border:0!important;border-radius:0!important;background:transparent!important;padding-left:56px!important;padding-right:104px!important}",
       "#sn-pulse{display:none!important}",
-      "#sn-money .lbl{display:inline-flex!important;align-items:center;height:40px;padding:0 4px 0 12px;font:800 10px/1 ui-monospace,monospace!important;letter-spacing:.14em;color:#4df0ff!important;width:auto!important}#sn-money{gap:0!important}#sn-money .tgt{padding-left:6px!important}#sn-money{width:max-content!important;max-width:none!important;min-width:0!important;overflow:visible!important;flex-wrap:nowrap!important}#sn-money .lbl,#sn-money .tgt{flex:0 0 auto!important;white-space:nowrap!important;min-width:max-content!important;overflow:visible!important}#sn-money .lbl{position:relative;z-index:1;padding-right:9px!important}/* 4405: the WALLET caption never shrinks under the chip, keeps a clear gap, and paints above it */",
+      "#sn-money .lbl{display:inline-flex!important;align-items:center;height:40px;padding:0 6px 0 12px;font:800 10px/1 ui-monospace,monospace!important;letter-spacing:.14em;color:#4df0ff!important;width:auto!important;flex:0 0 auto!important;white-space:nowrap!important;min-width:max-content!important;overflow:visible!important;position:relative;z-index:2;padding-right:10px!important;text-overflow:clip!important}#sn-money{display:inline-flex!important;align-items:center!important;gap:0!important;width:max-content!important;max-width:none!important;min-width:max-content!important;overflow:visible!important;flex-wrap:nowrap!important;clip-path:none!important}#sn-money .tgt{padding-left:6px!important;padding-right:12px!important;flex:0 0 auto!important;white-space:nowrap!important;min-width:max-content!important;overflow:visible!important}/* 4408: WALLET caption never clipped at 500 px */",
       "#sn-tester.on{display:block!important}#sn-tester:not(.on){display:none!important}", /* 4381: admin / owner / ?testview=1 only */
       "#island{margin-top:0!important;padding-top:0!important}",
       "#sn-count{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;pointer-events:none;background:transparent}",
@@ -4759,6 +4791,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     if (sh) { sh.classList.remove("on"); sh.classList.remove("tall"); sh.classList.remove("min"); sh.classList.remove("offer"); sh.classList.remove("tile"); }
     materialize(needFilter());
     liftChrome();
+    eatClicks(400);
   }
   function applySheet() {
     var sh = $("sn-sheet");
@@ -5456,7 +5489,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   }
   /* 4403: label guard: every 500 ms while the map is still (and after each declutter), any shown shop label that sits on another
      marker's face/number or on a shown label of a higher-priority pin (lower number) is hidden. It only hides; it never moves pins */
-  function grow1(r) { return { left: r.left - 3, right: r.right + 3, top: r.top - 3, bottom: r.bottom + 3 }; } /* 4406: 2 px margin, strict (rectHit forgives 1 px) */
+  function grow1(r, p) { p = p == null ? (window.innerWidth <= 520 ? 5 : 3) : +p; return { left: r.left - p, right: r.right + p, top: r.top - p, bottom: r.bottom + p }; } /* 4408: wider margin at 500 px */
   function labelGuard() {
     try {
       var cityEl = $("city"); if (!cityEl || (snPress && snPress.down) || cityEl.querySelector(".leaflet-zoom-anim")) return; /* 4404: it only hides, so it runs under a hover too (the hovered pin keeps its name) */
@@ -5565,6 +5598,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         /* 4406: a name touching any pin (its face or number, 2 px margin; its own face with no overlap) or whose own leader
            line crosses any other name is hidden too */
         var hit = faces.some(function (f) { return f.mk !== l.mk ? rectHit(grow1(l.r), f.r) : rectHit(l.r, f.r); }) || kept.some(function (k) { return rectHit(grow1(l.r), k.r); }) || leadHit(l) || ownLeadHit(l);
+        if (!hit && window.innerWidth <= 520 && kept.length >= 3 && l.mk !== hovMk) hit = true; /* 4408: at 500 px keep at most 3 names */
         var b = l.mk.querySelector("b"), clip = b && (b.scrollHeight > b.clientHeight + 1 || b.scrollWidth > b.clientWidth + 1);
         if (!hit && !clip && l.mk !== hovMk) hit = coveredAt(l); /* 4405: whatever is painted on top of the name (sheet grip, chips, another pin) */
         if ((hit && l.mk !== hovMk) || clip) { l.mk.classList.add("sn-lbl-off"); l.mk.classList.remove("sn-lbl-short"); } else kept.push(l);
@@ -5607,13 +5641,18 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     el.textContent = String(huntLabel()).toUpperCase() + " · " + (state === "busy" ? "looking…" : n + " real pin" + (n === 1 ? "" : "s"));
     el.style.display = "block";    placeRibbon();
   }
-  /* 4406: the top-left ribbon is one column with gaps: WALLET chip, then the hunt chip under it (wrapping, never wider than the
-     room left of the globe button), then the power tag; nothing overlaps whatever the font, width or count */
+  /* 4408: top-left = identity (#sn-me), then WALLET, then hunt chip; power (AUTOMATIONS) is bottom-left */
   function placeRibbon() {
     try {
-      var mo = $("sn-money"), hn = $("sn-hunt-n"), pt = $("sn-power-tag");
+      var mo = $("sn-money"), hn = $("sn-hunt-n"), pt = $("sn-power-tag"), me = $("sn-me");
       var mr = mo && getComputedStyle(mo).display !== "none" ? mo.getBoundingClientRect() : null;
-      var L = Math.round(mr && mr.width ? mr.left : 6), y = mr && mr.height ? mr.bottom + 6 : 76;
+      var mer = me && getComputedStyle(me).display !== "none" ? me.getBoundingClientRect() : null;
+      if (mo && mer && mer.height) {
+        var wantTop = Math.round(mer.bottom + 8);
+        if (Math.abs((mr && mr.top) - wantTop) > 2) mo.style.setProperty("top", wantTop + "px", "important");
+        mr = mo.getBoundingClientRect();
+      }
+      var L = Math.round(mr && mr.width ? mr.left : 6), y = mr && mr.height ? mr.bottom + 6 : (mer && mer.height ? mer.bottom + 56 : 120);
       if (hn && hn.style.display !== "none") {
         var gl = $("sn-globe"), gr = gl && gl.getBoundingClientRect(), right = window.innerWidth - 6;
         if (gr && gr.width && gr.top < y + 60 && gr.left > L + 100) right = gr.left - 6;
@@ -6544,7 +6583,8 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     if (!map || !cityOn || typeof L === "undefined" || !huntView) return;
     if (window.__snGrip && window.__snGrip.dragging()) return; /* 4341: never refit under a grip drag */
     /* 4395: never auto re-zoom while a finger is on the map or a hold just fired: pins would slide under it (aimed at Lidl, got Cosmos) */
-    if (snPressing() || (window.__snHold && Date.now() - window.__snHold < 2500) || (huntView.fitAt && mapUserAt > huntView.fitAt)) { huntView.fitted = true; return; }
+    if (snPressing() || (window.__snHold && Date.now() - window.__snHold < 2500)) { huntFitWanted = true; setTimeout(function () { try { fitHunt(); } catch (eR) {} }, 400); return; }
+    if (huntView.fitAt && mapUserAt > huntView.fitAt) return;
     if (huntView.single) return; /* a name search centres its one place */
     var el = $("city");
     if (!el || el.clientWidth < 40 || el.clientHeight < 40) { huntFitWanted = true; setTimeout(function () { try { fitHunt(); } catch (e) {} }, 80); return; }
@@ -6573,7 +6613,8 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       });
       if (!bad) break;
       progMoveUntil = Date.now() + 800;
-      try { map.fitBounds(L.latLngBounds(pts), { paddingTopLeft: [56, top + 56], paddingBottomRight: [56, bot + 62], maxZoom: Math.max(9, z - 0.5), animate: false }); } catch (e4) {}
+      try { map.fitBounds(L.latLngBounds(pts), { paddingTopLeft: [56, top + 56], paddingBottomRight: [56, bot + 62], maxZoom: Math.max(9, Math.round(z) - 1), animate: false }); } catch (e4) {}
+      try { if (map.getZoom() !== Math.round(map.getZoom())) map.setZoom(Math.round(map.getZoom()), { animate: false }); } catch (eFz) {}
       z = map.getZoom();
     }
     huntView.fitVB = { t: vb.t, b: vb.b };
@@ -6588,9 +6629,11 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         } catch (eR) {}
       }, ms);
     });
-    closeBelow = Math.round((z - 3.5) * 2) / 2; /* 4407: always exactly 7 notches (0.5 each) from the hunt fit to Widest view — no absolute 5–7 clamp that changed the count by fit zoom */ try { map.setMinZoom(closeBelow); } catch (eMz) {}
+    closeBelow = Math.max(8, Math.round(z) - 7); /* 4408: exactly 7 integer notches from the hunt fit to Widest view */ try { map.setMinZoom(closeBelow); } catch (eMz) {}
+    try { if (map.getZoom() !== Math.round(map.getZoom())) map.setZoom(Math.round(map.getZoom()), { animate: false }); } catch (eIz) {}
     huntView.fitted = true;
     try { paintShopsOnMap(); } catch (e3) {}
+    try { setTimeout(labelGuard, 80); setTimeout(labelGuard, 600); setTimeout(declutterSoon, 100); } catch (eLg) {}
   }
   /* FIND order (nearest the hunt origin first): the row number and the pin badge both come from here */
   function findOrder(list) {
@@ -7522,9 +7565,23 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     renderLeft();
     say(key === "theme" ? "Look follows " + c[key] + "." : "Map is " + c[key] + ".");
   }
+  function eatClicks(ms) {
+    try {
+      var s = document.createElement("div");
+      s.setAttribute("data-sn-eat", "1");
+      s.style.cssText = "position:fixed;inset:0;z-index:2147483000;background:transparent;";
+      function stop(e) { try { e.preventDefault(); e.stopPropagation(); } catch (eS) {} }
+      ["pointerdown", "pointerup", "click", "mousedown", "mouseup", "touchstart", "touchend"].forEach(function (k) {
+        s.addEventListener(k, stop, true);
+      });
+      document.body.appendChild(s);
+      setTimeout(function () { try { s.remove(); } catch (eR) {} }, ms || 380);
+    } catch (eE) {}
+  }
   function closeLeft() {
     var box = $("sn-left");
     if (box) box.classList.remove("on");
+    eatClicks(400);
   }
   function renderLeft() {
     var box = $("sn-left");
@@ -7751,6 +7808,22 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       ((s.src === "listed" && (ownsShop(s) || isAdmin())) ? '<button type="button" class="sheet-go" data-act="edit-vendor">' + (ownsShop(s) ? "EDIT MY SHOP" : "EDIT THIS SHOP") + "</button>" : "");
     openTile({ kind: "vendor", title: s.name || "VENDOR", html: html });
     try { var shV = $("sn-sheet"); if (shV) { shV.setAttribute("data-vkey", vKey(s)); pickLoad($("sn-sheet-card"), vKey(s)); } } catch (eV) {}
+    try {
+      requestAnimationFrame(function () {
+        var card = $("sn-sheet-card"), body = $("sn-sheet-body");
+        if (!card || !body) return;
+        var bar = card.querySelector(".sheet-bar");
+        var need = (bar ? bar.offsetHeight : 48) + body.scrollHeight + 16;
+        var cap = Math.max(160, Math.floor(window.innerHeight * 0.72));
+        var h = Math.min(Math.max(need, 120), cap);
+        card.style.setProperty("height", h + "px", "important");
+        card.style.setProperty("max-height", h + "px", "important");
+        card.style.setProperty("overflow", need > cap ? "auto" : "hidden", "important");
+        body.style.setProperty("max-height", Math.max(0, h - (bar ? bar.offsetHeight : 48)) + "px", "important");
+        body.style.setProperty("overflow", need > cap ? "auto" : "hidden", "important");
+        try { if (window.__snGrip && window.__snGrip.place) window.__snGrip.place(); } catch (eG) {}
+      });
+    } catch (eFitC) {}
     try {
       var hero = document.querySelector("#sn-sheet .sn-prof img.sn-shop-hero");
       if (hero) hero.addEventListener("error", function () {
@@ -11731,7 +11804,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var r = sh.classList.contains("on") ? card.getBoundingClientRect() : null;
       if (r && r.height < 20) r = null;
       var seen = {};
-      [["gps", ["sn-support", "sn-globe", "sn-architect"]], ["sn-me", ["sn-money", "sn-power-tag", "sn-power"]]].forEach(function (fx) {
+      [["gps", ["sn-support", "sn-globe", "sn-architect"]], ["sn-power", ["sn-money", "sn-power-tag"]]].forEach(function (fx) {
         var el = $(fx[0]);
         if (!el) return;
         if (!r) {
@@ -12406,7 +12479,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
@@ -12452,7 +12525,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       fitHunt: function () { fitHunt(); },
       openCity: openCity, goToPlaceAsk: goToPlaceAsk, seatPlace: seatPlace, closeCity: closeCity, listAt: listAt, scenario: scenario, goNamed: hunt, huntNamed: hunt,
       user: function () { return window.SNAuth && SNAuth.user ? SNAuth.user() : null; },
-      paintMoney: paintMoney, evolve: evolve, addFunds: addFunds,
+      paintMoney: paintMoney, evolve: evolve, addFunds: addFunds, eatClicks: eatClicks,
       visibleShops: function () { return shops; },
       jobs: function () { return jobs; },
       hunt: hunt,
