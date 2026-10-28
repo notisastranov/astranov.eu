@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4405";
+  var VER = "4406";
 
   var latestVer = "";
   var INTRO_MS = 13000;
@@ -323,10 +323,45 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function needLogin() {
     if (signed()) return false;
-    say("LOGIN first.");
+    say("Log in first.");
     if (window.SNAuth && SNAuth.open) SNAuth.open();
     return true;
   }
+  function profileGet() {
+    try { return JSON.parse(localStorage.getItem("sn:profile") || "null") || null; } catch (e) { return null; }
+  }
+  function profileReady() {
+    var p = profileGet();
+    return !!(p && String(p.name || "").trim() && String(p.phone || "").trim());
+  }
+  function roleReady() {
+    var r = rolesGet();
+    return !!(r.client || r.vendor || r.driver);
+  }
+  function openProfile() {
+    var p = profileGet() || {};
+    openSheet("PROFILE",
+      '<p class="note">Your name and phone. Orders stay closed until this is saved.</p>' +
+      '<input id="sn-prof-name" placeholder="Name" value="' + esc(p.name || "") + '" />' +
+      '<input id="sn-prof-phone" placeholder="Phone" value="' + esc(p.phone || "") + '" />' +
+      '<input id="sn-prof-address" placeholder="Address" value="' + esc(p.address || "") + '" />' +
+      '<button type="button" class="sheet-go primary" data-act="save-profile">SAVE PROFILE</button>', true);
+  }
+  function openRoles() {
+    openSheet("ROLES",
+      '<p class="note">Turn on at least one role, then hold the power button. Power starts the orders.</p>' +
+      '<button type="button" class="sheet-go" data-act="set-role" data-k="client">CLIENT</button>' +
+      '<button type="button" class="sheet-go" data-act="set-role" data-k="vendor">VENDOR</button>' +
+      '<button type="button" class="sheet-go" data-act="set-role" data-k="driver">DRIVER</button>', false);
+  }
+  function needReady() {
+    if (needLogin()) return true;
+    if (!profileReady()) { openProfile(); say("Set up your profile."); return true; }
+    if (!roleReady()) { openRoles(); say("Activate a role."); return true; }
+    if (!offersLive()) { say("Hold the power button to receive and place orders."); return true; }
+    return false;
+  }
+  function gateUser() { needReady(); }
   function visRect(el) {
     if (!el) return null;
     var cs = getComputedStyle(el);
@@ -1718,6 +1753,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       '<button type="button" class="sheet-go" data-act="map-driver">MY DRIVER BASE</button>', true);
   }
   function listAt(pt) {
+    if (needReady()) return;
     if (!pt || !isFinite(pt.lat) || !isFinite(pt.lng)) return;
     listPt = { lat: pt.lat, lng: pt.lng };
     listAlt = altitudeFromDist(cam.dist);
@@ -2261,6 +2297,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-panel .sn-pick b{flex:1 1 auto!important;min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}",
       "#sn-panel .sn-pick img,#sn-panel .sn-pick .sn-mini{width:32px!important;height:32px!important;max-width:32px!important;max-height:32px!important;flex:none!important}",
       "#sn-panel .sn-pick span,#sn-panel .sn-pick em,#sn-panel .sn-pick button{flex:none!important}",
+      ".sn-talk{display:flex!important;gap:6px!important;margin:8px 0!important}",
+      ".sn-talk .sheet-go{flex:1!important;text-align:center!important}",
       ".sn-offer-math{flex:none!important;padding:0 16px 8px!important;text-align:center!important;color:#b9d4ff!important;font:600 12px/1.45 system-ui!important;white-space:pre-line!important}",
       "#sn-tester,.sn-tester-tip,.leaflet-tooltip.sn-tester-tip{display:none!important}",
       "#sn-tools #sn-money{flex:1!important;min-width:0!important}",
@@ -2289,7 +2327,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-me.arm{box-shadow:0 0 0 3px #1a3cff,0 0 16px #1a3cff!important;animation:sn-power-pulse 1s ease-in-out infinite!important}",
       ".sn-loc{width:22px;height:22px;border-radius:50%;background:#1a3cff;border:3px solid #fff;box-shadow:0 0 0 6px rgba(26,60,255,.35),0 0 16px #1a3cff;display:block}",
       ".leaflet-marker-icon.sn-me-on .sn-loc{box-shadow:0 0 0 8px rgba(26,60,255,.5),0 0 18px #1a3cff!important}",
-      ".sn-offer-verify{flex:none!important;display:flex!important;gap:8px!important;padding:0 12px 8px!important}",
+      ".sn-offer-verify{flex:none!important;display:flex!important;flex-wrap:wrap!important;gap:8px!important;padding:0 12px 8px!important}",
       ".sn-offer-verify button{flex:1!important;height:36px!important;border-radius:999px!important;border:1px solid #1a3cff!important;background:#041018!important;color:#e8fbff!important;font:800 11px system-ui!important}"
     ].join("");
     document.head.appendChild(s);
@@ -2397,7 +2435,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (!l) return;
       add("Item " + (i + 1), [l.name || l.title || l.item, l.n, l.price, l.vol, l.kg ? l.kg + " kg" : "", l.temp].filter(function (x) { return x != null && x !== ""; }).join(" · "));
     });
-    el.querySelector(".sn-offer-scroll").innerHTML = rows.join("") || "<p><b>Offer</b><span>No extra fields.</span></p>";
+    el.querySelector(".sn-offer-scroll").innerHTML = talkBar(v) + talkBar({ id: (d && (d.id || d.name)) || "client", name: (d && d.name) || "Client", phone: d && d.phone }) + talkBar({ id: job.driverId || "driver", name: job.driver || "Driver", phone: "" }) + (rows.join("") || "<p><b>Offer</b><span>No extra fields.</span></p>");
     var price = el.querySelector(".sn-offer-price");
     if (price) price.textContent = job.fee != null && job.fee !== "" ? job.fee + " AV€" : "OFFER";
     var math = el.querySelector(".sn-offer-math");
@@ -2414,9 +2452,17 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (no) no.setAttribute("data-id", job.id || "");
     var verify = el.querySelector(".sn-offer-verify");
     if (verify) {
-      verify.innerHTML = isAdmin()
-        ? '<button type="button" data-act="driver-delivered" data-id="' + esc(job.id) + '">DRIVER VERIFIED</button><button type="button" data-act="client-got" data-id="' + esc(job.id) + '">CLIENT VERIFIED</button>'
-        : "";
+      var id = esc(job.id);
+      var shopOk = !!job.stepVendor;
+      var drvShop = !!job.stepDriverShop;
+      var dropOk = !!job.stepClient;
+      var drvDrop = !!job.stepDriverDrop;
+      verify.innerHTML =
+        '<button type="button" data-act="step-vendor" data-id="' + id + '">' + (shopOk ? "VENDOR OK" : "VENDOR VERIFY") + "</button>" +
+        '<button type="button" data-act="step-driver-shop" data-id="' + id + '">' + (drvShop ? "DRIVER AT SHOP OK" : "DRIVER AT SHOP") + "</button>" +
+        '<button type="button" data-act="step-client" data-id="' + id + '">' + (dropOk ? "CLIENT OK" : "CLIENT VERIFY") + "</button>" +
+        '<button type="button" data-act="step-driver-drop" data-id="' + id + '">' + (drvDrop ? "DRIVER AT DOOR OK" : "DRIVER AT DOOR") + "</button>" +
+        '<button type="button" data-act="job-problem" data-id="' + id + '">PROBLEM</button>';
     }
     el.style.setProperty("height", Math.round(window.innerHeight * 0.42) + "px", "important");
     el.classList.add("on");
@@ -2696,8 +2742,45 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     paintSupportLog();
   }
   function openSupport() {
-    if (supportOn) { setSupport(false); return; }
-    setSupport(true);
+    if (needLogin()) return;
+    var name = myName();
+    var sessions = [];
+    try { sessions = JSON.parse(localStorage.getItem("sn:desk") || "[]") || []; } catch (e) {}
+    var mine = sessions.filter(function (s) { return s && (isAdmin() || s.email === me() || s.name === name); });
+    var log = mine.slice(-16).map(function (s) {
+      return "<p class=\"note\"><b>" + esc(s.name || "User") + "</b> " + esc(s.text || "") + "</p>";
+    }).join("") || "<p class=\"note\">No session yet. Administrators see every line you send.</p>";
+    openSheet(name + " · SUPPORT",
+      "<p class=\"note\">" + esc(name) + " · build " + esc(VER) + "</p>" + log +
+      '<textarea id="sn-support-matter" placeholder="What happened"></textarea>' +
+      '<button type="button" class="sheet-go primary" data-act="support-send">SEND</button>', true);
+  }
+  function sendSupport(matter) {
+    matter = String(matter || "").trim();
+    if (!matter) { say("Say what happened."); return; }
+    var name = myName();
+    var row = { name: name, email: me(), text: matter, t: Date.now(), build: VER };
+    var sessions = [];
+    try { sessions = JSON.parse(localStorage.getItem("sn:desk") || "[]") || []; } catch (e) {}
+    sessions.push(row);
+    if (sessions.length > 80) sessions = sessions.slice(-80);
+    try { localStorage.setItem("sn:desk", JSON.stringify(sessions)); } catch (e2) {}
+    ledgerPut("support", row);
+    fetch("/api/support/open", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: authToken() ? "Bearer " + authToken() : "" },
+      body: JSON.stringify({ matter: matter, name: name, ticket: "desk-" + me() })
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      if (j && j.say) {
+        sessions.push({ name: "DESK", email: "desk", text: j.say, t: Date.now(), build: VER });
+        try { localStorage.setItem("sn:desk", JSON.stringify(sessions.slice(-80))); } catch (e3) {}
+      }
+      say((j && j.say) || ("Session logged for " + name + "."));
+      openSupport();
+    }).catch(function () {
+      say("Session logged for " + name + ".");
+      openSupport();
+    });
   }
   function listenSupport() {
     if (!(window.SpeechRecognition || window.webkitSpeechRecognition)) { say("Type in the support menu."); return; }
@@ -2713,27 +2796,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       sendSupport(t, true);
     };
     try { rec.start(); say("Support listening…"); } catch (e) { say("Mic busy."); }
-  }
-  function sendSupport(matter, fromVoice) {
-    matter = String(matter || "").trim();
-    if (!matter) { say("Say what you need."); return; }
-    var ta = $("sn-support-matter");
-    if (ta) ta.value = "";
-    pushSupport("YOU", matter);
-    say("Grok…");
-    askGrok(matter, function (err, j) {
-      if (!err && j) {
-        var reply = j.say || j.text;
-        pushSupport("GROK", reply);
-        say(reply);
-        if (fromVoice) speakIfVoice(reply);
-        applyAct(j, matter);
-        return;
-      }
-      var local = programmer(matter);
-      pushSupport("GROK", local);
-      say(local);
-    });
   }
   function askGrok(q, cb) {
     var vendors = shops.slice(0, 8).map(function (s) { return s.name; });
@@ -4831,6 +4893,17 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     bar.addEventListener("pointercancel", end);
   }
 
+  function talkBar(who) {
+    who = who || {};
+    var id = esc(who.id || who.name || "x");
+    var name = esc(who.name || "");
+    var phone = esc(String(who.phone || "").replace(/[^\d+]/g, ""));
+    return '<div class="sn-talk">' +
+      '<button type="button" class="sheet-go" data-act="talk-msg" data-id="' + id + '" data-name="' + name + '">MESSAGE</button>' +
+      '<button type="button" class="sheet-go" data-act="talk-call" data-id="' + id + '" data-name="' + name + '" data-tel="' + phone + '">CALL</button>' +
+      '<button type="button" class="sheet-go" data-act="talk-video" data-id="' + id + '" data-name="' + name + '">VIDEO</button>' +
+      "</div>";
+  }
   function openVendor(s) {
     if (!s) return;
     vendor = s;
@@ -4863,9 +4936,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     var orders = mineJobs.map(jobBtn).join("");
     var html = '<div class="sn-prof">' + tilePhoto(s.photo, "🏪") + "<div><b>" + esc(s.name || "Vendor") + "</b>" + tileContact(s.phone, where) + "</div></div>" +
+      talkBar(s) +
       tools +
       '<div class="sn-dish"><input id="sn-dish" placeholder="Dish" /><input id="sn-dish-price" inputmode="decimal" placeholder="Price" /></div>' +
-      '<p class="note">' + (isAdmin() ? "Green check closes even if this is empty." : "Type a dish, or tap +, then the green check.") + "</p>" +
+      '<p class="note">' + (isAdmin() ? "Green check closes even if this is empty." : "Tap + , then the green check. It pays in AV€.") + "</p>" +
       menu +
       (orders ? '<p class="note">ORDERS</p>' + orders : "");
     openTile({ kind: "vendor", title: s.name || "VENDOR", html: html });
@@ -4887,7 +4961,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var state = j.received ? "DONE" : "PENDING";
       return '<button type="button" class="sheet-go" data-act="open-job" data-id="' + esc(j.id) + '">' + esc(state + " · " + (j.fee || 0) + " AV€ · " + (items || "order")) + "</button>";
     }).join("");
-    var html = '<div class="sn-prof">' + tilePhoto(pt.photo, mark) + "<div><b>" + esc(pt.name || role) + "</b>" + tileContact(pt.phone, bits.join(" · ")) + "</div></div>" + list;
+    var html = '<div class="sn-prof">' + tilePhoto(pt.photo, mark) + "<div><b>" + esc(pt.name || role) + "</b>" + tileContact(pt.phone, bits.join(" · ")) + "</div></div>" + talkBar(pt) + list;
     openTile({ kind: role === "driver" ? "driver" : "client", title: (pt.name || role).toUpperCase(), html: html });
     try { if (map && isFinite(+pt.lat)) map.panTo([+pt.lat, +pt.lng], { animate: false }); } catch (e) {}
   }
@@ -4898,6 +4972,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       return '<div class="sn-pick"><span class="sn-mini"></span><b>' + esc(l.name) + "</b><span>" + esc(l.price || "") + "</span><em></em><em>" + esc(l.n) + "</em></div>";
     }).join("");
     var html = '<div class="sn-prof">' + tilePhoto(v.photo, "🏪") + "<div><b>" + esc(v.name || "Vendor") + "</b>" + tileContact(v.phone, v.address) + "</div></div>" +
+      talkBar(v) + talkBar({ id: "drop-" + (d.name || "client"), name: d.name || "Client", phone: d.phone }) +
       lines + whoLine("CLIENT", d.name || "Client", [d.address, d.phone].filter(Boolean).join(" · ")) +
       '<p class="note">Preparation minutes</p><input id="sn-prep" inputmode="numeric" placeholder="Minutes" />' +
       '<p class="note">How long the order stays good, minutes</p><input id="sn-life" inputmode="numeric" placeholder="Lifetime" />';
@@ -5324,8 +5399,86 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }
     n.textContent = s;
   }
+  function chargeClient(n, why) {
+    n = Math.round(Number(n) * 100) / 100;
+    if (!(n > 0)) return false;
+    if (myMoney() + 0.001 < n) return false;
+    var left = Math.round((avcGet() - n) * 100) / 100;
+    avcSet(Math.max(0, left));
+    var b = booksGet();
+    var row = bookRow(b, "client:" + me(), myName(), "client");
+    row.avc = Math.max(0, left);
+    b.pool = Math.round(((Number(b.pool) || 0) + n) * 100) / 100;
+    booksSet(b);
+    ledgerPut("pay", { who: me(), name: myName(), n: n, why: why || "order" });
+    return true;
+  }
+  function settleJob(job) {
+    if (!job || job.settled) return;
+    var food = Math.round((Number(job.food) || 0) * 100) / 100;
+    var delivery = Math.max(0, Math.round(((Number(job.fee) || 0) - food) * 100) / 100);
+    var b = booksGet();
+    var v = bookRow(b, "vendor:" + ((job.vendor && job.vendor.id) || job.vendorOwner || "vendor"), (job.vendor && job.vendor.name) || "Vendor", "vendor");
+    var d = bookRow(b, "driver:" + (job.driverId || "driver"), job.driver || "Driver", "driver");
+    v.avc = Math.round(((Number(v.avc) || 0) + food) * 100) / 100;
+    d.avc = Math.round(((Number(d.avc) || 0) + delivery) * 100) / 100;
+    b.pool = Math.max(0, Math.round(((Number(b.pool) || 0) - food - delivery) * 100) / 100);
+    booksSet(b);
+    if (job.vendorOwner && job.vendorOwner === me()) avcSet(Math.round((avcGet() + food) * 100) / 100);
+    if (job.driverOwner && job.driverOwner === me()) avcSet(Math.round((avcGet() + delivery) * 100) / 100);
+    job.settled = true;
+    job.paid = true;
+    job.pay = "AV€ " + job.fee + " · vendor " + food + " · driver " + delivery;
+    ledgerPut("settle", { id: job.id, food: food, delivery: delivery, vendor: v.name, driver: d.name, client: myName() });
+  }
+  function judgeFault(job, why) {
+    if (!job || job.received) return;
+    why = String(why || "").trim();
+    var food = Math.round((Number(job.food) || 0) * 100) / 100;
+    var delivery = Math.max(0, Math.round(((Number(job.fee) || 0) - food) * 100) / 100);
+    var blame = "driver";
+    if (!job.stepVendor && !job.got) blame = "vendor";
+    else if (job.delivered && !job.stepClient) blame = "client";
+    if (/vendor|shop|not ready/i.test(why)) blame = "vendor";
+    if (/client|door|nobody|no one/i.test(why)) blame = "client";
+    if (/driver|late|crash|drop/i.test(why)) blame = "driver";
+    var bill = blame === "vendor" ? food : blame === "client" ? delivery : Math.round((food + delivery) * 100) / 100;
+    var b = booksGet();
+    var id = blame === "vendor" ? ("vendor:" + ((job.vendor && job.vendor.id) || "vendor")) : blame === "driver" ? ("driver:" + (job.driverId || "driver")) : ("client:" + (job.client || me()));
+    var name = blame === "vendor" ? ((job.vendor && job.vendor.name) || "Vendor") : blame === "driver" ? (job.driver || "Driver") : ((job.drop && job.drop.name) || "Client");
+    var row = bookRow(b, id, name, blame);
+    row.avc = Math.round(((Number(row.avc) || 0) - bill) * 100) / 100;
+    row.debt = Math.round(((Number(row.debt) || 0) + bill) * 100) / 100;
+    if (blame !== "client" && !job.refunded) {
+      avcSet(Math.round((avcGet() + (Number(job.fee) || 0)) * 100) / 100);
+      b.pool = Math.max(0, Math.round(((Number(b.pool) || 0) - (Number(job.fee) || 0)) * 100) / 100);
+      job.refunded = true;
+    }
+    booksSet(b);
+    job.fault = { id: id, name: name, role: blame, bill: bill, why: why || blame };
+    job.stage = "fault";
+    job.pay = "Fault " + blame + " " + bill + " AV€";
+    ledgerPut("fault", { id: job.id, blame: blame, name: name, bill: bill, why: why || blame });
+    saveJobs();
+    say(name + " is at fault. Charged " + bill + " AV€.");
+  }
+  function markStep(id, key) {
+    var job = jobBy(id);
+    if (!job) return;
+    job[key] = true;
+    if (job.stepVendor && job.stepDriverShop) { job.pickup = true; job.got = true; job.ready = true; job.stage = "out"; if (!job.outAt) job.outAt = Date.now(); }
+    if (job.stepClient && job.stepDriverDrop && job.got) {
+      job.delivered = true;
+      job.received = true;
+      job.stage = "done";
+      settleJob(job);
+    }
+    saveJobs();
+    openOfferDrawer(job, []);
+    say(job.received ? "Both sides verified. Vendor and driver are paid." : "Verified. The other side still has to confirm.");
+  }
   function checkoutVendor() {
-    if (needLogin()) return;
+    if (needReady()) return;
     if (silenced(me())) { sheetNote("You are shut down. No orders until it lifts."); return; }
     if (!vendor) { sheetNote("Tap the vendor again."); return; }
     var body = $("sn-sheet-body");
@@ -5376,6 +5529,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var food = 0;
     lines.forEach(function (l) { food += moneyOf(l.price) * l.n; });
     var q = quoteDelivery(vendor, dest, quoteOpts);
+    var cost = Math.round((q.total + food) * 100) / 100;
+    if (!chargeClient(cost, vendor.name || "order")) {
+      sheetNote("Pay " + cost + " AV€ before this order. You have " + Math.round(myMoney()) + ".");
+      return;
+    }
     var job = {
       id: "j" + Date.now().toString(36),
       vendor: vendor,
@@ -5383,8 +5541,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       lines: lines,
       food: Math.round(food * 100) / 100,
       km: q.km,
-      fee: Math.round((q.total + food) * 100) / 100,
+      fee: cost,
       why: priceStory(q, food),
+      pay: "AV€ " + cost + " held",
+      paid: true,
       prep: 0,
       stage: "vendor",
       ready: false, pickup: false, got: false, delivered: false, received: false,
@@ -5392,8 +5552,6 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       driver: drv.name || "Driver",
       driverId: drv.id || "",
       client: (dest && dest.owner) || me(),
-      pay: "Not paid",
-      paid: false,
       vendorOwner: vendor.owner || "",
       t: Date.now()
     };
@@ -7254,9 +7412,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (act === "set-role") {
         var role = t.getAttribute("data-k") || "";
         if (role !== "client" && role !== "vendor" && role !== "driver") return;
-        try { localStorage.setItem("sn:role", role); } catch (e) {}
-        closeSheet();
-        say(role.toUpperCase() + " · your controls only.");
+        setRoleOn(role, !rolesGet()[role]);
+        say(role.toUpperCase() + (rolesGet()[role] ? " on." : " off."));
+        return;
       }
       if (act === "approve-shop") {
         if (!isAdmin()) { say("Only the administrator approves a listing."); return; }
@@ -7298,7 +7456,79 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         persistListing({ id: "g" + Date.now().toString(36), kind: "post", name: title, lat: listPt.lat, lng: listPt.lng, place: listAlt });
         closeSheet();
       }
-      if (act === "support-send") { var ta = $("sn-support-matter"); sendSupport(ta && ta.value, false); }
+      if (act === "support-send") { var ta = $("sn-support-matter"); sendSupport(ta && ta.value); }
+      if (act === "save-profile") {
+        var pn = $("sn-prof-name"), pp = $("sn-prof-phone"), pa = $("sn-prof-address");
+        var name = pn ? String(pn.value || "").trim() : "";
+        var phone = pp ? String(pp.value || "").trim() : "";
+        var address = pa ? String(pa.value || "").trim() : "";
+        if (!name || !phone) { say("Name and phone."); return; }
+        var prof = { name: name, phone: phone, address: address, owner: me() };
+        try { localStorage.setItem("sn:profile", JSON.stringify(prof)); } catch (e) {}
+        closeSheet();
+        say("Profile saved.");
+        if (!roleReady()) openRoles();
+        return;
+      }
+      if (act === "talk-msg") {
+        var cid = t.getAttribute("data-id") || "";
+        var cname = t.getAttribute("data-name") || "Them";
+        var thread = [];
+        try { thread = JSON.parse(localStorage.getItem("sn:chat:" + cid) || "[]") || []; } catch (e) {}
+        var log = thread.slice(-20).map(function (m) { return "<p class=\"note\"><b>" + esc(m.who) + "</b> " + esc(m.text) + "</p>"; }).join("") || "<p class=\"note\">No messages yet.</p>";
+        openSheet("MESSAGE", log + '<textarea id="sn-chat-in" placeholder="Message"></textarea><button type="button" class="sheet-go primary" data-act="talk-send" data-id="' + esc(cid) + '" data-name="' + esc(cname) + '">SEND</button>', true);
+        return;
+      }
+      if (act === "talk-send") {
+        var box = $("sn-chat-in");
+        var text = box ? String(box.value || "").trim() : "";
+        if (!text) { say("Write the message."); return; }
+        var key = "sn:chat:" + (t.getAttribute("data-id") || "");
+        var rows = [];
+        try { rows = JSON.parse(localStorage.getItem(key) || "[]") || []; } catch (e2) {}
+        rows.push({ who: myName(), text: text, t: Date.now() });
+        try { localStorage.setItem(key, JSON.stringify(rows.slice(-40))); } catch (e3) {}
+        ledgerPut("message", { to: t.getAttribute("data-id"), from: myName(), text: text });
+        say("Sent to " + (t.getAttribute("data-name") || "them") + ".");
+        t.setAttribute("data-act", "talk-msg");
+        t.click();
+        return;
+      }
+      if (act === "talk-hang") {
+        var stream = window.__snCall;
+        if (stream && stream.getTracks) stream.getTracks().forEach(function (tr) { try { tr.stop(); } catch (e) {} });
+        window.__snCall = null;
+        closeSheet();
+        say("Call ended.");
+        return;
+      }
+      if (act === "talk-call" || act === "talk-video") {
+        var tel = t.getAttribute("data-tel") || "";
+        var who = t.getAttribute("data-name") || "them";
+        if (act === "talk-call" && tel) { try { location.href = "tel:" + tel; } catch (e4) {} }
+        var wantVideo = act === "talk-video";
+        openSheet(wantVideo ? "VIDEO" : "CALL",
+          "<p class=\"note\">" + esc(who) + "</p><video id=\"sn-live\" autoplay playsinline muted style=\"width:100%;max-height:220px;background:#000;border-radius:12px\"></video><button type=\"button\" class=\"sheet-go\" data-act=\"talk-hang\">HANG UP</button>", true);
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          navigator.mediaDevices.getUserMedia({ audio: true, video: wantVideo }).then(function (stream) {
+            window.__snCall = stream;
+            var vid = $("sn-live");
+            if (vid) vid.srcObject = stream;
+            say((wantVideo ? "Video" : "Call") + " open with " + who + ".");
+          }).catch(function () { say("The mic did not open."); });
+        }
+        return;
+      }
+      if (act === "step-vendor") { markStep(id, "stepVendor"); return; }
+      if (act === "step-driver-shop") { markStep(id, "stepDriverShop"); return; }
+      if (act === "step-client") { markStep(id, "stepClient"); return; }
+      if (act === "step-driver-drop") { markStep(id, "stepDriverDrop"); return; }
+      if (act === "job-problem") {
+        var why = window.prompt("What went wrong?");
+        if (why == null) return;
+        judgeFault(jobBy(id), why);
+        return;
+      }
       if (act === "support-mic") listenSupport();
       if (act === "support-close") setSupport(false);
       if (act === "cv") { say("Use the order buttons. Vendor, driver, and client each have their own."); }
@@ -8478,6 +8708,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }
     } catch (e5) {}
     dropFakes();
+    setTimeout(gateUser, 1400);
     try {
       var purseUser = JSON.parse(localStorage.getItem("sn:user") || "null");
       var purseMail = String((purseUser && purseUser.email) || "").toLowerCase();
