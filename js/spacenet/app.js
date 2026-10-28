@@ -6829,7 +6829,9 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     if (!map || !cityOn || typeof L === "undefined" || !huntView) return;
     if (window.__snGrip && window.__snGrip.dragging()) return; /* 4341: never refit under a grip drag */
     /* 4395: never auto re-zoom while a finger is on the map or a hold just fired: pins would slide under it (aimed at Lidl, got Cosmos) */
-    if (snPressing() || (window.__snHold && Date.now() - window.__snHold < 2500)) { huntFitWanted = true; setTimeout(function () { try { fitHunt(); } catch (eR) {} }, 400); return; }
+    if (snPressing()) { huntFitWanted = true; setTimeout(function () { try { fitHunt(); } catch (eR) {} }, 400); return; }
+    /* 4410: a hold just opened a shop card — never refit/pan underneath it */
+    if (window.__snHold && Date.now() - window.__snHold < 2800) { huntFitWanted = false; return; }
     if (huntView.fitAt && mapUserAt > huntView.fitAt) return;
     if (huntView.single) return; /* a name search centres its one place */
     var el = $("city");
@@ -6875,14 +6877,15 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     [450, 1300].forEach(function (ms) {
       setTimeout(function () {
         try {
-          if (!huntView || !huntView.fitted || !cityOn || snPressing() || mapUserAt > huntView.fitAt || (window.__snGripAt || 0) > huntView.fitAt) return;
+          if (!huntView || !huntView.fitted || !cityOn || snPressing() || mapUserAt > huntView.fitAt || (window.__snGripAt || 0) > huntView.fitAt || (window.__snHold && Date.now() - window.__snHold < 2800)) return;
           var v3 = mapVisBox();
           if (Math.abs(v3.t - huntView.fitVB.t) > 10 || Math.abs(v3.b - huntView.fitVB.b) > 10) fitHunt();
         } catch (eR) {}
       }, ms);
     });
-    /* 4410: always 3 integer zoom-outs from the fit to Widest (4th → globe); reset so every run matches */
-    closeBelow = Math.max(8, Math.round(z) - 3);
+    /* 4410: always exactly 3 integer zoom-outs from the fit to Widest (4th → globe).
+       Do NOT clamp to 8 — that collapsed a z9 fit to a single notch and made notch counts vary by fit zoom. */
+    closeBelow = Math.max(3, Math.round(z) - 3);
     try { cityWheelResetFloor(); } catch (eRF) { cityFloorGid = -1; cityWidestSaid = false; }
     try { map.setMinZoom(closeBelow); } catch (eMz) {}
     try { if (map.getZoom() !== Math.round(map.getZoom())) map.setZoom(Math.round(map.getZoom()), { animate: false }); } catch (eIz) {}
@@ -8111,8 +8114,10 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       });
     }
     progMoveUntil = Date.now() + 600;
-    /* 4409: a hold opens the card without moving the camera; a tap / FIND row may still frame the shop */
-    if (!(window.__snHold && Date.now() - window.__snHold < 2200)) {
+    /* 4409/4410: a hold opens the card without moving the camera; a tap / FIND row may still frame the shop */
+    if (window.__snHold && Date.now() - window.__snHold < 2800) {
+      try { mapUserAt = Date.now(); huntFitWanted = false; } catch (eHu) {}
+    } else {
       try { if (map && isFinite(+s.lat)) map.panTo([+s.lat, +s.lng], { animate: false }); } catch (e) {}
     }
   }
