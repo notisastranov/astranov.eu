@@ -558,6 +558,82 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (window.SNAuth && SNAuth.open) SNAuth.open(); /* 4401: from main 4399 */
     return true;
   }
+  /* 4408: PROFILE sheet binds to the signed-in Google / Supabase identity — never TESTER CLIENT.
+     Guests are sent to LOGIN; fixture names in sn:profile are ignored (code filter only, DB untouched). */
+  function googleIdentity() {
+    try {
+      var u = window.SNAuth && SNAuth.user && SNAuth.user();
+      if (!u || !u.email) return null;
+      var nm = String(u.name || "").trim();
+      if (!nm) nm = String(u.email).split("@")[0] || "";
+      if (isTestFixture({ name: nm })) nm = String(u.email).split("@")[0] || "";
+      return { name: nm, email: String(u.email).toLowerCase(), photo: u.photo || "", id: u.id || "" };
+    } catch (e) { return null; }
+  }
+  function profileGet() {
+    try {
+      var p = JSON.parse(localStorage.getItem("sn:profile") || "null");
+      if (!p) return null;
+      if (isTestFixture(p) || isTestFixture({ name: p.name })) return null; /* stale TESTER CLIENT etc. */
+      return p;
+    } catch (e) { return null; }
+  }
+  function profileReady() {
+    if (!signed()) return true; /* guest: no PROFILE gate — needLogin handles them */
+    var p = profileGet();
+    return !!(p && String(p.name || "").trim() && String(p.phone || "").trim());
+  }
+  function openProfile() {
+    var g = googleIdentity();
+    var p = profileGet() || {};
+    var name = String(p.name || "").trim();
+    if (!name || isTestFixture({ name: name })) name = (g && g.name) || "";
+    var phone = String(p.phone || "").trim();
+    if (isTestFixture({ name: phone, phone: phone })) phone = "";
+    var address = String(p.address || "").trim();
+    if (isTestFixture({ name: address })) address = "";
+    openSheet("PROFILE",
+      '<p class="note">Your name and phone. Orders stay closed until this is saved.</p>' +
+      (g && g.email ? '<p class="note">Signed in as ' + esc(g.email) + "</p>" : "") +
+      '<input id="sn-prof-name" placeholder="Name" value="' + esc(name) + '" />' +
+      '<input id="sn-prof-phone" placeholder="Phone" value="' + esc(phone) + '" />' +
+      '<input id="sn-prof-address" placeholder="Address" value="' + esc(address) + '" />' +
+      '<button type="button" class="sheet-go primary" data-act="save-profile">SAVE PROFILE</button>', true);
+  }
+  function needReady() {
+    if (needLogin()) return true;
+    if (!profileReady()) { openProfile(); say("Set up your profile."); return true; }
+    return false;
+  }
+  function gateUser() {
+    if (!signed()) return; /* guest: no PROFILE, no TESTER sheet */
+    if (!profileReady()) openProfile();
+  }
+  function scrubFixtureProfile() {
+    /* local device only — never touches the database */
+    try {
+      var p = JSON.parse(localStorage.getItem("sn:profile") || "null");
+      if (p && (isTestFixture(p) || isTestFixture({ name: p.name }))) {
+        localStorage.removeItem("sn:profile");
+        p = null;
+      }
+      var g = googleIdentity();
+      if (g && !p) {
+        /* seed a draft name from Google so the next PROFILE open is the real identity */
+        localStorage.setItem("sn:profile", JSON.stringify({ name: g.name, phone: "", address: "", owner: me(), email: g.email }));
+      }
+    } catch (e) {}
+    try {
+      if (homeDrop && (isTestFixture(homeDrop) || isTestFixture({ name: homeDrop.name }))) {
+        if (!signed()) homeDrop = null;
+        else {
+          var g2 = googleIdentity();
+          if (g2) homeDrop.name = g2.name;
+        }
+        try { if (homeDrop) localStorage.setItem("sn:home", JSON.stringify(homeDrop)); else localStorage.removeItem("sn:home"); } catch (eH) {}
+      }
+    } catch (e2) {}
+  }
   function visRect(el) {
     if (!el) return null;
     var cs = getComputedStyle(el);
@@ -3481,7 +3557,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       sessionStorage.clear();
       Object.keys(kept).forEach(function (k) { localStorage.setItem(k, kept[k]); });
     } catch (e) {}
-    var go = function () { location.href = "/?v=4407&t=" + Date.now(); };
+    var go = function () { location.href = "/?v=4408&t=" + Date.now(); };
     if (navigator.serviceWorker) {
       navigator.serviceWorker.getRegistrations().then(function (rs) {
         return Promise.all(rs.map(function (r) { return r.unregister(); }));
@@ -4068,6 +4144,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         if (!s || !s.id || !isFinite(+s.lat)) return;
         if (s.peer === "spacenet") return;
         if (/^test\b/i.test(s.name || "")) return;
+        if (isTestFixture(s) && !testView()) return; /* 4408: Test Vendor V4297 never joins shops */
         if (/unclaimed|has not signed up/i.test(s.note || "")) return;
         var have = null;
         shops.forEach(function (x) { if (x && x.id === s.id) have = x; });
@@ -4079,6 +4156,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       (j.drivers || []).forEach(function (d) {
         if (!d || !d.id || !isFinite(+d.lat)) return;
         if (/^test\b/i.test(d.name || "")) return;
+        if (isTestFixture(d) && !testView()) return; /* 4408: Test Driver V4297 / TESTER DRIVER never enter people */
         var have = null;
         people.forEach(function (p) { if (p && p.id === d.id) have = p; });
         if (have) {
@@ -4090,6 +4168,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       });
       if (isAdmin()) (j.drops || []).forEach(function (d) {
         if (!d || !d.id || !isFinite(+d.lat)) return;
+        if (isTestFixture(d) && !testView()) return; /* 4408: TESTER CLIENT / Test Client V4297 never pin for admin without testview */
         if (people.some(function (p) { return p && p.id === d.id; })) return;
         people.unshift({ id: d.id, name: d.name || "client", role: "client", lat: +d.lat, lng: +d.lng, owner: d.customerPeer || "" });
       });
@@ -5621,7 +5700,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var u = JSON.parse(localStorage.getItem("sn:user") || "null");
       if (u && u.photo) return u.photo;
     } catch (e) {}
-    return "/you.png?v=4407";
+    return "/you.png?v=4408";
   }
   var motionMarks = {};
   var liveOpened = false;
@@ -9303,10 +9382,11 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     });
     people.forEach(function (p) {
       if (!p || !p.name) return;
+      if (isTestFixture(p) && !testView()) return; /* 4408 */
       if (p.role === "driver" && !seesDriver(p)) return;
       lines.push((p.role === "driver" ? "DRIVER " : "CLIENT ") + p.name + " | " + (p.phone || "") + " | " + (p.address || "") + (p.free === false ? " | busy" : ""));
     });
-    if (homeDrop && homeDrop.name) lines.push("CLIENT " + homeDrop.name + " | " + (homeDrop.phone || "") + " | " + (homeDrop.address || ""));
+    if (homeDrop && homeDrop.name && !(isTestFixture(homeDrop) && !testView())) lines.push("CLIENT " + homeDrop.name + " | " + (homeDrop.phone || "") + " | " + (homeDrop.address || ""));
     jobs.slice(0, 8).forEach(function (j) {
       if (!j || !seesJob(j)) return;
       lines.push("ORDER " + ((j.vendor && j.vendor.name) || "shop") + " → " + ((j.drop && j.drop.name) || "client") + " | " + (j.driver || "no driver") + " | " + (j.fee || "") + " ⭐");
@@ -9331,19 +9411,21 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     }
     shops.forEach(function (s) {
       if (!s || !seesShop(s)) return;
+      if (isTestFixture(s) && !testView()) return; /* 4408: V4297 / TESTER never in FIND roster */
       var menu = (s.menu || []).map(function (m) { return m && (m.name + " " + (m.price || "")); }).join(" ");
       add("vendor", score([s.name, s.phone, s.address, s.kind, menu].join(" ")), s.name, s, s.name + (s.address ? " · " + s.address : "") + (s.phone ? " · " + s.phone : ""));
     });
     people.forEach(function (p) {
       if (!p || !p.name) return;
+      if (isTestFixture(p) && !testView()) return; /* 4408: TESTER CLIENT / V4297 people never search-hit */
       if (p.role === "driver" && !seesDriver(p)) return;
       var kind = p.role === "driver" ? "driver" : "client";
       add(kind, score([p.name, p.phone, p.address, p.role, p.areas, p.goods].join(" ")), p.name, p, (kind === "driver" ? "Driver " : "Client ") + p.name + (p.address ? " · " + p.address : "") + (p.phone ? " · " + p.phone : ""));
     });
-    if (homeDrop && homeDrop.name) add("client", score([homeDrop.name, homeDrop.phone, homeDrop.address].join(" ")), homeDrop.name, homeDrop, "Client " + homeDrop.name + (homeDrop.address ? " · " + homeDrop.address : ""));
+    if (homeDrop && homeDrop.name && !(isTestFixture(homeDrop) && !testView())) add("client", score([homeDrop.name, homeDrop.phone, homeDrop.address].join(" ")), homeDrop.name, homeDrop, "Client " + homeDrop.name + (homeDrop.address ? " · " + homeDrop.address : ""));
     if (/driver|motorbike|bike|courier/.test(raw)) {
       people.forEach(function (p) {
-        if (p && p.role === "driver" && seesDriver(p) && !hits.some(function (h) { return h.kind === "driver" && h.name === p.name; })) {
+        if (p && p.role === "driver" && seesDriver(p) && !(isTestFixture(p) && !testView()) && !hits.some(function (h) { return h.kind === "driver" && h.name === p.name; })) {
           add("driver", 1, p.name, p, "Driver " + p.name + (p.free === false ? " · busy" : " · free"));
         }
       });
@@ -11080,6 +11162,22 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         say("Terms agreed.");
         pickRole();
       }
+      if (act === "save-profile") {
+        if (!signed()) { say("LOGIN first."); if (window.SNAuth && SNAuth.open) SNAuth.open(); return; }
+        var pn = $("sn-prof-name"), pp = $("sn-prof-phone"), pa = $("sn-prof-address");
+        var name = pn ? String(pn.value || "").trim() : "";
+        var phone = pp ? String(pp.value || "").trim() : "";
+        var address = pa ? String(pa.value || "").trim() : "";
+        var gSave = googleIdentity();
+        if (!name && gSave) name = gSave.name;
+        if (!name || !phone) { say("Name and phone."); return; }
+        if (isTestFixture({ name: name })) { say("Use your real name."); return; }
+        var prof = { name: name, phone: phone, address: address, owner: me(), email: (gSave && gSave.email) || "" };
+        try { localStorage.setItem("sn:profile", JSON.stringify(prof)); } catch (e) {}
+        closeSheet();
+        say("Profile saved · " + name + ".");
+        return;
+      }
       if (act === "set-role") {
         var role = t.getAttribute("data-k") || "";
         if (role !== "client" && role !== "vendor" && role !== "driver") return;
@@ -12379,6 +12477,11 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     try { homeDrop = JSON.parse(localStorage.getItem("sn:home") || "null"); } catch (e) {}
     try { driverPin = JSON.parse(localStorage.getItem("sn:driver") || "null"); } catch (e) {}
     try { people = JSON.parse(localStorage.getItem("sn:people") || "[]") || []; } catch (e2) { people = []; }
+    /* 4408: drop V4297 / TESTER rows from the in-memory roster (local only; database untouched) */
+    people = (people || []).filter(function (p) { return !p || !isTestFixture(p) || testView(); });
+    try { savePeople(); } catch (ePe) {}
+    try { scrubFixtureProfile(); } catch (eSc) {}
+    setTimeout(gateUser, 1400); /* 4408: signed-in → PROFILE from Google identity; guest → nothing */
     locate(function (pt) {
       if (seated || !pt) return;
       /* 4385: only a precise fix (or the stored precise one) is ever "here"; IP / coarse answers are dropped */
@@ -12430,7 +12533,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     var authWatch = setInterval(function () {
       var mail = "";
       try { var u = window.SNAuth && SNAuth.user && SNAuth.user(); mail = (u && u.email) || ""; } catch (e) {}
-      if (mail && mail !== authSeen) { authSeen = mail; pullLive(); }
+      if (mail && mail !== authSeen) { authSeen = mail; try { scrubFixtureProfile(); } catch (eSc2) {} pullLive(); try { gateUser(); } catch (eG) {} }
     }, 700);
     setTimeout(function () { clearInterval(authWatch); }, 20000);
     demoProbe();
