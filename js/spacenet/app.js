@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4403";
+  var VER = "4404";
 
   var latestVer = "";
   var INTRO_MS = 13000;
@@ -2217,7 +2217,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-nav-menu button{height:32px!important;padding:0 14px!important;border:0!important;border-radius:8px!important;background:transparent!important;color:#e8fbff!important;font:600 13px/1 system-ui!important;text-align:left!important}",
       ".sn-route-one{stroke:#1a3cff!important;stroke-width:7px!important;animation:none!important;filter:drop-shadow(0 0 1px #f7fbff) drop-shadow(0 0 3px #1a3cff)!important}",
       ".sn-route-case{stroke:#f7fbff!important;stroke-width:11px!important;animation:none!important}",
-      "#sn-offer{position:fixed!important;left:0!important;right:0!important;bottom:0!important;z-index:84!important;display:none!important;flex-direction:column!important;height:30vh!important;max-height:86vh!important;background:rgba(4,14,28,.94)!important;color:#e8fbff!important;border-top:1px solid #1a3cff!important;border-radius:18px 18px 0 0!important;box-shadow:0 -10px 28px rgba(0,0,0,.45)!important}",
+      "#sn-offer{position:fixed!important;left:0!important;right:0!important;bottom:0!important;z-index:84!important;display:none!important;flex-direction:column!important;min-height:120px!important;max-height:86vh!important;background:rgba(4,14,28,.94)!important;color:#e8fbff!important;border-top:1px solid #1a3cff!important;border-radius:18px 18px 0 0!important;box-shadow:0 -10px 28px rgba(0,0,0,.45)!important;touch-action:none!important}",
       "#sn-offer.on{display:flex!important}",
       ".sn-offer-handle{height:22px!important;flex:none!important;touch-action:none!important;display:flex!important;align-items:center!important;justify-content:center!important}",
       ".sn-offer-handle:before{content:\"\"!important;width:42px!important;height:4px!important;border-radius:4px!important;background:#7eb0ff!important;display:block!important}",
@@ -2234,7 +2234,17 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-bar #sn-me .lbl{display:none!important}",
       "#sn-bar{height:auto!important;flex-direction:column!important;align-items:stretch!important;gap:8px!important}",
       "#sn-bar #sn-seek{flex:none!important;width:100%!important}",
-      "#sn-tools{display:flex!important;gap:6px!important;align-items:center!important;overflow-x:auto!important;pointer-events:auto!important;height:40px!important}",
+      "#sn-tools{display:flex!important;flex-direction:column!important;gap:6px!important;align-items:stretch!important;overflow:visible!important;pointer-events:auto!important;height:auto!important}",
+      ".sn-row{display:flex!important;gap:6px!important;align-items:center!important;min-height:36px!important;overflow:visible!important}",
+      "#sn-tools #sn-money{flex:1!important;min-width:0!important}",
+      "#sn-tools #sn-money .tgt{max-width:100%!important;overflow:hidden!important}",
+      "#sn-panel{position:fixed!important;left:0!important;right:0!important;bottom:0!important;z-index:86!important;display:none!important;flex-direction:column!important;min-height:140px!important;max-height:86vh!important;background:rgba(4,14,28,.96)!important;color:#e8fbff!important;border-top:1px solid #1a3cff!important;border-radius:18px 18px 0 0!important;box-shadow:0 -12px 32px rgba(0,0,0,.5)!important;touch-action:none!important}",
+      "#sn-panel.on{display:flex!important}",
+      ".sn-panel-top{flex:none!important;display:grid!important;grid-template-columns:44px 1fr 44px!important;align-items:center!important;gap:8px!important;padding:0 8px 8px!important;touch-action:none!important}",
+      ".sn-panel-title{text-align:center!important;font:800 18px/1.2 system-ui!important;color:#e8fbff!important;min-width:0!important}",
+      ".sn-panel-top button{height:36px!important;border-radius:999px!important;border:1px solid #1a3cff!important;background:#041018!important;color:#e8fbff!important;font:800 16px system-ui!important}",
+      "#sn-panel #sn-sheet-body{flex:1!important;min-height:0!important;width:auto!important;max-width:none!important;max-height:none!important;overflow:auto!important;touch-action:pan-y!important;-webkit-overflow-scrolling:touch!important;padding:0 14px 16px!important}",
+      "#sn-panel .sheet-go,#sn-panel .sn-book{width:100%!important;max-width:none!important;white-space:normal!important}",
       "#sn-tools #sn-power,#sn-tools #sn-money,#sn-tools #sn-me,#sn-tools #gps,#sn-tools #sn-support,#sn-tools #sn-nav{position:static!important;transform:none!important;top:auto!important;right:auto!important;bottom:auto!important;left:auto!important;flex:none!important}",
       "#sn-tools #gps,#sn-tools #sn-power,#sn-tools #sn-support{width:36px!important;height:36px!important;min-width:36px!important;min-height:36px!important;max-width:36px!important;max-height:36px!important}",
       "#sn-count.on{display:flex!important;visibility:visible!important;z-index:220!important;pointer-events:none!important}",
@@ -2270,30 +2280,21 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     var handle = el.querySelector(".sn-offer-handle");
     var drag = null;
     function startDrag(e) {
-      if (e.target && e.target.closest && e.target.closest("button")) return;
+      if (e.target && e.target.closest && e.target.closest("button,.sn-offer-scroll")) return;
       drag = { y: e.clientY, h: el.offsetHeight };
-      try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
+      e.preventDefault();
     }
     function moveDrag(e) {
       if (!drag) return;
-      var max = Math.round(window.innerHeight * 0.86);
-      el.style.height = Math.max(112, Math.min(max, drag.h + (drag.y - e.clientY))) + "px";
+      var next = drag.h + (drag.y - e.clientY);
+      next = Math.max(120, Math.min(window.innerHeight * 0.86, next));
+      el.style.setProperty("height", Math.round(next) + "px", "important");
     }
-    function endDrag() {
-      if (!drag) return;
-      drag = null;
-      var h = el.offsetHeight;
-      var full = window.innerHeight;
-      var target = h < full * 0.28 ? Math.round(full * 0.2) : h > full * 0.55 ? Math.round(full * 0.78) : Math.round(full * 0.42);
-      el.style.height = target + "px";
-    }
-    [handle, el.querySelector(".sn-offer-top")].forEach(function (node) {
-      if (!node) return;
-      node.addEventListener("pointerdown", startDrag);
-      node.addEventListener("pointermove", moveDrag);
-      node.addEventListener("pointerup", endDrag);
-      node.addEventListener("pointercancel", endDrag);
-    });
+    function endDrag() { drag = null; }
+    el.addEventListener("pointerdown", startDrag);
+    window.addEventListener("pointermove", moveDrag);
+    window.addEventListener("pointerup", endDrag);
+    window.addEventListener("pointercancel", endDrag);
     return el;
   }
   function closeOfferDrawer() {
@@ -2382,7 +2383,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         ? '<button type="button" data-act="driver-delivered" data-id="' + esc(job.id) + '">DRIVER VERIFIED</button><button type="button" data-act="client-got" data-id="' + esc(job.id) + '">CLIENT VERIFIED</button>'
         : "";
     }
-    el.style.height = Math.round(window.innerHeight * 0.3) + "px";
+    el.style.setProperty("height", Math.round(window.innerHeight * 0.42) + "px", "important");
     el.classList.add("on");
     frameOffer(job);
   }
@@ -2577,6 +2578,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         people.unshift({ id: d.id, name: d.name || "client", role: "client", lat: +d.lat, lng: +d.lng, owner: d.customerPeer || "" });
       });
       (j.jobs || []).forEach(function (row) {
+        return;
         if (!row || !row.id) return;
         var ride = row.ride;
         if (typeof ride === "string") { try { ride = JSON.parse(ride); } catch (e) { ride = {}; } }
@@ -3029,28 +3031,45 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (map.getZoom() < 15) map.setZoom(16);
     } catch (e) {}
   }
+  function panel() {
+    var el = document.getElementById("sn-panel");
+    if (el) return el;
+    el = document.createElement("div");
+    el.id = "sn-panel";
+    el.innerHTML = '<div class="sn-offer-handle"></div><div class="sn-panel-top"><button type="button" data-act="sheet-x" aria-label="Close">✕</button><div class="sn-panel-title"></div><button type="button" data-act="sheet-apply" aria-label="Apply">✓</button></div><div class="sn-offer-scroll" id="sn-sheet-body"></div>';
+    document.body.appendChild(el);
+    var drag = null;
+    el.addEventListener("pointerdown", function (e) {
+      if (e.target && e.target.closest && e.target.closest("button,#sn-sheet-body")) return;
+      drag = { y: e.clientY, h: el.offsetHeight };
+      e.preventDefault();
+    });
+    window.addEventListener("pointermove", function (e) {
+      if (!drag) return;
+      var next = drag.h + (drag.y - e.clientY);
+      next = Math.max(140, Math.min(window.innerHeight * 0.86, next));
+      el.style.setProperty("height", Math.round(next) + "px", "important");
+    });
+    function end() { drag = null; }
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+    return el;
+  }
   function openSheet(title, html, tall, mid) {
-    var sh = $("sn-sheet"), card = $("sn-sheet-card");
-    if (!sh || !card) return;
     sheetLaw();
     sheetHold = true;
-    var center = mid || esc(title || "");
-    sh.classList.toggle("offer", !!(mid && String(mid).indexOf("sn-price") >= 0));
-    sh.classList.remove("tile");
-    sh.removeAttribute("data-kind");
-    sh.removeAttribute("data-job");
-    card.innerHTML = '<div class="sheet-bar"><button type="button" class="sheet-x" data-act="sheet-x" aria-label="Close">✕</button><div class="sheet-mid"></div><button type="button" class="sheet-apply" data-act="sheet-apply" aria-label="Apply">✓</button></div><div id="sn-sheet-body"></div>';
-    card.querySelector(".sheet-mid").innerHTML = center;
-    card.querySelector("#sn-sheet-body").innerHTML = '<div class="sn-zoom">' + html + "</div>";
-    armPinch(card.querySelector("#sn-sheet-body"));
-    sh.classList.remove("min");
-    if (tall) sh.classList.add("tall"); else sh.classList.remove("tall");
-    sh.classList.add("on");
-    armSheetDrag(card);
+    var el = panel();
+    var titleEl = el.querySelector(".sn-panel-title");
+    if (titleEl) titleEl.innerHTML = mid || esc(title || "");
+    var body = el.querySelector("#sn-sheet-body");
+    if (body) body.innerHTML = '<div class="sn-zoom">' + (html || "") + "</div>";
+    el.classList.add("on");
+    el.removeAttribute("data-kind");
+    el.removeAttribute("data-job");
+    el.style.setProperty("height", Math.round(window.innerHeight * (tall ? 0.64 : 0.46)) + "px", "important");
+    var sh = $("sn-sheet");
+    if (sh) sh.classList.remove("on");
     sheetArm = Date.now() + 400;
-    materialize(false);
-    liftChrome();
-    if (sh.classList.contains("offer")) setTimeout(fitOfferRoute, 40);
   }
   function armPinch(body) {
     if (!body || body.__pinch) return;
@@ -3122,14 +3141,16 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function closeSheet() {
     var sh = $("sn-sheet");
+    var panelEl = $("sn-panel");
     sheetHold = false;
+    if (panelEl) panelEl.classList.remove("on");
     if (sh) { sh.classList.remove("on"); sh.classList.remove("tall"); sh.classList.remove("min"); sh.classList.remove("offer"); sh.classList.remove("tile"); }
     materialize(needFilter());
     liftChrome();
   }
   function applySheet() {
-    var sh = $("sn-sheet");
-    if (sh && sh.classList.contains("tile")) { applyTile(); return; }
+    var panelEl = $("sn-panel");
+    if (panelEl && panelEl.classList.contains("on") && panelEl.getAttribute("data-kind")) { applyTile(); return; }
     var body = $("sn-sheet-body");
     if (!body) return;
     var go = body.querySelector("[data-act='save-place'],[data-act='save-drop'],[data-act='save-driver'],[data-act='save-stock'],[data-act='save-block'],[data-act='post-go'],[data-act='post-next'],[data-act='send'],[data-act='run-offer'],[data-act='save-task'],[data-act='apply-filter'],[data-act='gear-say'],[data-act='still-minutes']");
@@ -4408,11 +4429,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   function openTile(o) {
     o = o || {};
     openSheet(o.title || "TILE", o.html || "", false, o.mid || esc(o.title || ""));
-    var sh = $("sn-sheet");
-    if (!sh) return;
-    sh.classList.add("tile");
-    sh.setAttribute("data-kind", o.kind || "");
-    sh.setAttribute("data-job", o.job || "");
+    var el = $("sn-panel");
+    if (!el) return;
+    el.setAttribute("data-kind", o.kind || "");
+    el.setAttribute("data-job", o.job || "");
   }
   function priceMid(n) {
     return '<b class="sn-price">' + esc(n) + "<small>AV€</small></b>";
@@ -5417,7 +5437,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     throwOffer({ id: job.id, fee: job.fee, km: job.km, vendor: recovery ? job.fault : job.vendor, drop: recovery ? job.fault : job.drop });
   }
   function applyTile() {
-    var sh = $("sn-sheet");
+    var sh = $("sn-panel") || $("sn-sheet");
     var kind = sh && sh.getAttribute("data-kind");
     if (kind === "books") return saveBooksFromSheet();
     if (kind === "receipt") return clientGot(sh && sh.getAttribute("data-job"));
@@ -8232,6 +8252,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     jobs = jobs.filter(function (j) {
       if (!j || j.agent || j.test) return false;
       if (j.vendor && (j.vendor.id === "eirini" || j.vendor.name === "Eirini")) return false;
+      if (j.live) return false;
       return !!(j.vendor && j.drop);
     });
     if (!localStorage.getItem("sn:cleared-4403")) {
@@ -8284,18 +8305,24 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         var tools = document.createElement("div");
         tools.id = "sn-tools";
         bar.appendChild(tools);
-        tools.appendChild(power);
+        var row1 = document.createElement("div");
+        var row2 = document.createElement("div");
+        row1.className = "sn-row";
+        row2.className = "sn-row";
+        tools.appendChild(row1);
+        tools.appendChild(row2);
+        row1.appendChild(power);
         var meBtn = document.getElementById("sn-me");
-        if (meBtn) tools.appendChild(meBtn);
-        var nav = document.getElementById("sn-nav");
-        if (nav) tools.appendChild(nav);
-        var support = document.getElementById("sn-support");
-        if (support) tools.appendChild(support);
-        var comp = ensureCompass();
-        if (comp) tools.appendChild(comp);
-        tools.appendChild(money);
+        if (meBtn) row1.appendChild(meBtn);
         var gps = document.getElementById("gps");
-        if (gps) tools.appendChild(gps);
+        if (gps) row1.appendChild(gps);
+        row2.appendChild(money);
+        var nav = document.getElementById("sn-nav");
+        if (nav) row2.appendChild(nav);
+        var support = document.getElementById("sn-support");
+        if (support) row2.appendChild(support);
+        var comp = ensureCompass();
+        if (comp) row2.appendChild(comp);
       }
     }
     var seek = document.getElementById("sn-seek");
