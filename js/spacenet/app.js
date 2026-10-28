@@ -1679,7 +1679,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true;
       try {
         if (navigator.serviceWorker && !window.__SN_SW) {
           window.__SN_SW = true;
@@ -3026,7 +3026,21 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
           var roT = 0;
           var ro = new ResizeObserver(function () {
             clearTimeout(roT);
-            roT = setTimeout(function () { try { if (map && cityOn && !(window.__snGrip && window.__snGrip.dragging()) && Date.now() - (window.__snGripAt || 0) > 400) map.invalidateSize({ pan: false }); } catch (eR) {} }, 60);
+            roT = setTimeout(function () {
+              try {
+                if (!(map && cityOn && !(window.__snGrip && window.__snGrip.dragging()) && Date.now() - (window.__snGripAt || 0) > 400)) return;
+                map.invalidateSize({ pan: false });
+                /* 4410d: sheet/chrome resize during a hold must not leave a drifted centre */
+                var hv = window.__snHoldView;
+                if (hv && window.__snHold && Date.now() - window.__snHold < 6000 && isFinite(+hv.lat)) {
+                  var c1 = map.getCenter();
+                  if (map.getZoom() !== hv.z || Math.abs(c1.lat - hv.lat) > 1e-9 || Math.abs(c1.lng - hv.lng) > 1e-9) {
+                    progMoveUntil = Date.now() + 400;
+                    map.setView([+hv.lat, +hv.lng], hv.z, { animate: false });
+                  }
+                }
+              } catch (eR) {}
+            }, 60);
           });
           ro.observe(el);
           ["sn-sheet", "sn-pulse", "dock", "top"].forEach(function (id) { var x = $(id); if (x) ro.observe(x); });
@@ -3257,6 +3271,13 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         holdPt = null;
         if (!map) return;
         window.__snHold = Date.now();
+        /* 4410d: freeze the centre BEFORE the shop card opens (sheet RO / invalidateSize drifts getCenter) */
+        try {
+          if (map) {
+            var c0 = map.getCenter();
+            window.__snHoldView = { lat: c0.lat, lng: c0.lng, z: map.getZoom(), at: Date.now() };
+          }
+        } catch (eHV) {}
         /* 4408: 1.5 s hold on a pin opens that shop's card — never street / place LIST */
         var shop = (snPress && snPress.shop) || (start && shopAtClient(start.x, start.y));
         if (!shop && start) shop = shopAtClient(start.x, start.y);
@@ -3276,7 +3297,11 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         if (!map) return;
         dropHold();
         var shop = shopAtClient(e.clientX, e.clientY);
-        if (shop) { window.__snHold = Date.now(); try { openVendor(pressedShop(shop)); } catch (eV) {} return; }
+        if (shop) {
+          window.__snHold = Date.now();
+          try { if (map) { var cR = map.getCenter(); window.__snHoldView = { lat: cR.lat, lng: cR.lng, z: map.getZoom(), at: Date.now() }; } } catch (eHV2) {}
+          try { openVendor(pressedShop(shop)); } catch (eV) {} return;
+        }
         var ll = null;
         try { ll = map.mouseEventToLatLng(e); } catch (err) {}
         if (!ll) return;
@@ -8124,17 +8149,20 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       try {
         mapUserAt = Date.now(); huntFitWanted = false;
         if (map) {
-          var cHold = map.getCenter(), zHold = map.getZoom();
-          window.__snHoldView = { lat: cHold.lat, lng: cHold.lng, z: zHold, at: Date.now() };
-          [0, 40, 120, 280, 600, 1100].forEach(function (ms) {
+          var hv = window.__snHoldView;
+          var cHoldLat = hv && isFinite(+hv.lat) ? +hv.lat : map.getCenter().lat;
+          var cHoldLng = hv && isFinite(+hv.lng) ? +hv.lng : map.getCenter().lng;
+          var zHold = hv && isFinite(+hv.z) ? +hv.z : map.getZoom();
+          if (!(hv && isFinite(+hv.lat))) window.__snHoldView = { lat: cHoldLat, lng: cHoldLng, z: zHold, at: Date.now() };
+          [0, 40, 120, 280, 600, 900, 1300, 1800].forEach(function (ms) {
             setTimeout(function () {
               try {
-                if (!window.__snHoldView || Date.now() - window.__snHoldView.at > 5000) return;
-                if (!(window.__snHold && Date.now() - window.__snHold < 5000) && !(snPress && snPress.shop && Date.now() - snPress.t >= 900 && Date.now() - snPress.t < 8000)) return;
+                if (!window.__snHoldView || Date.now() - window.__snHoldView.at > 6000) return;
+                if (!(window.__snHold && Date.now() - window.__snHold < 6000) && !(snPress && snPress.shop && Date.now() - snPress.t >= 900 && Date.now() - snPress.t < 8000)) return;
                 var c1 = map.getCenter();
-                if (map.getZoom() !== zHold || Math.abs(c1.lat - cHold.lat) > 1e-9 || Math.abs(c1.lng - cHold.lng) > 1e-9) {
+                if (map.getZoom() !== zHold || Math.abs(c1.lat - cHoldLat) > 1e-9 || Math.abs(c1.lng - cHoldLng) > 1e-9) {
                   progMoveUntil = Date.now() + 400;
-                  map.setView([cHold.lat, cHold.lng], zHold, { animate: false });
+                  map.setView([cHoldLat, cHoldLng], zHold, { animate: false });
                 }
               } catch (eFr) {}
             }, ms);
@@ -12801,7 +12829,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
