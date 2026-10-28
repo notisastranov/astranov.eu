@@ -5282,11 +5282,12 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         });
         Object.keys(cells).forEach(function (ck) {
           var grp = cells[ck];
-          if (grp.length < 4) return;
+          /* 4412d: cluster sooner near the seat place-label so Ηράκλειο stays clear */
+          if (grp.length < 3) return;
           var clat = 0, clng = 0;
           grp.forEach(function (g) { clat += +g.s.lat; clng += +g.s.lng; });
           clat /= grp.length; clng /= grp.length;
-          var nearLabel = seatP && isFinite(+seatP.lat) && haversineKm(seatP, { lat: clat, lng: clng }) < 3.5;
+          var nearLabel = seatP && isFinite(+seatP.lat) && haversineKm(seatP, { lat: clat, lng: clng }) < 4.5;
           if (!nearLabel && grp.length < 8) return;
           grp.forEach(function (g) { clusterHide[String(g.s.id || g.s.name || g.fi)] = 1; });
           /* nudge bubble off the place-label centre so Ηράκλειο stays readable */
@@ -6854,8 +6855,9 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   /* 4378: the radius the hunt really used: near 5 km widened to 10 (10 when nothing is close), otherwise the 40 km city radius */
   function huntCreteSpan() {
     /* 4412: Crete / Sitia island hunts need ~150 km so Siteia / Menir are not dropped at the 40–50 km city cap */
+    /* 4412d: Heraklion / Gouves named hunts also take the island span so Menir is never radius-trimmed */
     var raw = String((huntView && (huntView.raw || huntView.nameQ)) || window.__snHuntRaw || "") + " " + String(seatName(activeSeat() || here) || "");
-    return /crete|kriti|κρήτ|sitia|siteia|σητεί/i.test(raw);
+    return /crete|kriti|κρήτ|sitia|siteia|σητεί|heraklion|irakli|ηράκλει|gouves|γουβ/i.test(raw);
   }
   function huntSpanKm() {
     if (huntView && huntView.near) return 10;
