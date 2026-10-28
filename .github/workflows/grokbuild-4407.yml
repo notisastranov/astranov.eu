@@ -1,41 +1,10 @@
-name: grokbuild 4407 (merge main 4404 + fixes; branch only, self-deleting)
+name: grokbuild 4407 (retired — use 4407b)
 on:
-  push:
-    branches: ["grokbuild/4328-street-level-gps"]
-    paths: [".grokbuild/**", ".github/workflows/grokbuild-4407.yml"]
+  workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
 jobs:
-  apply:
+  noop:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: grokbuild/4328-street-level-gps
-          fetch-depth: 0
-      - name: Apply fix125 as merge commit, assert trees, drop kit
-        run: |
-          set -euo pipefail
-          git config user.name "Grok Bot"
-          git config user.email "grok@astranov.eu"
-          test "$(git rev-parse HEAD)" = "3b6b4523cec4e8cd60886d5fc674f5d01eefe67b" || { echo "unexpected tip"; git log --oneline -3; exit 1; }
-          git fetch origin 8c43dcc2e2479dddb9489885ba4224a007dfecf7
-          base64 -d .grokbuild/fix125.b64 > /tmp/f.gz
-          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "dab0f1d685a77be68b770ff4fee26226d2aeca22f0a54e72d01b40632886e5e5"
-          gunzip -c /tmp/f.gz > /tmp/fix125.patch
-          test "$(sha256sum /tmp/fix125.patch | cut -d' ' -f1)" = "5325498f89ffd74fa3768eb9271fc38bc19e54397459a5dea562cbb3751f93d0"
-          git rm -rq .grokbuild .github/workflows/grokbuild-4407.yml
-          T0="$(git write-tree)"
-          test "$T0" = "415950e92813f3c2e969fd94a4af97b2e589e39a" || { echo "tree0 $T0"; exit 1; }
-          git apply --index /tmp/fix125.patch
-          node --check js/spacenet/app.js
-          node --check js/spacenet/auth.js
-          grep -q '^4407$' VERSION
-          grep -q '__SN_4407' js/spacenet/app.js
-          T="$(git write-tree)"
-          test "$T" = "80bf7a8958213c23c878505abfba6dddf400bcfb" || { echo "tree $T"; exit 1; }
-          C="$(git commit-tree "$T" -p HEAD -p 8c43dcc2e2479dddb9489885ba4224a007dfecf7 -m "$(cat <<'EOF'
-merge main 4404 (8c43dcc2) + 4407: account panel on identity (guest SIGN IN only; signed-in name/email/avatar + SIGN OUT); wallet is ledger-only (guest 0.00, unavailable never fake); leaders that cross neighbouring pins snap home; always 7 notches to Widest view. Branch engine wins. Lockstep 4407
-EOF
-)")"
-          git push origin "$C:refs/heads/grokbuild/4328-street-level-gps"
+      - run: echo retired
