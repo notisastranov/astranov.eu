@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again."; window.__SN_APPJS = true; /* 4393: the start watchdog sees app.js ran and never reloads it */
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4413"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4414"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1679,11 +1679,12 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true; window.__SN_4411 = true; window.__SN_4412 = true; window.__SN_4413 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true; window.__SN_4411 = true; window.__SN_4412 = true; window.__SN_4413 = true; window.__SN_4414 = true;
   window.__SN_4412F = true; /* 4412f: huntNearKm in merge + 12s api race */
   window.__SN_4412G = true; /* 4412g: await API (no race-to-empty), trust server rows, warm cold path, fit after final */
   window.__SN_4413 = true; /* 4413: burger menu — DataNet, Architect, Settings→AUTOMATIONS, shortcut toggles sn:shortcuts */
   window.__SN_4413B = true; /* 4413b: actually bind #sn-burger click (bindBurger from bindChrome) */
+  window.__SN_4414 = true; /* 4414: merge main 4407 auth (Google/Astranov password) + lockstep stamps */
 (function () { /* 4411: NORTH compass stacks above the real GPS rect at every width, so the two never collide */
   function stackNorth() {
     try {
@@ -13232,7 +13233,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true; window.__SN_4411 = true; window.__SN_4412 = true; window.__SN_4413 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true; window.__SN_4411 = true; window.__SN_4412 = true; window.__SN_4413 = true; window.__SN_4414 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {

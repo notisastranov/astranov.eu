@@ -12,6 +12,29 @@
   }
   function read(k, d) { try { var v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; } }
   function write(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function hostOk(h) { return h === "astranov.eu" || (h && h.slice(-13) === ".astranov.eu"); }
+  function setCook(name, value, maxAge) {
+    var bits = [name + "=" + encodeURIComponent(value || ""), "path=/", "max-age=" + (maxAge == null ? 2592000 : maxAge), "secure", "samesite=lax"];
+    if (hostOk(location.hostname)) bits.push("domain=.astranov.eu");
+    document.cookie = bits.join("; ");
+  }
+  function getCook(name) {
+    var all = document.cookie ? document.cookie.split("; ") : [];
+    for (var i = 0; i < all.length; i++) {
+      var n = all[i].indexOf("=");
+      if (n > 0 && all[i].slice(0, n) === name) return decodeURIComponent(all[i].slice(n + 1));
+    }
+    return "";
+  }
+  function remember(j) {
+    if (!j) return;
+    if (j.access_token) { write("sn:access", j.access_token); setCook("sn_at", j.access_token, 2592000); }
+    if (j.refresh_token) setCook("sn_rt", j.refresh_token, 2592000);
+  }
+  function dropQuiet() {
+    write("sn:user", ""); write("sn:access", ""); write("sn:pkce", "");
+    setCook("sn_at", "", 0); setCook("sn_rt", "", 0); setCook("sn_pkce", "", 0);
+  }
   function talk(s) { if (window.SN && SN.say) SN.say(s); else { var el = document.getElementById("line"); if (el) el.textContent = s; } }
   function headers(extra) {
     var h = Object.assign({ apikey: ANON, "Content-Type": "application/json" }, extra || {});
@@ -41,7 +64,7 @@
       name: (u.user_metadata && (u.user_metadata.full_name || u.user_metadata.name)) || u.name || "",
       photo: (u.user_metadata && (u.user_metadata.avatar_url || u.user_metadata.picture)) || u.picture || "",
       phone: u.phone || (u.user_metadata && u.user_metadata.phone) || read("sn:phone", "") || "",
-      verified: false
+      verified: !!(u.email_confirmed_at || (u.app_metadata && u.app_metadata.provider === "google") || (u.identities && u.identities.length))
     };
     write("sn:user", JSON.stringify(row));
     paintMe();
@@ -49,42 +72,20 @@
     return row;
   }
   function user() { try { return JSON.parse(read("sn:user", "null") || "null"); } catch (e) { return null; } }
-  function token() { return read("sn:access", ""); }
-  /* 4339: keep the session across reloads past the 1 h access token: store refresh + expiry, refresh on boot */
-  function keep(j) {
-    if (!j) return;
-    if (j.refresh_token) write("sn:refresh", String(j.refresh_token));
-    var exp = Number(j.expires_at) || (Number(j.expires_in) ? Math.floor(Date.now() / 1000) + Number(j.expires_in) : 0);
-    if (exp) write("sn:exp", String(exp));
-  }
-  function refresh() {
-    var rt = read("sn:refresh", "");
-    if (!rt) return Promise.resolve(false);
-    return fetch(SB + "/auth/v1/token?grant_type=refresh_token", {
-      method: "POST",
-      headers: { apikey: ANON, "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: rt })
-    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
-      .then(function (x) {
-        if (x.ok && x.j && x.j.access_token) {
-          write("sn:access", x.j.access_token);
-          keep(x.j);
-          if (x.j.user && x.j.user.email) saveUser(x.j.user);
-          return true;
-        }
-        return false;
-      }).catch(function () { return false; });
-  }
-  function stale() {
-    var exp = Number(read("sn:exp", "0"));
-    return !!read("sn:refresh", "") && (!exp || exp - 120 < Date.now() / 1000);
+  function token() {
+    var t = read("sn:access", "");
+    if (!t) t = getCook("sn_at");
+    if (t && !read("sn:access", "")) write("sn:access", t);
+    return t || "";
   }
   function google(extra) {
     loadCfg(function () {
-      var dest = location.origin + "/?auth=google";
+      var dest = "https://astranov.eu/?auth=google";
       write("sn:auth-back", location.href.split("#")[0]);
+      if (location.hostname !== "astranov.eu") setCook("sn_back", location.href.split("#")[0], 600);
       var ver = rnd(64);
       write("sn:pkce", ver);
+      setCook("sn_pkce", ver, 600);
       talk("Opening Google…");
       var scopes = "email profile";
       if (extra) scopes += " " + extra;
@@ -117,7 +118,8 @@
   }
   function out() {
     var t = token();
-    write("sn:user", ""); write("sn:access", ""); write("sn:pkce", ""); write("sn:refresh", ""); write("sn:exp", ""); write("sn:yt", "");
+    write("sn:user", ""); write("sn:access", ""); write("sn:pkce", ""); write("sn:yt", "");
+    setCook("sn_at", "", 0); setCook("sn_rt", "", 0); setCook("sn_pkce", "", 0); setCook("sn_back", "", 0);
     if (t) fetch(SB + "/auth/v1/logout", { method: "POST", headers: headers({ Authorization: "Bearer " + t }) }).catch(function () {});
     paintMe();
     if (window.SN && SN.paintMoney) SN.paintMoney();
@@ -129,9 +131,9 @@
     return { email: String(email).trim(), password: String(password) };
   }
   function finishSession(j, email) {
-    if (j && j.access_token) return takeUser(j.access_token);
+    if (j && j.access_token) { remember(j); return takeUser(j.access_token); }
     if (j && (j.id || j.user) && !j.access_token) {
-      talk("Account opened for " + email + ". Confirm the mail, then sign in.");
+      talk("That path still waits on a mail confirmation. Use Google. It verifies the id with no SMS and no mail from Astranov.");
       return Promise.resolve(false);
     }
     talk((j && (j.error_description || j.msg || j.error_code || j.error)) || "Account did not open.");
@@ -151,19 +153,47 @@
       }).then(function () { fillBody(); paintMe(); }).catch(function () { talk("Account did not open."); });
     });
   }
+  function password(email, pass) {
+    email = String(email || "").trim();
+    pass = String(pass || "");
+    if (!email || !pass) return Promise.resolve({ ok: false, error: "Email and password." });
+    return new Promise(function (resolve) {
+      loadCfg(function () {
+        fetch(SB + "/auth/v1/token?grant_type=password", {
+          method: "POST",
+          headers: headers(),
+          body: JSON.stringify({ email: email, password: pass })
+        }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); }).then(function (x) {
+          if (x.j && x.j.access_token) {
+            remember(x.j);
+            return takeUser(x.j.access_token).then(function (ok) {
+              resolve(ok ? { ok: true, user: user() } : { ok: false, error: "Account has no email." });
+            });
+          }
+          resolve({ ok: false, error: (x.j && (x.j.error_description || x.j.msg || x.j.error)) || "Sign-in refused." });
+        }).catch(function () { resolve({ ok: false, error: "Sign-in did not finish." }); });
+      });
+    });
+  }
   function mailIn() {
     var b = mailFields();
-    if (!b.email || !b.password) { talk("Email and password."); return; }
-    loadCfg(function () {
-      talk("Signing in…");
-      fetch(SB + "/auth/v1/token?grant_type=password", {
-        method: "POST",
-        headers: headers(),
-        body: JSON.stringify({ email: b.email, password: b.password })
-      }).then(function (r) { return r.json(); }).then(function (j) {
-        return finishSession(j, b.email);
-      }).then(function () { fillBody(); paintMe(); }).catch(function () { talk("Sign-in did not finish."); });
+    password(b.email, b.password).then(function (res) {
+      if (!res.ok) talk(res.error || "Sign-in refused.");
+      fillBody(); paintMe();
     });
+  }
+  function setPassword(pw) {
+    pw = String(pw || "");
+    if (pw.length < 8) return Promise.resolve({ ok: false, error: "8 characters." });
+    if (!token()) return Promise.resolve({ ok: false, error: "Sign in with Google first." });
+    return fetch(SB + "/auth/v1/user", {
+      method: "PUT",
+      headers: headers(),
+      body: JSON.stringify({ password: pw })
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); }).then(function (x) {
+      if (x.ok) return { ok: true };
+      return { ok: false, error: (x.j && (x.j.error_description || x.j.msg || x.j.error)) || "Password was not set." };
+    }).catch(function () { return { ok: false, error: "Password was not set." }; });
   }
   function savePhone(raw) {
     var tel = String(raw || "").replace(/[^\d+ ]/g, "").trim();
@@ -171,16 +201,17 @@
     var u = user() || {};
     u.phone = tel; u.verified = false;
     write("sn:user", JSON.stringify(u));
-    talk(tel ? "Phone stored. Unverified until Twilio is live." : "Phone cleared.");
+    talk(tel ? "Phone stored. It does not verify this id." : "Phone cleared.");
     paintMe();
   }
-  function takeUser(at) {
+  function takeUser(at, quiet) {
     write("sn:access", at);
+    setCook("sn_at", at, 2592000);
     return fetch(SB + "/auth/v1/user", { headers: { apikey: ANON, Authorization: "Bearer " + at } })
       .then(function (r) { return r.json(); })
       .then(function (u) {
-        if (u && u.email) { saveUser(u); talk("Signed in as " + u.email + "."); return true; }
-        talk("Google returned no email.");
+        if (u && u.email) { saveUser(u); if (!quiet) talk("Signed in as " + u.email + "."); return true; }
+        if (!quiet) talk("Google returned no email.");
         return false;
       });
   }
@@ -197,17 +228,16 @@
     }
     var at = hq.get("access_token");
     var ytHash = hq.get("provider_token");
-    if (ytHash) { write("sn:yt", ytHash); write("sn:yt-at", String(Date.now())); }
+    if (ytHash) write("sn:yt", ytHash);
     var code = search.get("code");
     function clean() {
       history.replaceState({}, "", location.pathname);
     }
     if (at) {
-      keep({ refresh_token: hq.get("refresh_token"), expires_at: hq.get("expires_at"), expires_in: hq.get("expires_in") });
       return takeUser(at).then(function (ok) { clean(); return ok; }).catch(function () { clean(); talk("Google sign-in did not finish."); return false; });
     }
     if (code) {
-      var ver = read("sn:pkce", "");
+      var ver = read("sn:pkce", "") || getCook("sn_pkce");
       var body = ver
         ? { grant_type: "pkce", auth_code: code, code_verifier: ver }
         : { grant_type: "authorization_code", code: code, redirect_uri: location.origin + "/?auth=google" };
@@ -219,26 +249,58 @@
         .then(function (r) { return r.json(); })
         .then(function (j) {
           write("sn:pkce", "");
-          if (j && j.provider_token) { write("sn:yt", j.provider_token); write("sn:yt-at", String(Date.now())); }
-          if (j && j.access_token) { keep(j); return takeUser(j.access_token); }
+          setCook("sn_pkce", "", 0);
+          if (j && j.provider_token) write("sn:yt", j.provider_token);
+          if (j && j.access_token) { remember(j); return takeUser(j.access_token); }
           talk((j && (j.error_description || j.msg || j.error)) || "Google code was not exchanged.");
           return false;
         })
-        .then(function (ok) { clean(); return ok; })
+        .then(function (ok) { clean(); if (ok) bounce(); return ok; })
         .catch(function () { clean(); talk("Google sign-in did not finish."); return false; });
     }
-    if (user() && stale()) return refresh().then(function () { return !!user(); });
     return Promise.resolve(!!user());
+  }
+  function bounce() {
+    var back = getCook("sn_back");
+    setCook("sn_back", "", 0);
+    if (!back) return;
+    try {
+      var u = new URL(back);
+      if (u.protocol !== "https:" || !hostOk(u.hostname)) return;
+      if (u.origin === location.origin) return;
+      location.href = u.origin + u.pathname + u.search;
+    } catch (e) {}
+  }
+  function session() {
+    return new Promise(function (resolve) {
+      loadCfg(function () {
+        var at = token();
+        if (!at) { resolve(null); return; }
+        takeUser(at, true).then(function (ok) {
+          if (ok) { resolve(user()); return; }
+          var rt = getCook("sn_rt");
+          if (!rt) { dropQuiet(); resolve(null); return; }
+          fetch(SB + "/auth/v1/token?grant_type=refresh_token", {
+            method: "POST",
+            headers: { apikey: ANON, "Content-Type": "application/json" },
+            body: JSON.stringify({ refresh_token: rt })
+          }).then(function (r) { return r.json(); }).then(function (j) {
+            if (j && j.access_token) { remember(j); return takeUser(j.access_token, true).then(function (ok2) { resolve(ok2 ? user() : null); }); }
+            dropQuiet(); resolve(null);
+          }).catch(function () { resolve(null); });
+        }).catch(function () { resolve(null); });
+      });
+    });
   }
   function css() {
     if (document.getElementById("sn-me-css")) return;
     var s = document.createElement("style");
     s.id = "sn-me-css";
     s.textContent =
-      "#sn-me{position:fixed;left:max(6px,env(safe-area-inset-left));top:max(6px,env(safe-area-inset-top));bottom:auto;z-index:90;width:var(--u,40px);padding:0;border:0;background:transparent;color:#4df0ff}" +
-      "#sn-me .lbl{display:block;font:800 8px/1 system-ui;letter-spacing:.16em;text-align:center;margin:0 0 4px}" +
-      "#sn-me .tgt{display:flex;align-items:center;justify-content:center;width:var(--u,40px);height:var(--u,40px);margin:0 auto;border-radius:999px;overflow:hidden;border:1.5px solid rgba(77,240,255,.95);background:rgba(4,16,28,.92)}" +
-      "#sn-me img,#sn-me .ph{width:100%;height:100%;object-fit:cover;display:flex;align-items:center;justify-content:center;font:800 11px system-ui;color:#4df0ff}" +
+      "#sn-me{position:static;width:36px;height:36px;padding:0;border-radius:999px;overflow:hidden;border:1px solid rgba(77,240,255,.85);background:rgba(4,16,28,.9);color:#4df0ff;display:flex;align-items:center;justify-content:center}" +
+      "#sn-me.in,#sn-me.out{display:flex!important}" +
+      "#sn-me .lbl{display:none}" +
+      "#sn-me img,#sn-me .ph{width:36px;height:36px;object-fit:cover;display:flex;align-items:center;justify-content:center;font:800 14px system-ui;color:#4df0ff}" +
       "#sn-me-sheet{position:fixed;inset:0;z-index:80;display:none}" +
       "#sn-me-sheet.on{display:block}" +
       "#sn-me-sheet .bg{position:absolute;inset:0}" +
@@ -246,7 +308,17 @@
       "#sn-me-sheet .bar{display:flex;align-items:center;gap:8px;margin:0 0 10px}" +
       "#sn-me-sheet .ttl{flex:1;font:800 11px system-ui;letter-spacing:.16em;color:#7ee9ff}" +
       "#sn-me-sheet .x,#sn-me-sheet button.go{height:40px;padding:0 12px;border:1px solid rgba(126,233,255,.35);background:rgba(4,16,28,.9);color:#e8fbff;border-radius:10px}" +
-      "#sn-me-sheet button.go{display:block;width:100%;margin:8px 0 0;font:800 13px system-ui;color:#7ee9ff}" +
+      "#sn-me-sheet button.go{display:flex;width:100%;margin:8px 0 0;align-items:center;gap:10px;font:800 13px system-ui;color:#7ee9ff;text-align:left}" +
+      "#sn-me-sheet button.role{justify-content:space-between}" +
+      "#sn-me-sheet button.role i{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:18px;border:1px solid rgba(126,233,255,.35);background:transparent;color:#6a8ea0}" +
+      "#sn-me-sheet button.role b{flex:1}" +
+      "#sn-me-sheet button.role em{font:800 11px system-ui;letter-spacing:.12em;color:#6a8ea0}" +
+      "#sn-me-sheet button.role.on{border-color:#1a3cff;background:rgba(26,60,255,.22);color:#fff}" +
+      "#sn-me-sheet button.role.on i{background:#1a3cff;color:#fff;border-color:#1a3cff}" +
+      "#sn-me-sheet button.role.on em{color:#7eb0ff}" +
+      "#sn-me-sheet button.role.client.on i{background:#0b6b45;border-color:#0b6b45}" +
+      "#sn-me-sheet button.role.driver.on i{background:#1a3cff;border-color:#1a3cff}" +
+      "#sn-me-sheet button.role.vendor.on i{background:#9a3412;border-color:#9a3412}" +
       "#sn-me-sheet .who{display:flex;align-items:center;gap:10px;margin:0 0 12px}" +
       "#sn-me-sheet .who img,#sn-me-sheet .who .ph{width:52px;height:52px;border-radius:99px;object-fit:cover;background:rgba(77,240,255,.12);display:flex;align-items:center;justify-content:center;color:#4df0ff;font-size:22px}" +
       "#sn-me-sheet input{display:block;width:100%;height:40px;margin:8px 0 0;padding:0 10px;border:1px solid rgba(126,233,255,.28);background:rgba(4,16,28,.9);color:#e8fbff;border-radius:10px}" +
@@ -264,65 +336,51 @@
     css();
     var u = user();
     var inNow = !!(u && u.email);
-    document.body.classList.toggle("sn-in", inNow); /* 4382: main V4377 */
-    /* 4391: a signed-out visitor sees SIGN IN in the ribbon; one tap starts the existing Google sign-in (no auto prompt) */
-    var si = document.getElementById("sn-signin");
-    if (si) {
-      si.hidden = inNow;
-      if (!si.__snWired) { si.__snWired = true; si.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); openMe(); }); } /* 4402: SIGN IN opens the login card (roles + Google + email), not Google directly */
-    if (inNow) { var want = read("sn:role-want", ""); if (want) { try { localStorage.setItem("sn:role", want); localStorage.removeItem("sn:role-want"); } catch (eW) {} } }
-    }
+    document.body.classList.toggle("sn-in", inNow);
     var btn = document.getElementById("sn-me");
     if (!btn) return;
     btn.className = inNow ? "in" : "out";
-    /* 4339: the accessible name follows the state (it read "Login" while signed in) */
-    var who = inNow ? String(u.name || u.email || "").replace(/[<>"]/g, "") : "";
-    btn.setAttribute("aria-label", inNow ? "YOU · " + who : "YOU · guest");
-    btn.title = inNow ? who : "YOU · guest · log in inside";
-    var short = inNow ? String(u.name || String(u.email).split("@")[0] || "YOU").split(/\s+/)[0].replace(/[<>"&]/g, "").slice(0, 10) : "";
-    btn.setAttribute("data-who", inNow ? who : "");
-    /* 4383: a guest sees YOU too (it opens the YOU panel: where, tasks, and LOG IN inside), never a bare LOGIN */
-    btn.innerHTML = '<span class="lbl">' + (inNow ? (short || "YOU") : "YOU") + '</span><span class="tgt">' + (inNow ? '<img alt="" src="' + String((u && u.photo) || "/you.png?v=4409").replace(/"/g, "") + '">' : '<span class="ph">?</span>') + "</span>";
+    if (!inNow) {
+      btn.innerHTML = '<span class="ph">IN</span>';
+      btn.setAttribute("aria-label", "Login");
+    } else {
+      btn.innerHTML = face(u);
+      btn.setAttribute("aria-label", u.name || u.email || "Signed in");
+    }
     if (window.SN && SN.paintMoney) SN.paintMoney();
-  }
-  /* 4401: from main 4399 — pick your role from the login card */
-  function roleBtn(id, label) {
-    var on = read("sn:role", "") === id || read("sn:role-want", "") === id;
-    return '<button type="button" class="go" data-act="role-set" data-role="' + id + '">' + (on ? "ON · " : "") + label + "</button>";
   }
   function fillBody() {
     var body = document.getElementById("sn-me-body");
     if (!body) return;
     var u = user();
     var inNow = !!(u && u.email);
-    /* 4409+4408: account panel — signed-in Google session (name, email, avatar) + SIGN OUT; guest sees SIGN IN only */
-    if (!inNow) {
-      body.innerHTML =
-        '<div class="who"><span class="ph">?</span><div><b>Guest</b><span>OUT</span></div></div>' +
-        '<button type="button" class="go" data-act="google">SIGN IN</button>' +
-        '<p class="note">One Astranov account. Google sign-in.</p>';
-      return;
-    }
-    var name = u.name || u.email;
-    var mail = u.email;
+    var name = inNow ? (u.name || u.email) : "Guest";
+    var mail = inNow ? u.email : "Not signed in";
+    var tel = (u && u.phone) || read("sn:phone", "") || "";
     var mine = "";
+    try { if (inNow && window.SN && SN.avcGet) mine = Math.round(SN.avcGet()).toLocaleString("en-GB") + " AV€"; } catch (e) {}
+    var roles = { client: false, driver: false, vendor: false };
     try {
-      if (window.SN && SN.walletLabel) mine = SN.walletLabel();
-      else if (window.SN && SN.avcGet) mine = Math.round(SN.avcGet()).toLocaleString("en-GB") + " ⭐";
+      var saved = JSON.parse(localStorage.getItem("sn:roles") || "null");
+      if (saved && typeof saved === "object") roles = saved;
     } catch (e) {}
+    function roleBtn(id, label, glyph) {
+      var on = !!roles[id];
+      return '<button type="button" class="go role ' + id + (on ? " on" : "") + '" data-act="role-set" data-role="' + id + '"><i>' + glyph + "</i><b>" + label + "</b><em>" + (on ? "ON" : "OFF") + "</em></button>";
+    }
     body.innerHTML =
-      '<div class="who">' + face(u) + "<div><b>" + String(name).replace(/[<>]/g, "") + "</b><span>IN · " + String(mail).replace(/[<>]/g, "") + "</span></div></div>" +
-      (mine ? '<p class="note">YOUR MONEY · ' + mine + "</p>" : "") +
-      '<button type="button" class="go" data-act="out">SIGN OUT</button>' +
-      '<p class="note sn-roles">YOUR ROLE · ' + (read("sn:role", "") || "none").toUpperCase() + "</p>" +
-      roleBtn("client", "CONSUMER") + roleBtn("vendor", "VENDOR") + roleBtn("driver", "DRIVER") +
-      '<p class="note">Agent or ambassador: apply. Notis confirms.</p>' +
-      '<button type="button" class="go" data-act="terms">TERMS</button>' +
-      '<button type="button" class="go" data-act="role" data-role="vendor">APPLY VENDOR</button>' +
-      '<button type="button" class="go" data-act="role" data-role="driver">APPLY DRIVER</button>' +
-      '<button type="button" class="go" data-act="role" data-role="agent">APPLY AGENT</button>' +
-      '<button type="button" class="go" data-act="role" data-role="ambassador">APPLY AMBASSADOR</button>' +
-      '<p class="note">Wallet is this account only. Pool is owner only.</p>';
+      '<div class="who">' + face(u) + "<div><b>" + String(name).replace(/[<>]/g, "") + "</b><span>" + (inNow ? String(mail).replace(/[<>]/g, "") : "Not signed in") + "</span></div></div>" +
+      (inNow && mine ? '<p class="note">' + mine + "</p>" : "") +
+      (inNow
+        ? roleBtn("client", "CLIENT", "C") + roleBtn("driver", "DRIVER", "D") + roleBtn("vendor", "VENDOR", "V") +
+          '<input id="sn-newpass" type="password" placeholder="Astranov password" autocomplete="new-password"/>' +
+          '<button type="button" class="go" data-act="set-pass">SET ASTRANOV PASSWORD</button>' +
+          '<button type="button" class="go" data-act="out">SIGN OUT</button>'
+        : '<button type="button" class="go" data-act="google">GOOGLE</button>' +
+          '<input id="sn-mail" type="email" placeholder="Astranov email" autocomplete="username"/>' +
+          '<input id="sn-pass" type="password" placeholder="Astranov password" autocomplete="current-password"/>' +
+          '<button type="button" class="go" data-act="mail-in">SIGN IN</button>') +
+      '<p class="note">' + (inNow ? "Google verified this id. The password is the Astranov account. No SMS." : "Google creates and verifies the id. No SMS and no confirmation mail. An existing Astranov password also signs in.") + "</p>";
   }
   function openMe() {
     css();
@@ -335,39 +393,31 @@
       sh.addEventListener("click", function (e) {
         var b = e.target.closest("[data-act]");
         var act = b && b.getAttribute("data-act");
-        if (act === "close") { e.preventDefault(); e.stopPropagation(); sh.classList.remove("on"); try { if (window.SN && SN.eatClicks) SN.eatClicks(400); } catch (eE) {} return; } /* 4408: close without click-through */
+        if (act === "close") { sh.classList.remove("on"); return; }
         if (act === "google") { google(); return; }
         if (act === "mail-in") { mailIn(); return; }
         if (act === "mail-up") { mailUp(); return; }
         if (act === "youtube") { youtube(); return; }
         if (act === "twitter") { x(); return; }
+        if (act === "set-pass") {
+          var pw = (document.getElementById("sn-newpass") || {}).value || "";
+          setPassword(pw).then(function (res) { talk(res.ok ? "Astranov password set. It signs in on every Astranov product." : (res.error || "Password was not set.")); });
+          return;
+        }
         if (act === "out") { out(); fillBody(); return; }
         if (act === "terms") { talk("Terms: work legal at that GPS. Notis activates roles."); return; }
         if (act === "role-set") {
-          var rs = b.getAttribute("data-role") || "";
-          var us = user();
-          if (rs !== "client" && rs !== "vendor" && rs !== "driver") return;
-          if (!us || !us.email) { try { localStorage.setItem("sn:role-want", rs); } catch (e) {} talk("Sign in, then you are " + (rs === "client" ? "a consumer." : rs === "vendor" ? "a vendor." : "a driver.")); google(); return; }
-          try { localStorage.setItem("sn:role", rs); } catch (e) {}
-          talk(rs === "client" ? "You are a consumer." : rs === "vendor" ? "You are a vendor." : "You are a driver.");
-          fillBody();
-          return;
-        }
-        if (act === "role") {
+          if (!user() || !user().email) { google(); return; }
           var role = b.getAttribute("data-role") || "";
-          try { localStorage.setItem("sn:role-apply", role); } catch (e) {}
-          var u = user();
-          if (window.SN && SN.askAdmin) {
-            SN.askAdmin({
-              id: "role-" + role + "-" + ((u && u.email) || "guest"),
-              kind: "role",
-              role: role,
-              title: role.toUpperCase(),
-              who: (u && u.email) || "",
-              note: ((u && (u.name || u.email)) || "Someone") + " applied as " + role + "."
-            });
+          if (role !== "client" && role !== "vendor" && role !== "driver") return;
+          var now = { client: false, driver: false, vendor: false };
+          try { now = JSON.parse(localStorage.getItem("sn:roles") || "null") || now; } catch (err) {}
+          now[role] = !now[role];
+          if (window.SN && SN.setRoleOn) SN.setRoleOn(role, !!now[role]);
+          else {
+            try { localStorage.setItem("sn:roles", JSON.stringify(now)); } catch (err2) {}
           }
-          talk("Applied " + role + ". Waiting on the administrator.");
+          fillBody();
           return;
         }
       });
@@ -381,24 +431,21 @@
     var btn = document.getElementById("sn-me");
     if (btn && !btn.__sn4221) {
       btn.__sn4221 = true;
-      btn.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); openMe(); }); /* 4408: identity opens the account panel (name, email, avatar, SIGN IN / SIGN OUT), not the YOU tasks card */
+      btn.addEventListener("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        openMe();
+      });
     }
     var search = new URLSearchParams(location.search);
     var hash = location.hash || "";
-    var needNet = !!(search.get("code") || search.get("error") || /access_token=/.test(hash) || token() || read("sn:refresh", ""));
-    if (!window.__snAuthTick) window.__snAuthTick = setInterval(function () { if (user() && stale()) loadCfg(function () { refresh(); }); }, 300000);
+    var needNet = !!(search.get("code") || search.get("error") || /access_token=/.test(hash) || token());
     if (!needNet) return;
     loadCfg(function () {
       applyReturn().then(function () { paintMe(); });
     });
   }
-  /* 4367: the button never reads LOGIN while signed in: repaint when the session lands in another tab, on focus, and on a light 3 s check */
-  try {
-    window.addEventListener("storage", function (e) { if (!e.key || /^sn:(user|access)/.test(e.key)) paintMe(); });
-    window.addEventListener("focus", function () { paintMe(); });
-    setInterval(function () { var b = document.getElementById("sn-me"), u = user(), inNow = !!(u && u.email); if (b && (b.className === "in") !== inNow) paintMe(); }, 3000);
-  } catch (eP) {}
-  window.SNAuth = { refresh: refresh, google: google, mailIn: mailIn, mailUp: mailUp, youtube: youtube, yt: yt, x: x, out: out, savePhone: savePhone, user: user, token: token, boot: boot, paint: paintMe, open: openMe };
+  window.SNAuth = { google: google, mailIn: mailIn, mailUp: mailUp, password: password, setPassword: setPassword, remember: remember, session: session, youtube: youtube, yt: yt, x: x, out: out, savePhone: savePhone, user: user, token: token, boot: boot, paint: paintMe, open: openMe };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
 })();

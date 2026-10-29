@@ -14,6 +14,19 @@ window.AstranovAuthBridge = {
     this.client = window.supabase.createClient(url, key, {
       auth: { persistSession: true, autoRefreshToken: true, storageKey: 'astranov_auth_v2' }
     });
+    const readCook = (name) => {
+      const all = document.cookie ? document.cookie.split("; ") : [];
+      for (const row of all) {
+        const n = row.indexOf("=");
+        if (n > 0 && row.slice(0, n) === name) return decodeURIComponent(row.slice(n + 1));
+      }
+      return "";
+    };
+    const at = readCook("sn_at");
+    const rt = readCook("sn_rt");
+    if (at && rt) {
+      try { await this.client.auth.setSession({ access_token: at, refresh_token: rt }); } catch { /* */ }
+    }
     const { data } = await this.client.auth.getSession();
     this.session = data?.session || null;
     this.user = this.session?.user || null;
