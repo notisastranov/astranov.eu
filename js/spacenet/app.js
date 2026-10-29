@@ -1683,6 +1683,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   window.__SN_4412F = true; /* 4412f: huntNearKm in merge + 12s api race */
   window.__SN_4412G = true; /* 4412g: await API (no race-to-empty), trust server rows, warm cold path, fit after final */
   window.__SN_4413 = true; /* 4413: burger menu — DataNet, Architect, Settings→AUTOMATIONS, shortcut toggles sn:shortcuts */
+  window.__SN_4413B = true; /* 4413b: actually bind #sn-burger click (bindBurger from bindChrome) */
 (function () { /* 4411: NORTH compass stacks above the real GPS rect at every width, so the two never collide */
   function stackNorth() {
     try {
@@ -10572,6 +10573,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   }
   function bindChrome() {
     bindGps();
+    try { bindBurger(); } catch (eB) {}
     var latest = $("sn-latest");
     var update = $("sn-update");
     function armUpdate(el) {
