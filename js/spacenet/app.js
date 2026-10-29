@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again."; window.__SN_APPJS = true; /* 4393: the start watchdog sees app.js ran and never reloads it */
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4414"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4415"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -315,6 +315,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
   }
   function avcGet() {
     try {
+      if (!signed()) return 0; /* 4415: guest never shows a local fake ledger */
+      if (bankSeen) return Math.max(0, Math.round(bankBal));
       var k = walletKey();
       var raw = localStorage.getItem(k);
       if (raw == null && k !== "sn:avc:guest") {
@@ -606,8 +608,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     return false;
   }
   function gateUser() {
-    if (!signed()) return; /* guest: no PROFILE, no TESTER sheet */
-    if (!profileReady()) openProfile();
+    /* 4415: scrub fixture names only — never auto-open blocking PROFILE (TESTER CLIENT).
+       needReady still opens PROFILE when the user tries to order. */
+    if (!signed()) return;
+    scrubFixtureProfile();
   }
   function scrubFixtureProfile() {
     /* local device only — never touches the database */
@@ -1679,12 +1683,12 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true; window.__SN_4411 = true; window.__SN_4412 = true; window.__SN_4413 = true; window.__SN_4414 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true; window.__SN_4411 = true; window.__SN_4412 = true; window.__SN_4413 = true; window.__SN_4414 = true; window.__SN_4415 = true;
   window.__SN_4412F = true; /* 4412f: huntNearKm in merge + 12s api race */
   window.__SN_4412G = true; /* 4412g: await API (no race-to-empty), trust server rows, warm cold path, fit after final */
   window.__SN_4413 = true; /* 4413: burger menu — DataNet, Architect, Settings→AUTOMATIONS, shortcut toggles sn:shortcuts */
   window.__SN_4413B = true; /* 4413b: actually bind #sn-burger click (bindBurger from bindChrome) */
-  window.__SN_4414 = true; /* 4414: merge main 4407 auth (Google/Astranov password) + lockstep stamps */
+  window.__SN_4415 = true; /* 4415: merge main 4407 burger+auth; sign-in entry; no TESTER PROFILE; real ⭐; Athens GR */
 (function () { /* 4411: NORTH compass stacks above the real GPS rect at every width, so the two never collide */
   function stackNorth() {
     try {
@@ -8192,6 +8196,24 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         var act = b.getAttribute("data-act");
         e.preventDefault(); e.stopPropagation();
         if (act === "menu-close" || act === "menu-bg") { closeMenu(); return; }
+        function tap(id) {
+          try { var el = $(id); if (el) el.click(); } catch (eT) {}
+        }
+        if (act === "power") { closeMenu(); tap("sn-power"); return; }
+        if (act === "signin") {
+          closeMenu();
+          try {
+            if (window.SNAuth && typeof SNAuth.open === "function") SNAuth.open();
+            else if (window.SNAuth && typeof SNAuth.openMe === "function") SNAuth.openMe();
+            else tap("sn-me");
+          } catch (eSi) {}
+          return;
+        }
+        if (act === "wallet") { closeMenu(); tap("sn-money"); return; }
+        if (act === "gps") { closeMenu(); tap("gps"); return; }
+        if (act === "global") { closeMenu(); tap("sn-globe"); return; }
+        if (act === "support") { closeMenu(); tap("sn-support"); return; }
+        if (act === "compass") { closeMenu(); tap("sn-compass"); return; }
         if (act === "datanet") { openExt("https://datanet.astranov.eu"); closeMenu(); return; }
         if (act === "architect") { openExt("https://architect.astranov.eu"); closeMenu(); return; }
         if (act === "settings") { closeMenu(); openLeft(); return; }
@@ -8211,7 +8233,19 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var on = map[s.id] !== false;
       return '<div class="tog"><span>' + s.label + '</span><button type="button" data-act="shortcut-tog" data-k="' + s.id + '" class="' + (on ? "on" : "") + '" aria-pressed="' + (on ? "true" : "false") + '">' + (on ? "ON" : "OFF") + "</button></div>";
     }).join("");
+    var guest = !(window.SNAuth && SNAuth.user && SNAuth.user());
+    var meLabel = guest ? "SIGN IN" : "YOU · name";
     box.innerHTML = '<div class="bg" data-act="menu-bg"></div><div class="card"><div class="bar"><b class="ttl">MENU</b><button type="button" class="x" data-act="menu-close" aria-label="Close">✕</button></div>' +
+      '<b class="sec">TOP</b>' +
+      '<p class="note">4415 · one burger holds the top buttons (live 4407) plus DataNet.</p>' +
+      '<button type="button" class="go" data-act="power">Power</button>' +
+      '<button type="button" class="go primary" data-act="signin">' + meLabel + '</button>' +
+      '<button type="button" class="go" data-act="wallet">Wallet</button>' +
+      '<button type="button" class="go" data-act="gps">GPS</button>' +
+      '<button type="button" class="go" data-act="global">View · Global</button>' +
+      '<button type="button" class="go" data-act="support">Support</button>' +
+      '<button type="button" class="go" data-act="compass">Compass</button>' +
+      '<b class="sec">APPS</b>' +
       '<button type="button" class="go primary" data-act="datanet">Open DataNet</button>' +
       '<button type="button" class="go" data-act="architect">Open Architect</button>' +
       '<button type="button" class="go" data-act="settings">Settings · map & look</button>' +
@@ -8710,11 +8744,23 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     return row;
   }
   function booksHtml() {
+    /* 4415: never surface TESTER / V4297 as an editable ledger; wallet UI uses ⭐ via sn-money */
     var b = booksGet();
-    people.forEach(function (p) { if (p && p.id) bookRow(b, (p.role || "person") + ":" + p.id, p.name, p.role); });
-    shops.forEach(function (s) { if (s && s.src === "listed" && s.id) bookRow(b, "vendor:" + s.id, s.name, "vendor"); });
-    if (homeDrop) bookRow(b, "client:" + (homeDrop.owner || me()), homeDrop.name || "Client", "client");
-    bookRow(b, "client:" + me(), myName(), "client");
+    people.forEach(function (p) {
+      if (!p || !p.id || isTestFixture(p)) return;
+      bookRow(b, (p.role || "person") + ":" + p.id, p.name, p.role);
+    });
+    shops.forEach(function (s) {
+      if (!s || s.src !== "listed" || !s.id || isTestFixture(s)) return;
+      bookRow(b, "vendor:" + s.id, s.name, "vendor");
+    });
+    if (homeDrop && !isTestFixture(homeDrop)) bookRow(b, "client:" + (homeDrop.owner || me()), homeDrop.name || "Client", "client");
+    if (!isTestFixture({ name: myName() })) bookRow(b, "client:" + me(), myName(), "client");
+    try {
+      b.rows = (b.rows || []).filter(function (r) {
+        return !(isTestFixture(r) || isTestFixture({ name: r && r.name }) || isTestFixture({ name: r && r.id }));
+      });
+    } catch (eF) {}
     booksSet(b);
     var html = '<p class="note">Your money ' + shownMoney().toLocaleString("en-GB") + " ⭐. The mutual account is below. Change any amount, then Apply.</p>";
     html += '<label class="sn-book">MUTUAL<input id="sn-book-pool" inputmode="decimal" value="' + (Number(b.pool) || 0) + '"></label>';
@@ -9890,7 +9936,23 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   }
   function geocodeFast(where) {
     var done = false;
+    try {
+      var ask0 = goToPlaceAsk("go to " + String(where || ""));
+      if (ask0 && ask0.geo && isFinite(+ask0.geo.lat) && isFinite(+ask0.geo.lng)) {
+        return Promise.resolve({ lat: +ask0.geo.lat, lng: +ask0.geo.lng, name: ask0.place || where, raw: ask0.place || "" });
+      }
+    } catch (eAsk) {}
     var memo = geoMemo(where);
+    if (memo) {
+      try {
+        var gk = normPlaceKey(String(where || "").split(",")[0]);
+        var gfix = GR_CITY[gk];
+        if (gfix && isFinite(+memo.lat) && isFinite(+memo.lng)) {
+          var dlat = Math.abs(+memo.lat - gfix.lat), dlng = Math.abs(+memo.lng - gfix.lng);
+          if (dlat > 2 || dlng > 2) memo = null; /* 4415: drop US-suburb memo for a Greece city */
+        }
+      } catch (eBad) {}
+    }
     if (memo) return Promise.resolve(memo);
     return new Promise(function (resolve) {
       function fin(r) { if (done) return; if (r && isFinite(+r.lat) && isFinite(+r.lng)) { done = true; geoMemo(where, r); resolve(r); } }
@@ -10572,9 +10634,22 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     layoutKey = key;
     layoutChrome();
   }
+  function bindSignIn() {
+    var btn = $("sn-signin");
+    if (!btn || btn.__snSignInBound) return;
+    btn.__snSignInBound = true;
+    btn.addEventListener("click", function (e) {
+      try { e.preventDefault(); e.stopPropagation(); } catch (e0) {}
+      try {
+        if (window.SNAuth && typeof SNAuth.open === "function") SNAuth.open();
+        else if (window.SNAuth && typeof SNAuth.openMe === "function") SNAuth.openMe();
+      } catch (e1) {}
+    });
+  }
   function bindChrome() {
     bindGps();
     try { bindBurger(); } catch (eB) {}
+    try { bindSignIn(); } catch (eSi) {}
     var latest = $("sn-latest");
     var update = $("sn-update");
     function armUpdate(el) {
@@ -13233,7 +13308,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true; window.__SN_4411 = true; window.__SN_4412 = true; window.__SN_4413 = true; window.__SN_4414 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true; window.__SN_4411 = true; window.__SN_4412 = true; window.__SN_4413 = true; window.__SN_4414 = true; window.__SN_4415 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
