@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again.";
-  var VER = "4406";
+  var VER = "4407";
 
   var latestVer = "";
   var INTRO_MS = 13000;
@@ -2290,9 +2290,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       "#sn-bar #sn-me .lbl{display:none!important}",
       "#sn-bar{height:auto!important;flex-direction:column!important;align-items:stretch!important;gap:8px!important}",
       "#sn-bar #sn-seek{flex:none!important;width:100%!important}",
-      "#sn-tools{display:flex!important;flex-direction:column!important;gap:6px!important;align-items:stretch!important;overflow:visible!important;pointer-events:auto!important;height:auto!important}",
-      ".sn-row{display:block}",
-      ".sn-tool-row{display:flex!important;gap:6px!important;align-items:center!important;min-height:36px!important;overflow:visible!important}",
+      "#sn-tools{position:relative!important;display:block!important;width:44px!important;height:auto!important;overflow:visible!important;pointer-events:auto!important}",
+      "#sn-burger{width:40px!important;height:40px!important;border-radius:12px!important;border:1px solid rgba(77,240,255,.85)!important;background:rgba(4,14,28,.92)!important;color:#e8fbff!important;font:700 22px/40px system-ui!important;padding:0!important}",
+      "#sn-burger.on{background:#1a3cff!important;color:#fff!important}",
+      "#sn-burger-menu{position:absolute!important;top:46px!important;left:0!important;z-index:96!important;display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:8px!important;min-width:200px!important;padding:10px!important;border-radius:14px!important;border:1px solid rgba(77,240,255,.55)!important;background:rgba(4,14,28,.96)!important;box-shadow:0 12px 28px rgba(0,0,0,.45)!important}",
+      "#sn-burger-menu[hidden]{display:none!important}",
+      "#sn-burger-menu #sn-money{width:100%!important;max-width:none!important;height:40px!important}",
+      "#sn-burger-menu #sn-nav{position:static!important;left:auto!important;top:auto!important;transform:none!important;align-items:stretch!important}",
+      "#sn-burger-menu #sn-power,#sn-burger-menu #sn-support,#sn-burger-menu #gps,#sn-burger-menu #sn-me,#sn-burger-menu #sn-compass,#sn-burger-menu #sn-money{position:static!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;transform:none!important;width:100%!important;max-width:none!important;height:40px!important;min-width:0!important;border-radius:10px!important}",
       "#sn-panel .sn-pick{display:flex!important;flex-wrap:nowrap!important;align-items:center!important;gap:6px!important;width:100%!important;max-width:100%!important;margin-top:8px!important}",
       "#sn-panel .sn-pick b{flex:1 1 auto!important;min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}",
       "#sn-panel .sn-pick img,#sn-panel .sn-pick .sn-mini{width:32px!important;height:32px!important;max-width:32px!important;max-height:32px!important;flex:none!important}",
@@ -8593,24 +8598,34 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
         var tools = document.createElement("div");
         tools.id = "sn-tools";
         bar.appendChild(tools);
-        var row1 = document.createElement("div");
-        var row2 = document.createElement("div");
-        row1.className = "sn-tool-row";
-        row2.className = "sn-tool-row";
-        tools.appendChild(row1);
-        tools.appendChild(row2);
-        row1.appendChild(power);
+        var burger = document.createElement("button");
+        burger.id = "sn-burger";
+        burger.type = "button";
+        burger.setAttribute("aria-label", "Menu");
+        burger.textContent = "\u2630";
+        var menu = document.createElement("div");
+        menu.id = "sn-burger-menu";
+        menu.hidden = true;
+        tools.appendChild(burger);
+        tools.appendChild(menu);
+        menu.appendChild(power);
         var meBtn = document.getElementById("sn-me");
-        if (meBtn) row1.appendChild(meBtn);
+        if (meBtn) menu.appendChild(meBtn);
+        menu.appendChild(money);
         var gps = document.getElementById("gps");
-        if (gps) row1.appendChild(gps);
-        row2.appendChild(money);
+        if (gps) menu.appendChild(gps);
         var nav = document.getElementById("sn-nav");
-        if (nav) row2.appendChild(nav);
+        if (nav) menu.appendChild(nav);
         var support = document.getElementById("sn-support");
-        if (support) row2.appendChild(support);
+        if (support) menu.appendChild(support);
         var comp = ensureCompass();
-        if (comp) row2.appendChild(comp);
+        if (comp) menu.appendChild(comp);
+        burger.addEventListener("click", function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          menu.hidden = !menu.hidden;
+          burger.classList.toggle("on", !menu.hidden);
+        });
       }
     }
     var seek = document.getElementById("sn-seek");
