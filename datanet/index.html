@@ -4,248 +4,844 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
 <title>DataNet</title>
+<meta name="astranov-datanet" content="4413-ui"/>
 <style>
 html,body{margin:0;background:#02040a;color:#e8fbff;font:15px/1.4 system-ui,-apple-system,sans-serif}
-main{max-width:1100px;margin:0 auto;padding:16px 16px 72px}
+main{max-width:1180px;margin:0 auto;padding:16px 16px 72px}
 h1{font:800 22px/1 system-ui;letter-spacing:.14em;margin:8px 0}
 p.sub{color:#9fd4ea;margin:0 0 16px}
-#gate{min-height:78vh;display:flex;flex-direction:column;align-items:center;justify-content:center}
-.box{width:100%;max-width:380px;background:#041018;border:1px solid rgba(77,240,255,.55);border-radius:16px;padding:24px}
+#gate{min-height:78vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
+.box{width:100%;max-width:400px;background:#041018;border:1px solid rgba(77,240,255,.55);border-radius:16px;padding:24px}
 label{display:block;margin:12px 0 4px;font:700 11px/1 system-ui;letter-spacing:.08em;color:#7ee9ff;text-transform:uppercase}
-input,button{height:40px;border-radius:10px;border:1px solid rgba(77,240,255,.55);background:#021018;color:#e8fbff;font:600 14px system-ui}
-input{width:100%;padding:0 10px;box-sizing:border-box}
+input,button,select,textarea{border-radius:10px;border:1px solid rgba(77,240,255,.55);background:#021018;color:#e8fbff;font:600 14px system-ui}
+input,select,button{height:40px}
+input,select,textarea{width:100%;padding:0 10px;box-sizing:border-box}
+textarea{min-height:72px;padding:8px 10px;resize:vertical}
 button{padding:0 14px;cursor:pointer;background:#0a2030}
 button:hover{background:#123040}
-.acts{display:flex;gap:8px;margin-top:16px}
-.head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
-.tabs{display:flex;gap:0;margin:8px 0 12px;border-bottom:1px solid rgba(77,240,255,.25)}
+button.danger{border-color:#ff6b6b;color:#ffb4b4}
+.acts{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+.head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.tabs{display:flex;gap:0;margin:8px 0 12px;border-bottom:1px solid rgba(77,240,255,.25);flex-wrap:wrap}
 .tab{background:transparent;border:none;border-bottom:3px solid transparent;border-radius:0;color:#9fd4ea;height:auto;padding:10px 16px;letter-spacing:.08em;text-transform:uppercase;font:700 12px/1 system-ui}
 .tab.on{color:#7ee9ff;border-bottom-color:#4df0ff}
+.filters{display:flex;gap:12px;flex-wrap:wrap;margin:0 0 12px;align-items:flex-end}
+.filters .f{min-width:160px;flex:1}
 .sheet{width:100%;border-collapse:collapse;background:#041018;border:1px solid rgba(77,240,255,.2)}
-.sheet th,.sheet td{padding:6px 8px;text-align:left;border-bottom:1px solid rgba(77,240,255,.15);vertical-align:middle}
+.sheet th,.sheet td{padding:6px 8px;text-align:left;border-bottom:1px solid rgba(77,240,255,.15);vertical-align:top}
 .sheet th{background:#061820;color:#7ee9ff;font:700 11px/1 system-ui;letter-spacing:.06em;text-transform:uppercase}
 .sheet tr.on td{background:rgba(77,240,255,.06)}
-.sheet input{height:32px;border-color:transparent;background:transparent}
-.sheet input:focus{border-color:rgba(77,240,255,.55);background:#021018;outline:none}
-.x{height:28px;padding:0 8px}
-.menu-h{margin:18px 0 8px;font:800 13px/1 system-ui;letter-spacing:.08em;color:#7ee9ff}
+.sheet input,.sheet select,.sheet textarea{height:32px;border-color:transparent;background:transparent;width:100%}
+.sheet textarea{min-height:48px}
+.sheet input:focus,.sheet select:focus,.sheet textarea:focus{border-color:rgba(77,240,255,.55);background:#021018;outline:none}
+.x{height:28px;padding:0 8px;font-size:12px}
+.menu-h,.sec{margin:18px 0 8px;font:800 13px/1 system-ui;letter-spacing:.08em;color:#7ee9ff}
 #app{display:none}
+.banner{background:#2a1808;border:1px solid #c87a2a;color:#ffd7a0;padding:10px 12px;border-radius:10px;margin:0 0 12px;font:600 13px/1.35 system-ui}
+.banner.ok{background:#082218;border-color:#2ac87a;color:#a0ffd0}
+.banner.err{background:#2a0810;border-color:#c82a4a;color:#ffb0c0}
+.note{color:#7a9aab;font:600 12px/1.35 system-ui;margin:4px 0 10px}
+.thumb{width:40px;height:40px;object-fit:cover;border-radius:8px;border:1px solid rgba(77,240,255,.35);background:#021018}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:720px){.grid2{grid-template-columns:1fr}}
+.profile{background:#041018;border:1px solid rgba(77,240,255,.25);border-radius:14px;padding:14px;margin:12px 0}
+.muted{color:#7a9aab}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid rgba(77,240,255,.35);font:700 11px/1.4 system-ui;letter-spacing:.06em}
 </style>
 </head>
 <body>
 <div id="gate">
   <h1>DATANET</h1>
-  <p class="sub">Shop menus live here. This is not the globe.</p>
+  <p class="sub">Shop menus live here. Sign in to edit.</p>
   <form class="box" id="login">
-    <label>Email or user</label>
-    <input id="who" autocomplete="username" required placeholder="you@astranov.eu"/>
+    <label>Email</label>
+    <input id="who" type="email" autocomplete="username" required placeholder="you@astranov.eu"/>
     <label>Password</label>
     <input id="pw" type="password" autocomplete="current-password" required placeholder="password"/>
-    <div class="acts"><button type="submit" style="flex:1">SIGN IN</button></div>
+    <div class="acts">
+      <button type="submit" style="flex:1">SIGN IN</button>
+      <button type="button" id="google">Google</button>
+    </div>
+    <p class="note" id="gateMsg"></p>
   </form>
 </div>
 <main id="app">
   <div class="head">
     <div>
-      <h1>DATANET <span id="ver" style="letter-spacing:.04em;color:#7ee9ff;font-size:13px">V4403</span></h1>
+      <h1>DATANET <span id="ver" style="letter-spacing:.04em;color:#7ee9ff;font-size:13px">V4413</span></h1>
       <p class="sub" id="whoami"></p>
     </div>
-    <button type="button" id="out">Sign out</button>
+    <div class="acts" style="margin:0">
+      <button type="button" id="reload">Reload</button>
+      <button type="button" id="out">Sign out</button>
+    </div>
+  </div>
+  <div id="status" class="banner" style="display:none"></div>
+  <div class="filters" id="geoFilters">
+    <div class="f"><label>Country</label><select id="country"></select></div>
+    <div class="f"><label>City</label><select id="city"></select></div>
+    <div class="f"><label>Sort</label><select id="sort"><option value="name">Name</option><option value="status">Status</option></select></div>
   </div>
   <div class="tabs">
-    <button type="button" class="tab on" data-tab="vendor">Vendor</button>
-    <button type="button" class="tab" data-tab="user">User</button>
-    <button type="button" class="tab" data-tab="driver">Delivery driver</button>
+    <button type="button" class="tab on" data-tab="vendor">Vendors</button>
+    <button type="button" class="tab" data-tab="menu">Menu</button>
+    <button type="button" class="tab" data-tab="profile">Vendor profile</button>
   </div>
   <div id="sheet"></div>
 </main>
 <script>
-var SESSION = "dn:session";
-var KEY = "dn:ledger";
-var amp = String.fromCharCode(38);
-function esc(s) {
-  return String(s == null ? "" : s).split(amp).join(amp + "amp;").split("<").join(amp + "lt;").split(">").join(amp + "gt;").split('"').join(amp + "quot;");
-}
-function blankVendor() {
-  return { id: "v" + Date.now().toString(36), name: "", address: "", phone: "", status: "live", lat: 36.44305, lng: 28.2279, menu: [] };
-}
-function blankUser() {
-  return { id: "u" + Date.now().toString(36), name: "", address: "", phone: "", role: "client", lat: 36.4492, lng: 28.2334 };
-}
-function blankDriver() {
-  return { id: "d" + Date.now().toString(36), name: "", address: "", phone: "", free: "yes", fleet: "yes", lat: 36.4444, lng: 28.2292 };
-}
-function seedFrom(j) {
-  var vendors = ((j && j.shops) || []).map(function (s) {
-    return {
-      id: s.id || ("v" + Date.now().toString(36)),
-      name: s.name || "",
-      address: s.address || "",
-      phone: s.phone || "",
-      status: s.status || "live",
-      lat: s.lat,
-      lng: s.lng,
-      menu: (s.menu || []).map(function (m) {
-        return { name: m.name || "", price: m.price || "", vol: m.vol || "", kg: m.kg == null ? "" : String(m.kg), temp: m.temp || "" };
-      })
-    };
-  });
-  var users = [];
-  if (j && j.client) users.push({ id: j.client.id || "u1", name: j.client.name || "", address: j.client.address || "", phone: j.client.phone || "", role: j.client.role || "client", lat: j.client.lat, lng: j.client.lng });
-  var drivers = [];
-  if (j && j.driver) drivers.push({ id: j.driver.id || "d1", name: j.driver.name || "", address: j.driver.address || "", phone: j.driver.phone || "", free: j.driver.free ? "yes" : "no", fleet: j.driver.fleet ? "yes" : "no", lat: j.driver.lat, lng: j.driver.lng });
-  if (!vendors.length) vendors.push(blankVendor());
-  if (!users.length) users.push(blankUser());
-  if (!drivers.length) drivers.push(blankDriver());
-  return { vendors: vendors, users: users, drivers: drivers, pick: 0 };
-}
-function read() {
-  try { return JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { return null; }
-}
-function write(d) { localStorage.setItem(KEY, JSON.stringify(d)); }
-var data = read();
-var tab = "vendor";
-var cols = {
-  vendor: [["name","Name"],["address","Address"],["phone","Phone"],["status","Status"],["lat","Lat"],["lng","Lng"]],
-  user: [["name","Name"],["address","Address"],["phone","Phone"],["role","Role"],["lat","Lat"],["lng","Lng"]],
-  driver: [["name","Name"],["address","Base"],["phone","Phone"],["free","Free"],["fleet","Fleet"],["lat","Lat"],["lng","Lng"]]
-};
-var listKey = { vendor: "vendors", user: "users", driver: "drivers" };
-function list() { return data[listKey[tab]]; }
-function cell(i, k, val) {
-  return "<input data-i='" + i + "' data-k='" + k + "' value=\"" + esc(val) + "\"/>";
-}
-function paint() {
-  var box = document.getElementById("sheet");
-  var rows = list();
-  var c = cols[tab];
-  var html = "<table class='sheet'><thead><tr>";
-  c.forEach(function (col) { html += "<th>" + col[1] + "</th>"; });
-  html += "<th></th></tr></thead><tbody>";
-  rows.forEach(function (r, i) {
-    html += "<tr data-pick='" + i + "'" + (tab === "vendor" && data.pick === i ? " class='on'" : "") + ">";
-    c.forEach(function (col) { html += "<td>" + cell(i, col[0], r[col[0]] == null ? "" : r[col[0]]) + "</td>"; });
-    html += "<td><button type='button' class='x' data-del='" + i + "'>DROP</button></td></tr>";
-  });
-  html += "</tbody></table><div class='acts'><button type='button' id='add'>+ Add " + (tab === "vendor" ? "vendor" : tab === "user" ? "user" : "driver") + "</button></div>";
-  if (tab === "vendor") {
-    var v = rows[data.pick] || rows[0];
-    html += "<div class='menu-h'>MENU" + (v && v.name ? " · " + esc(v.name) : "") + "</div>";
-    html += "<table class='sheet'><thead><tr><th>Item</th><th>Price</th><th>Volume</th><th>Kilos</th><th>Temp</th><th></th></tr></thead><tbody>";
-    ((v && v.menu) || []).forEach(function (m, mi) {
-      html += "<tr>";
-      ["name","price","vol","kg","temp"].forEach(function (k) {
-        html += "<td><input data-mi='" + mi + "' data-mk='" + k + "' value=\"" + esc(m[k]) + "\"/></td>";
-      });
-      html += "<td><button type='button' class='x' data-mdrop='" + mi + "'>DROP</button></td></tr>";
-    });
-    html += "</tbody></table><div class='acts'><button type='button' id='add-item'>+ Add item</button></div>";
-  }
-  box.innerHTML = html;
-}
-function bind() {
-  var box = document.getElementById("sheet");
-  box.onchange = function (e) {
-    var t = e.target;
-    if (!t || !t.getAttribute) return;
-    var rows = list();
-    if (t.getAttribute("data-i") != null) {
-      rows[+t.getAttribute("data-i")][t.getAttribute("data-k")] = t.value;
-      write(data);
-      if (tab === "vendor" && t.getAttribute("data-k") === "name") paint();
-    }
-    if (t.getAttribute("data-mi") != null) {
-      var v = rows[data.pick] || rows[0];
-      if (!v) return;
-      v.menu[+t.getAttribute("data-mi")][t.getAttribute("data-mk")] = t.value;
-      write(data);
-    }
+(function () {
+  var VER = "4413";
+  var SB = "https://lkoatrkhuigdolnjsbie.supabase.co";
+  var ANON = "";
+  var SCHEMA_OK = null; // null unknown, true exposed, false blocked
+  var MAP = SB + "/functions/v1/datanet-map";
+  var state = {
+    user: null,
+    token: "",
+    countries: [],
+    cities: [],
+    vendors: [],
+    menu: [],
+    pick: 0,
+    countryId: "",
+    cityId: "",
+    tab: "vendor",
+    storageNote: ""
   };
-  box.onclick = function (e) {
-    var t = e.target;
-    if (!t || !t.getAttribute) return;
-    var rows = list();
-    if (t.getAttribute("data-del") != null) {
-      var i = +t.getAttribute("data-del");
-      rows.splice(i, 1);
-      if (tab === "vendor" && data.pick >= rows.length) data.pick = Math.max(0, rows.length - 1);
-      write(data);
+
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+  function $(id) { return document.getElementById(id); }
+  function readLS(k, d) { try { var v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; } }
+  function writeLS(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function token() { return state.token || readLS("dn:access", "") || readLS("sn:access", ""); }
+  function setToken(t, refresh, exp) {
+    state.token = t || "";
+    writeLS("dn:access", state.token);
+    if (refresh) writeLS("dn:refresh", refresh);
+    if (exp) writeLS("dn:exp", String(exp));
+  }
+  function banner(msg, kind) {
+    var el = $("status");
+    if (!msg) { el.style.display = "none"; el.textContent = ""; return; }
+    el.style.display = "block";
+    el.className = "banner" + (kind === "ok" ? " ok" : kind === "err" ? " err" : "");
+    el.textContent = msg;
+  }
+  function gateMsg(t) { $("gateMsg").textContent = t || ""; }
+  function headers(json) {
+    var h = { apikey: ANON, Authorization: "Bearer " + (token() || ANON) };
+    if (json) h["Content-Type"] = "application/json";
+    return h;
+  }
+  function restHeaders(extra) {
+    var h = Object.assign({
+      apikey: ANON,
+      Authorization: "Bearer " + token(),
+      "Accept-Profile": "datanet",
+      "Content-Profile": "datanet"
+    }, extra || {});
+    return h;
+  }
+
+  function loadCfg() {
+    return fetch("/api/public-config").then(function (r) { return r.json(); }).then(function (j) {
+      if (j && j.sb) SB = j.sb;
+      if (j && j.anon) ANON = j.anon;
+      MAP = SB + "/functions/v1/datanet-map";
+    }).catch(function () {});
+  }
+
+  function authUser() {
+    var t = token();
+    if (!t) return Promise.resolve(null);
+    return fetch(SB + "/auth/v1/user", { headers: { apikey: ANON, Authorization: "Bearer " + t } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .catch(function () { return null; });
+  }
+
+  function refresh() {
+    var rt = readLS("dn:refresh", "") || readLS("sn:refresh", "");
+    if (!rt || !ANON) return Promise.resolve(false);
+    return fetch(SB + "/auth/v1/token?grant_type=refresh_token", {
+      method: "POST",
+      headers: { apikey: ANON, "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: rt })
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (x) {
+        if (x.ok && x.j && x.j.access_token) {
+          var exp = Number(x.j.expires_at) || (Number(x.j.expires_in) ? Math.floor(Date.now() / 1000) + Number(x.j.expires_in) : 0);
+          setToken(x.j.access_token, x.j.refresh_token || rt, exp);
+          if (x.j.user) state.user = x.j.user;
+          return true;
+        }
+        return false;
+      }).catch(function () { return false; });
+  }
+
+  function passwordSignIn(email, password) {
+    return fetch(SB + "/auth/v1/token?grant_type=password", {
+      method: "POST",
+      headers: { apikey: ANON, "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email, password: password })
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j, status: r.status }; }); });
+  }
+
+  function google() {
+    var dest = location.origin + (location.pathname.indexOf("/datanet") === 0 ? "/datanet" : location.pathname) + "?auth=google";
+    var ver = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    writeLS("dn:pkce", ver);
+    writeLS("dn:auth-back", location.href.split("#")[0]);
+    function b64url(buf) {
+      var b = String.fromCharCode.apply(null, new Uint8Array(buf));
+      return btoa(b).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+    }
+    crypto.subtle.digest("SHA-256", new TextEncoder().encode(ver)).then(function (ch) {
+      location.href = SB + "/auth/v1/authorize?provider=google"
+        + "&redirect_to=" + encodeURIComponent(dest)
+        + "&scopes=" + encodeURIComponent("email profile")
+        + "&code_challenge=" + encodeURIComponent(b64url(ch))
+        + "&code_challenge_method=S256"
+        + (ANON ? "&apikey=" + encodeURIComponent(ANON) : "");
+    }).catch(function () {
+      location.href = SB + "/auth/v1/authorize?provider=google&redirect_to=" + encodeURIComponent(dest);
+    });
+  }
+
+  function finishOAuth() {
+    var q = new URLSearchParams(location.search);
+    if (q.get("auth") !== "google" && !location.hash.includes("access_token")) return Promise.resolve(false);
+    var code = q.get("code");
+    if (code) {
+      var body = {
+        grant_type: "authorization_code",
+        code: code,
+        redirect_uri: location.origin + location.pathname + "?auth=google"
+      };
+      var ver = readLS("dn:pkce", "");
+      if (ver) { body.code_verifier = ver; }
+      return fetch(SB + "/auth/v1/token?grant_type=authorization_code", {
+        method: "POST",
+        headers: { apikey: ANON, "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (x) {
+          if (x.ok && x.j && x.j.access_token) {
+            var exp = Number(x.j.expires_at) || (Number(x.j.expires_in) ? Math.floor(Date.now() / 1000) + Number(x.j.expires_in) : 0);
+            setToken(x.j.access_token, x.j.refresh_token, exp);
+            state.user = x.j.user || null;
+            history.replaceState({}, "", location.pathname);
+            return true;
+          }
+          gateMsg((x.j && (x.j.error_description || x.j.msg || x.j.error)) || "Google sign-in failed");
+          return false;
+        });
+    }
+    if (location.hash.includes("access_token")) {
+      var h = new URLSearchParams(location.hash.replace(/^#/, ""));
+      setToken(h.get("access_token"), h.get("refresh_token"), h.get("expires_at") || h.get("expires_in"));
+      history.replaceState({}, "", location.pathname);
+      return Promise.resolve(true);
+    }
+    return Promise.resolve(false);
+  }
+
+  function probeSchema() {
+    if (!token()) return Promise.resolve(false);
+    return fetch(SB + "/rest/v1/countries?select=id,code,name&limit=1", { headers: restHeaders() })
+      .then(function (r) {
+        if (r.status === 406) { SCHEMA_OK = false; return false; }
+        if (r.ok) { SCHEMA_OK = true; return true; }
+        return r.json().then(function (j) {
+          var msg = (j && j.message) || "";
+          if (String(msg).indexOf("Invalid schema") >= 0 || (j && j.code) === "PGRST106") SCHEMA_OK = false;
+          return false;
+        }).catch(function () { return false; });
+      }).catch(function () { SCHEMA_OK = false; return false; });
+  }
+
+  function storageBlockedMsg() {
+    return "DataNet storage not connected yet — schema `datanet` is not exposed to the API (PostgREST). Fields are ready; asks the owner to add `datanet` under Dashboard → API → Exposed schemas. Until then, saves cannot reach Postgres.";
+  }
+
+  function mapFetch(params) {
+    var qs = Object.keys(params || {}).filter(function (k) { return params[k] != null && params[k] !== ""; })
+      .map(function (k) { return encodeURIComponent(k) + "=" + encodeURIComponent(params[k]); }).join("&");
+    return fetch(MAP + (qs ? ("?" + qs) : ""), { headers: headers(false) })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, status: r.status, j: j }; }); });
+  }
+
+  function restSelect(table, query) {
+    return fetch(SB + "/rest/v1/" + table + "?" + query, { headers: restHeaders() })
+      .then(function (r) {
+        return r.text().then(function (t) {
+          var j = null;
+          try { j = t ? JSON.parse(t) : null; } catch (e) { j = { raw: t }; }
+          if (r.status === 406 || (j && j.code === "PGRST106")) {
+            SCHEMA_OK = false;
+            return { ok: false, blocked: true, status: r.status, j: j };
+          }
+          return { ok: r.ok, status: r.status, j: j };
+        });
+      });
+  }
+
+  function restUpdate(table, id, patch) {
+    return fetch(SB + "/rest/v1/" + table + "?id=eq." + encodeURIComponent(id), {
+      method: "PATCH",
+      headers: Object.assign(restHeaders({ Prefer: "return=representation" }), { "Content-Type": "application/json" }),
+      body: JSON.stringify(patch)
+    }).then(function (r) {
+      return r.text().then(function (t) {
+        var j = null;
+        try { j = t ? JSON.parse(t) : null; } catch (e) { j = { raw: t }; }
+        if (r.status === 406 || (j && j.code === "PGRST106")) {
+          SCHEMA_OK = false;
+          return { ok: false, blocked: true, status: r.status, j: j };
+        }
+        return { ok: r.ok, status: r.status, j: j };
+      });
+    });
+  }
+
+  function restDelete(table, id) {
+    return fetch(SB + "/rest/v1/" + table + "?id=eq." + encodeURIComponent(id), {
+      method: "DELETE",
+      headers: restHeaders({ Prefer: "return=minimal" })
+    }).then(function (r) {
+      if (r.status === 406) { SCHEMA_OK = false; return { ok: false, blocked: true, status: r.status }; }
+      return { ok: r.ok || r.status === 204, status: r.status };
+    });
+  }
+
+  function hoursText(v) {
+    if (!v) return "";
+    if (typeof v === "string") return v;
+    try { return JSON.stringify(v); } catch (e) { return ""; }
+  }
+  function parseJsonField(s, fallback) {
+    if (s == null || s === "") return fallback;
+    if (typeof s !== "string") return s;
+    try { return JSON.parse(s); } catch (e) { return fallback; }
+  }
+
+  function sortVendors(list) {
+    var key = $("sort").value || "name";
+    return (list || []).slice().sort(function (a, b) {
+      var av = String(a[key] || a.name || "").toLowerCase();
+      var bv = String(b[key] || b.name || "").toLowerCase();
+      if (av < bv) return -1;
+      if (av > bv) return 1;
+      return 0;
+    });
+  }
+
+  function currentVendor() {
+    return state.vendors[state.pick] || null;
+  }
+
+  function paintGeo() {
+    var cSel = $("country");
+    var ySel = $("city");
+    var cVal = state.countryId;
+    var yVal = state.cityId;
+    cSel.innerHTML = '<option value="">All countries</option>' + state.countries.map(function (c) {
+      return '<option value="' + esc(c.id || c.name) + '">' + esc(c.name) + (c.code ? (" (" + c.code + ")") : "") + "</option>";
+    }).join("");
+    if (cVal) cSel.value = cVal;
+    var cities = state.cities.filter(function (c) {
+      if (!cSel.value) return true;
+      return String(c.country_id) === String(cSel.value) || String(c.country) === String(cSel.value) || String(c.country_id || "") === "";
+    });
+    // If countries keyed by name from map feed
+    if (!state.countries.length && state.vendors.length) {
+      var names = {};
+      state.vendors.forEach(function (v) { if (v.country) names[v.country] = 1; });
+      cSel.innerHTML = '<option value="">All countries</option>' + Object.keys(names).sort().map(function (n) {
+        return '<option value="' + esc(n) + '">' + esc(n) + "</option>";
+      }).join("");
+      if (cVal) cSel.value = cVal;
+    }
+    var cityNames = {};
+    if (!state.cities.length) {
+      state.vendors.forEach(function (v) {
+        if (!v.city) return;
+        if (cSel.value && v.country && v.country !== cSel.value) return;
+        cityNames[v.city] = 1;
+      });
+      ySel.innerHTML = '<option value="">All cities</option>' + Object.keys(cityNames).sort().map(function (n) {
+        return '<option value="' + esc(n) + '">' + esc(n) + "</option>";
+      }).join("");
+    } else {
+      ySel.innerHTML = '<option value="">All cities</option>' + cities.map(function (c) {
+        return '<option value="' + esc(c.id || c.name) + '">' + esc(c.name) + "</option>";
+      }).join("");
+    }
+    if (yVal) ySel.value = yVal;
+  }
+
+  function filteredVendors() {
+    var c = $("country").value;
+    var y = $("city").value;
+    return sortVendors(state.vendors.filter(function (v) {
+      if (c) {
+        var ok = String(v.country_id) === c || String(v.country) === c || String(v.city_id) === c;
+        if (!ok && state.cities.length) {
+          var city = state.cities.find(function (x) { return String(x.id) === String(v.city_id); });
+          ok = city && (String(city.country_id) === c || String(city.name) === c);
+        }
+        if (!ok) return false;
+      }
+      if (y) {
+        var ok2 = String(v.city_id) === y || String(v.city) === y;
+        if (!ok2) return false;
+      }
+      return true;
+    }));
+  }
+
+  function paint() {
+    paintGeo();
+    var box = $("sheet");
+    var tab = state.tab;
+    if (SCHEMA_OK === false) {
+      banner(storageBlockedMsg(), "err");
+    } else if (state.storageNote) {
+      banner(state.storageNote, "");
+    }
+
+    if (tab === "vendor") {
+      var rows = filteredVendors();
+      if (state.pick >= rows.length) state.pick = Math.max(0, rows.length - 1);
+      var html = "<p class='note'>Filter Country, then City, then vendors. Sorted by " + esc($("sort").value) + ". " + rows.length + " shown.</p>";
+      html += "<table class='sheet'><thead><tr><th>Name</th><th>City</th><th>Country</th><th>Status</th><th>Phone</th><th></th></tr></thead><tbody>";
+      rows.forEach(function (v, i) {
+        var realIdx = state.vendors.indexOf(v);
+        html += "<tr data-pick='" + realIdx + "'" + (realIdx === state.pick ? " class='on'" : "") + ">";
+        html += "<td>" + esc(v.name) + "</td><td>" + esc(v.city || "") + "</td><td>" + esc(v.country || "") + "</td>";
+        html += "<td>" + esc(v.status || "") + "</td><td>" + esc(v.phone || "") + "</td>";
+        html += "<td><button type='button' class='x danger' data-del-vendor='" + esc(v.id) + "'>Delete</button></td></tr>";
+      });
+      html += "</tbody></table>";
+      if (!rows.length) html += "<p class='note'>No vendors for this Country → City filter" + (token() ? "." : " — sign in required for the map feed.") + "</p>";
+      box.innerHTML = html;
+      return;
+    }
+
+    var v = currentVendor();
+    if (!v) {
+      box.innerHTML = "<p class='note'>Pick a vendor on the Vendors tab first.</p>";
+      return;
+    }
+
+    if (tab === "profile") {
+      var hours = hoursText(v.hours);
+      var opening = hoursText(v.opening_dates);
+      var vh = (v.vendor_hours || []).map(function (h) {
+        return esc(h.kind || "weekly") + (h.dow != null ? (" dow=" + h.dow) : "") +
+          (h.date_start ? (" " + h.date_start) : "") + (h.date_end ? ("→" + h.date_end) : "") +
+          (h.is_closed ? " CLOSED" : "") + (h.reason ? (" · " + h.reason) : "");
+      }).join(" · ");
+      var html = "<div class='profile'>";
+      html += "<div class='sec'>VENDOR PROFILE · " + esc(v.name) + "</div>";
+      html += "<p class='note'>Editable after login. Saves go to datanet.vendors (+ vendor_hours). Photo is an https URL.</p>";
+      html += "<div class='grid2'>";
+      html += "<div><label>Photo URL</label><input data-vk='photo_url' value=\"" + esc(v.photo_url || v.logo || "") + "\"/></div>";
+      html += "<div><label>Logo URL</label><input data-vk='logo_url' value=\"" + esc(v.logo_url || v.logo || "") + "\"/></div>";
+      html += "<div><label>Cover URL</label><input data-vk='cover_url' value=\"" + esc(v.cover_url || "") + "\"/></div>";
+      html += "<div><label>Website</label><input data-vk='website' value=\"" + esc(v.website || "") + "\"/></div>";
+      html += "<div><label>Phone</label><input data-vk='phone' value=\"" + esc(v.phone || "") + "\"/></div>";
+      html += "<div><label>Email</label><input data-vk='email' value=\"" + esc(v.email || "") + "\"/></div>";
+      html += "<div><label>Status</label><input data-vk='status' value=\"" + esc(v.status || "") + "\"/></div>";
+      html += "<div><label>Address</label><input data-vk='address' value=\"" + esc(v.address || "") + "\"/></div>";
+      html += "</div>";
+      html += "<label>Description</label><textarea data-vk='description'>" + esc(v.description || "") + "</textarea>";
+      html += "<label>Opening times (weekly hours JSON)</label><textarea data-vk='hours'>" + esc(hours) + "</textarea>";
+      html += "<label>Opening dates (seasonal / exceptions JSON → vendors.opening_dates)</label><textarea data-vk='opening_dates'>" + esc(opening) + "</textarea>";
+      html += "<p class='note'>vendor_hours rows: " + (vh || "none loaded yet") + "</p>";
+      if (v.photo_url || v.logo) html += "<p><img class='thumb' src=\"" + esc(v.photo_url || v.logo) + "\" alt=''/></p>";
+      html += "<div class='acts'><button type='button' id='save-profile'>Save profile</button></div>";
+      html += "</div>";
+      box.innerHTML = html;
+      return;
+    }
+
+    // menu tab
+    var items = state.menu.filter(function (m) { return String(m.vendor_id) === String(v.id); });
+    if (!items.length && Array.isArray(v.menu)) items = v.menu;
+    var html = "<div class='sec'>MENU · " + esc(v.name) + " <span class='pill'>" + items.length + "</span></div>";
+    html += "<p class='note'>Item photo (https URL), producible quantity (stock_qty / max_daily_qty), time availability (available_times / availability).</p>";
+    html += "<table class='sheet'><thead><tr><th>Photo</th><th>Item</th><th>Qty</th><th>Stock</th><th>Max/day</th><th>Available times (JSON)</th><th>Availability (JSON)</th><th></th></tr></thead><tbody>";
+    items.forEach(function (m, mi) {
+      var photo = m.photo_url || (m.image_urls && m.image_urls[0]) || m.image || "";
+      html += "<tr>";
+      html += "<td>" + (photo ? ("<img class='thumb' src=\"" + esc(photo) + "\" alt=''/>") : "—") +
+        "<input data-mi='" + mi + "' data-mk='photo_url' placeholder='https://…' value=\"" + esc(photo) + "\"/></td>";
+      html += "<td><input data-mi='" + mi + "' data-mk='name' value=\"" + esc(m.name || "") + "\"/></td>";
+      html += "<td><input data-mi='" + mi + "' data-mk='quantity' value=\"" + esc(m.quantity == null ? "" : m.quantity) + "\" style='width:70px'/> <input data-mi='" + mi + "' data-mk='unit' value=\"" + esc(m.unit || "") + "\" style='width:60px' placeholder='unit'/></td>";
+      html += "<td><input data-mi='" + mi + "' data-mk='stock_qty' value=\"" + esc(m.stock_qty == null ? "" : m.stock_qty) + "\"/></td>";
+      html += "<td><input data-mi='" + mi + "' data-mk='max_daily_qty' value=\"" + esc(m.max_daily_qty == null ? "" : m.max_daily_qty) + "\"/></td>";
+      html += "<td><textarea data-mi='" + mi + "' data-mk='available_times'>" + esc(hoursText(m.available_times)) + "</textarea></td>";
+      html += "<td><textarea data-mi='" + mi + "' data-mk='availability'>" + esc(hoursText(m.availability)) + "</textarea></td>";
+      html += "<td><button type='button' class='x' data-save-item='" + mi + "'>Save</button> <button type='button' class='x danger' data-del-item='" + esc(m.id || mi) + "' data-mi='" + mi + "'>Delete</button></td>";
+      html += "</tr>";
+      state._menuView = items;
+    });
+    html += "</tbody></table>";
+    if (!items.length) html += "<p class='note'>No menu items loaded. Open a vendor after schema exposure, or call datanet-map?vendor_id=…&menu=1.</p>";
+    html += "<div class='acts'><button type='button' id='add-item'>+ Add item</button></div>";
+    box.innerHTML = html;
+  }
+
+  function bind() {
+    $("sheet").onclick = function (e) {
+      var t = e.target;
+      if (!t) return;
+      if (t.getAttribute && t.getAttribute("data-pick") != null) {
+        state.pick = +t.getAttribute("data-pick");
+        paint();
+        return;
+      }
+      var tr = t.closest && t.closest("[data-pick]");
+      if (tr && t.tagName !== "BUTTON" && t.tagName !== "INPUT" && t.tagName !== "TEXTAREA") {
+        state.pick = +tr.getAttribute("data-pick");
+        paint();
+        return;
+      }
+      if (t.id === "save-profile") { saveProfile(); return; }
+      if (t.id === "add-item") { addItem(); return; }
+      if (t.getAttribute("data-save-item") != null) { saveItem(+t.getAttribute("data-save-item")); return; }
+      if (t.getAttribute("data-del-vendor") != null) {
+        var id = t.getAttribute("data-del-vendor");
+        if (!confirm("Delete this vendor? This cannot be undone from the UI.")) return;
+        deleteVendor(id);
+        return;
+      }
+      if (t.getAttribute("data-del-item") != null) {
+        if (!confirm("Delete this menu item?")) return;
+        deleteItem(t.getAttribute("data-del-item"), +t.getAttribute("data-mi"));
+      }
+    };
+    $("sheet").onchange = function (e) {
+      var t = e.target;
+      if (!t || !t.getAttribute) return;
+      if (t.getAttribute("data-vk") != null) {
+        var v = currentVendor();
+        if (!v) return;
+        v[t.getAttribute("data-vk")] = t.value;
+      }
+      if (t.getAttribute("data-mi") != null && state._menuView) {
+        var m = state._menuView[+t.getAttribute("data-mi")];
+        if (!m) return;
+        m[t.getAttribute("data-mk")] = t.value;
+      }
+    };
+  }
+
+  function saveProfile() {
+    var v = currentVendor();
+    if (!v || !v.id) { banner("No vendor selected", "err"); return; }
+    var patch = {
+      photo_url: v.photo_url || null,
+      logo_url: v.logo_url || null,
+      cover_url: v.cover_url || null,
+      website: v.website || null,
+      description: v.description || null,
+      phone: v.phone || null,
+      email: v.email || null,
+      status: v.status || null,
+      address: v.address || null,
+      hours: parseJsonField(v.hours, v.hours || null),
+      opening_dates: parseJsonField(v.opening_dates, v.opening_dates || null)
+    };
+    restUpdate("vendors", v.id, patch).then(function (x) {
+      if (x.blocked) { banner(storageBlockedMsg(), "err"); return; }
+      if (!x.ok) { banner("Save failed (" + x.status + "). DataNet storage not connected yet or RLS denied.", "err"); return; }
+      banner("Vendor profile saved.", "ok");
+    }).catch(function () { banner(storageBlockedMsg(), "err"); });
+  }
+
+  function saveItem(mi) {
+    var items = state._menuView || [];
+    var m = items[mi];
+    if (!m) return;
+    if (!m.id) { banner("New items need DataNet storage (schema exposed) before they can be inserted.", "err"); return; }
+    var patch = {
+      name: m.name || null,
+      photo_url: m.photo_url || null,
+      quantity: m.quantity || null,
+      unit: m.unit || null,
+      stock_qty: m.stock_qty === "" || m.stock_qty == null ? null : Number(m.stock_qty),
+      max_daily_qty: m.max_daily_qty === "" || m.max_daily_qty == null ? null : Number(m.max_daily_qty),
+      available_times: parseJsonField(m.available_times, m.available_times || null),
+      availability: parseJsonField(m.availability, m.availability || null)
+    };
+    if (m.photo_url) patch.image_urls = [m.photo_url];
+    restUpdate("menu_items", m.id, patch).then(function (x) {
+      if (x.blocked) { banner(storageBlockedMsg(), "err"); return; }
+      if (!x.ok) { banner("Item save failed (" + x.status + "). DataNet storage not connected yet or RLS denied.", "err"); return; }
+      banner("Menu item saved.", "ok");
+    }).catch(function () { banner(storageBlockedMsg(), "err"); });
+  }
+
+  function addItem() {
+    var v = currentVendor();
+    if (!v) return;
+    if (SCHEMA_OK === false) { banner(storageBlockedMsg(), "err"); return; }
+    banner("Inserting new menu items needs schema `datanet` exposed. UI field row is local-only until then.", "err");
+    state.menu.push({
+      id: null,
+      vendor_id: v.id,
+      name: "",
+      photo_url: "",
+      quantity: "",
+      unit: "",
+      stock_qty: "",
+      max_daily_qty: "",
+      available_times: { days: ["mon","tue","wed","thu","fri"], from: "09:00", to: "22:00" },
+      availability: {}
+    });
+    paint();
+  }
+
+  function deleteVendor(id) {
+    restDelete("vendors", id).then(function (x) {
+      if (x.blocked) { banner(storageBlockedMsg(), "err"); return; }
+      if (!x.ok) { banner("Delete failed (" + x.status + "). DataNet storage not connected yet or RLS denied.", "err"); return; }
+      state.vendors = state.vendors.filter(function (v) { return String(v.id) !== String(id); });
+      banner("Vendor deleted.", "ok");
+      paint();
+    }).catch(function () { banner(storageBlockedMsg(), "err"); });
+  }
+
+  function deleteItem(id, mi) {
+    if (!id || id === "null" || String(id).indexOf("-") < 0 && !state._menuView[mi].id) {
+      if (state._menuView) state._menuView.splice(mi, 1);
       paint();
       return;
     }
-    if (tab === "vendor" && t.tagName !== "INPUT" && t.tagName !== "BUTTON") {
-      var tr = t.closest ? t.closest("[data-pick]") : null;
-      if (tr) {
-        data.pick = +tr.getAttribute("data-pick");
-        write(data);
-        paint();
-      }
-    }
-    if (t.getAttribute("data-mdrop") != null) {
-      var v = rows[data.pick] || rows[0];
-      if (v) v.menu.splice(+t.getAttribute("data-mdrop"), 1);
-      write(data);
+    restDelete("menu_items", id).then(function (x) {
+      if (x.blocked) { banner(storageBlockedMsg(), "err"); return; }
+      if (!x.ok) { banner("Delete failed (" + x.status + ").", "err"); return; }
+      state.menu = state.menu.filter(function (m) { return String(m.id) !== String(id); });
+      banner("Menu item deleted.", "ok");
       paint();
-    }
-    if (t.id === "add") {
-      rows.push(tab === "vendor" ? blankVendor() : tab === "user" ? blankUser() : blankDriver());
-      if (tab === "vendor") data.pick = rows.length - 1;
-      write(data);
-      paint();
-    }
-    if (t.id === "add-item") {
-      var v2 = rows[data.pick] || rows[0];
-      if (!v2) return;
-      v2.menu = v2.menu || [];
-      v2.menu.push({ name: "", price: "", vol: "", kg: "", temp: "" });
-      write(data);
-      paint();
-    }
-  };
-}
-function show(logged) {
-  document.getElementById("gate").style.display = logged ? "none" : "flex";
-  document.getElementById("app").style.display = logged ? "block" : "none";
-  if (logged) {
-    var who = "";
-    try { who = JSON.parse(localStorage.getItem(SESSION) || "{}").who || ""; } catch (e) {}
-    document.getElementById("whoami").textContent = who ? ("Signed in · " + who) : "Spreadsheet ledger";
-    paint();
+    }).catch(function () { banner(storageBlockedMsg(), "err"); });
   }
-}
-document.getElementById("login").onsubmit = function (e) {
-  e.preventDefault();
-  var who = document.getElementById("who").value.trim();
-  if (!who || !document.getElementById("pw").value) return;
-  localStorage.setItem(SESSION, JSON.stringify({ who: who }));
-  show(true);
-};
-document.getElementById("out").onclick = function () {
-  localStorage.removeItem(SESSION);
-  show(false);
-};
-document.querySelectorAll(".tab").forEach(function (b) {
-  b.onclick = function () {
-    document.querySelectorAll(".tab").forEach(function (x) { x.classList.remove("on"); });
-    b.classList.add("on");
-    tab = b.getAttribute("data-tab");
-    paint();
-  };
-});
-bind();
-var session = localStorage.getItem(SESSION);
-if (data) show(!!session);
-else {
-  fetch("/datanet/menus.json").then(function (r) { return r.json(); }).then(function (j) {
-    data = seedFrom(j);
-    write(data);
-    show(!!session);
-  }).catch(function () {
-    data = seedFrom(null);
-    write(data);
-    show(!!session);
-  });
-}
+
+  function loadCountriesCities() {
+    return Promise.all([
+      restSelect("countries", "select=id,code,name&order=name"),
+      restSelect("cities", "select=id,name,lat,lng,country_id&order=name")
+    ]).then(function (arr) {
+      var co = arr[0], ci = arr[1];
+      if (co.blocked || ci.blocked) {
+        SCHEMA_OK = false;
+        return false;
+      }
+      if (co.ok && Array.isArray(co.j)) state.countries = co.j;
+      if (ci.ok && Array.isArray(ci.j)) state.cities = ci.j;
+      return SCHEMA_OK !== false;
+    });
+  }
+
+  function loadVendorsFromMap() {
+    var params = {};
+    var c = $("country") && $("country").value;
+    var y = $("city") && $("city").value;
+    // Prefer names for map feed
+    if (c) {
+      var country = state.countries.find(function (x) { return String(x.id) === c; });
+      params.country = country ? country.name : c;
+    }
+    if (y) {
+      var city = state.cities.find(function (x) { return String(x.id) === y; });
+      params.city = city ? city.name : y;
+    }
+    if (!params.country && !params.city) {
+      params.country = "Greece";
+    }
+    return mapFetch(params).then(function (x) {
+      if (!x.ok) {
+        state.storageNote = "Map feed needs a signed-in user JWT (HTTP " + x.status + "). " +
+          ((x.j && (x.j.error || x.j.message)) || "");
+        return false;
+      }
+      var list = (x.j && x.j.vendors) || [];
+      state.vendors = list.map(function (v) {
+        return {
+          id: v.id,
+          name: v.name,
+          lat: v.lat,
+          lng: v.lng,
+          city: v.city,
+          country: v.country,
+          country_code: v.country_code,
+          cuisine: v.cuisine,
+          status: v.status,
+          logo: v.logo,
+          logo_url: v.logo,
+          photo_url: v.logo,
+          phone: v.phone || "",
+          website: v.website || "",
+          description: v.description || "",
+          address: v.address || "",
+          hours: v.hours || null,
+          opening_dates: v.opening_dates || null,
+          spacenet_vendor_id: v.spacenet_vendor_id,
+          item_count: v.item_count
+        };
+      });
+      state.storageNote = "Loaded " + state.vendors.length + " vendors via datanet-map" +
+        (SCHEMA_OK === false ? " (read-only map feed; writes wait on schema exposure)." : ".");
+      return true;
+    });
+  }
+
+  function loadVendorsFromRest() {
+    var q = "select=*,vendor_hours(*)&order=name";
+    if (state.cityId) q += "&city_id=eq." + encodeURIComponent(state.cityId);
+    return restSelect("vendors", q).then(function (x) {
+      if (x.blocked) { SCHEMA_OK = false; return false; }
+      if (!x.ok || !Array.isArray(x.j)) return false;
+      state.vendors = x.j.map(function (v) {
+        var city = state.cities.find(function (c) { return String(c.id) === String(v.city_id); });
+        var country = city && state.countries.find(function (c) { return String(c.id) === String(city.country_id); });
+        v.city = city ? city.name : v.city;
+        v.country = country ? country.name : v.country;
+        return v;
+      });
+      SCHEMA_OK = true;
+      state.storageNote = "Loaded " + state.vendors.length + " vendors from datanet.vendors.";
+      return true;
+    });
+  }
+
+  function loadMenuForPick() {
+    var v = currentVendor();
+    if (!v || !v.id) { state.menu = []; return Promise.resolve(); }
+    if (SCHEMA_OK !== false) {
+      return restSelect("menu_items", "select=*,item_prices(*)&vendor_id=eq." + encodeURIComponent(v.id) + "&order=name")
+        .then(function (x) {
+          if (x.blocked) { SCHEMA_OK = false; }
+          if (x.ok && Array.isArray(x.j)) { state.menu = x.j; return; }
+          return mapFetch({ vendor_id: v.id, menu: 1 }).then(function (m) {
+            if (m.ok && m.j && Array.isArray(m.j.menu)) state.menu = m.j.menu;
+            else state.menu = [];
+          });
+        });
+    }
+    return mapFetch({ vendor_id: v.id, menu: 1 }).then(function (m) {
+      if (m.ok && m.j && Array.isArray(m.j.menu)) state.menu = m.j.menu;
+      else state.menu = [];
+    });
+  }
+
+  function reloadAll() {
+    banner("Loading…", "");
+    return probeSchema().then(function () {
+      return loadCountriesCities();
+    }).then(function () {
+      if (SCHEMA_OK) return loadVendorsFromRest().then(function (ok) {
+        if (!ok) return loadVendorsFromMap();
+      });
+      return loadVendorsFromMap();
+    }).then(function () {
+      return loadMenuForPick();
+    }).then(function () {
+      paint();
+      if (SCHEMA_OK === false) banner(storageBlockedMsg() + " Reads may still work via datanet-map with your JWT.", "err");
+      else if (state.storageNote) banner(state.storageNote, "ok");
+    }).catch(function (e) {
+      banner("Load error: " + (e && e.message ? e.message : e), "err");
+      paint();
+    });
+  }
+
+  function show(logged) {
+    $("gate").style.display = logged ? "none" : "flex";
+    $("app").style.display = logged ? "block" : "none";
+    if (!logged) return;
+    var u = state.user || {};
+    $("whoami").textContent = "Signed in · " + (u.email || u.id || "user");
+    reloadAll();
+  }
+
+  function boot() {
+    $("ver").textContent = "V" + VER;
+    bind();
+    document.querySelectorAll(".tab").forEach(function (b) {
+      b.onclick = function () {
+        document.querySelectorAll(".tab").forEach(function (x) { x.classList.remove("on"); });
+        b.classList.add("on");
+        state.tab = b.getAttribute("data-tab");
+        if (state.tab === "menu") loadMenuForPick().then(paint);
+        else paint();
+      };
+    });
+    ["country", "city", "sort"].forEach(function (id) {
+      $(id).onchange = function () {
+        state.countryId = $("country").value;
+        state.cityId = $("city").value;
+        if (id !== "sort") reloadAll();
+        else paint();
+      };
+    });
+    $("out").onclick = function () {
+      setToken("", "", "");
+      writeLS("dn:refresh", "");
+      state.user = null;
+      show(false);
+    };
+    $("reload").onclick = function () { reloadAll(); };
+    $("google").onclick = function () { loadCfg().then(google); };
+    $("login").onsubmit = function (e) {
+      e.preventDefault();
+      var email = $("who").value.trim();
+      var pw = $("pw").value;
+      gateMsg("Signing in…");
+      loadCfg().then(function () {
+        return passwordSignIn(email, pw);
+      }).then(function (x) {
+        if (!x.ok) {
+          gateMsg((x.j && (x.j.error_description || x.j.msg || x.j.error)) || ("Sign-in failed (" + x.status + ")"));
+          return;
+        }
+        var exp = Number(x.j.expires_at) || (Number(x.j.expires_in) ? Math.floor(Date.now() / 1000) + Number(x.j.expires_in) : 0);
+        setToken(x.j.access_token, x.j.refresh_token, exp);
+        state.user = x.j.user || { email: email };
+        show(true);
+      }).catch(function (err) { gateMsg(String(err && err.message || err)); });
+    };
+
+    loadCfg().then(function () {
+      return finishOAuth();
+    }).then(function () {
+      state.token = token();
+      var exp = Number(readLS("dn:exp", "0") || readLS("sn:exp", "0"));
+      var needRefresh = !!readLS("dn:refresh", "") && (!exp || exp - 120 < Date.now() / 1000);
+      return needRefresh ? refresh() : Promise.resolve(!!token());
+    }).then(function () {
+      if (!token()) { show(false); return; }
+      return authUser().then(function (u) {
+        if (!u) return refresh().then(function (ok) {
+          if (!ok) { setToken("", "", ""); show(false); return; }
+          return authUser();
+        });
+        return u;
+      }).then(function (u) {
+        if (!u) { show(false); return; }
+        state.user = u;
+        show(true);
+      });
+    });
+  }
+
+  boot();
+})();
 </script>
 </body>
 </html>
