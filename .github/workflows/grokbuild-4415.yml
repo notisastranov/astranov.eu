@@ -1,0 +1,49 @@
+name: grokbuild 4415 (merge main 4407 burger + midnight stockpile; self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4415.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix4415
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          git fetch origin main
+          MAIN_TIP="$(git rev-parse origin/main)"
+          test "$MAIN_TIP" = "8ab5ddea9cd644af8ad7cdbb2c5ed20084bb2868" || { echo "main moved: $MAIN_TIP"; exit 1; }
+          base64 -d .grokbuild/fix4415.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "42388b472f0050dcce8d284da392712441fa71b3497ba236aa0d552eac65c88d"
+          gunzip -c /tmp/f.gz > /tmp/fix4415.patch
+          test "$(sha256sum /tmp/fix4415.patch | cut -d' ' -f1)" = "196695946a37e0bc601bfa6975265d49dde6308fa2a609e86da3de06c7031f2c"
+          git rm -rq .grokbuild || true
+          git rm -f .github/workflows/grokbuild-4415.yml || true
+          git rm -f .github/workflows/grokbuild-4414.yml || true
+          T0="$(git write-tree)"
+          test "$T0" = "5444b367bab785b494d364ec712ca3cbdbb7644a" || { echo "tree0 $T0"; exit 1; }
+          git apply --index /tmp/fix4415.patch
+          grep -q '__SN_4415' js/spacenet/app.js
+          grep -q 'function bindSignIn' js/spacenet/app.js
+          grep -q 'never auto-open blocking PROFILE' js/spacenet/app.js
+          grep -q 'data-act="signin"' js/spacenet/app.js
+          grep -q 'guest never shows a local fake ledger' js/spacenet/app.js
+          grep -q 'id="sn-signin"' index.html
+          grep -q 'id="sn-burger"' index.html
+          grep -q 'var VER = "4415"' sw.js
+          test "$(cat VERSION)" = "4415"
+          grep -q 'walletLabel()' js/spacenet/auth.js
+          T="$(git write-tree)"
+          test "$T" = "bca7da53cf2239f90dd308724c535777523286ed" || { echo "tree $T"; exit 1; }
+          C="$(git commit-tree "$T" -p HEAD -p "$MAIN_TIP" -m "merge main ($(git rev-parse --short $MAIN_TIP)) + 4415: burger holds top buttons + DataNet/Architect/Settings; bind SIGN IN; no auto PROFILE; guest ⭐0; Athens GR geocode; filter TESTER. Lockstep 4415.")"
+          git update-ref refs/heads/grokbuild/4328-street-level-gps "$C"
+          git push origin grokbuild/4328-street-level-gps
+          echo "TIP $C"
