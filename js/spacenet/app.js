@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again."; window.__SN_APPJS = true; /* 4393: the start watchdog sees app.js ran and never reloads it */
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4412"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4413"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1679,9 +1679,10 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true; window.__SN_4411 = true; window.__SN_4412 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true; window.__SN_4411 = true; window.__SN_4412 = true; window.__SN_4413 = true;
   window.__SN_4412F = true; /* 4412f: huntNearKm in merge + 12s api race */
   window.__SN_4412G = true; /* 4412g: await API (no race-to-empty), trust server rows, warm cold path, fit after final */
+  window.__SN_4413 = true; /* 4413: burger menu — DataNet, Architect, Settings→AUTOMATIONS, shortcut toggles sn:shortcuts */
 (function () { /* 4411: NORTH compass stacks above the real GPS rect at every width, so the two never collide */
   function stackNorth() {
     try {
@@ -4062,6 +4063,26 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       "#sn-pulse{display:none!important}",
       ".sn-km{background:transparent!important;border:0!important}",
       ".sn-km b{display:inline-block;padding:0 4px;border-radius:6px;background:rgba(4,16,28,.9);color:#e8fbff;border:1px solid rgba(77,240,255,.75);font:800 10px/14px ui-monospace,monospace;box-shadow:0 0 8px rgba(77,240,255,.55)}",
+
+      /* 4413: burger menu — free slot right of identity; sheet ≤42%; X on the right */
+      "#sn-burger{position:fixed!important;top:max(6px,env(safe-area-inset-top))!important;left:max(58px,calc(env(safe-area-inset-left) + 52px))!important;right:auto!important;bottom:auto!important;z-index:72!important;width:40px!important;height:40px!important;padding:0!important;margin:0!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.95)!important;background:rgba(4,16,28,.96)!important;color:#4df0ff!important;font:800 18px/1 system-ui!important;display:flex!important;align-items:center!important;justify-content:center!important;box-shadow:0 0 12px rgba(77,240,255,.35)!important;pointer-events:auto!important}",
+      "#sn-burger[hidden],#sn-burger.sn-hide{display:none!important}",
+      "#sn-menu{display:none;position:fixed;inset:0;z-index:95;pointer-events:none}",
+      "#sn-menu.on{display:block;pointer-events:auto}",
+      "#sn-menu .bg{position:absolute;inset:0;background:transparent}",
+      "#sn-menu .card{position:absolute;left:50%;top:max(52px,env(safe-area-inset-top));transform:translateX(-50%);width:min(360px,94vw);max-height:42vh;overflow:auto;padding:12px;background:rgba(4,14,28,.97);border:1px solid rgba(126,233,255,.45);border-radius:16px;box-shadow:0 12px 32px rgba(0,0,0,.45);pointer-events:auto;color:#e8fbff;font:600 13px/1.35 system-ui}",
+      "#sn-menu .bar{display:flex;align-items:center;gap:8px;margin:0 0 10px;position:sticky;top:0;background:rgba(4,14,28,.98);z-index:2}",
+      "#sn-menu .ttl{flex:1;font:800 11px system-ui;letter-spacing:.16em;color:#7ee9ff}",
+      "#sn-menu .x{width:48px;height:48px;padding:0;border:0;border-radius:0;background:#041018;color:#ff8a8a;font:800 26px/1 system-ui;margin-left:auto}",
+      "#sn-menu b.sec{display:block;margin:12px 0 6px;color:#4df0ff;font:800 11px/1 system-ui;letter-spacing:.14em}",
+      "#sn-menu button.go{display:block;width:100%;margin:6px 0 0;padding:10px 12px;border-radius:10px;border:1px solid rgba(77,240,255,.45);background:rgba(4,16,28,.9);color:#e8fbff;font:800 13px/1.2 system-ui;text-align:left}",
+      "#sn-menu button.go.primary{background:#4df0ff;color:#041018;border-color:#4df0ff}",
+      "#sn-menu .tog{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:6px 0 0;padding:8px 10px;border-radius:10px;border:1px solid rgba(126,233,255,.28);background:rgba(4,16,28,.9)}",
+      "#sn-menu .tog span{font:700 13px system-ui;color:#e8fbff}",
+      "#sn-menu .tog button{min-width:56px;height:32px;padding:0 10px;border-radius:999px;border:1px solid rgba(77,240,255,.55);background:#041018;color:#7ee9ff;font:800 11px/1 system-ui}",
+      "#sn-menu .tog button.on{background:#4df0ff;color:#041018}",
+      "#sn-menu .note{margin:8px 0 0;font:500 12px/1.35 system-ui;color:#8ec8d8}",
+      ".sn-chrome-off{display:none!important;visibility:hidden!important;pointer-events:none!important}",
     ].join("");
     document.head.appendChild(s);
   }
@@ -5617,7 +5638,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     try {
       var obst = [];
       Array.prototype.forEach.call(cityEl.querySelectorAll(".leaflet-marker-pane .leaflet-marker-icon:not(.sn-shop-pin)"), function (mk) { obst.push(mk); });
-      ["sn-money", "sn-globe", "sn-me", "gps", "sn-compass", "sn-you-where", "sn-hunt-n", "sn-power-tag", "sn-power", "plus", "go", "sn-support", "sn-architect", "sn-mic"].forEach(function (id) { var x = $(id); if (x) obst.push(x); });
+      ["sn-money", "sn-globe", "sn-me", "gps", "sn-compass", "sn-you-where", "sn-hunt-n", "sn-power-tag", "sn-power", "plus", "go", "sn-support", "sn-architect", "sn-mic", "sn-burger"].forEach(function (id) { var x = $(id); if (x) obst.push(x); });
       obst.forEach(function (x) {
         var cs = getComputedStyle(x), q = x.getBoundingClientRect();
         if (cs.display === "none" || cs.visibility === "hidden" || +cs.opacity === 0 || q.width < 2 || q.height < 2) return;
@@ -5795,7 +5816,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       });
       labs.sort(function (a, b) { return a.no - b.no; });
       /* 4405: HUD chips/buttons over the map hide a label under them too */
-      ["sn-money", "sn-globe", "sn-me", "gps", "sn-compass", "sn-hunt-n", "sn-power-tag", "sn-you-where", "sn-power", "plus", "go", "sn-support", "sn-architect", "sn-mic"].forEach(function (id) {
+      ["sn-money", "sn-globe", "sn-me", "gps", "sn-compass", "sn-hunt-n", "sn-power-tag", "sn-you-where", "sn-power", "plus", "go", "sn-support", "sn-architect", "sn-mic", "sn-burger"].forEach(function (id) {
         var x = $(id); if (!x) return; var cs = getComputedStyle(x), q = x.getBoundingClientRect();
         if (cs.display !== "none" && cs.visibility !== "hidden" && +cs.opacity > 0 && q.width > 2 && q.height > 2) faces.push({ mk: null, r: q });
       });
@@ -5981,7 +6002,11 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var mer = me && getComputedStyle(me).display !== "none" ? me.getBoundingClientRect() : null;
       if (mo && mer && mer.height) {
         /* 4409c: WALLET slot stays under identity even when releaseChrome clears inline top */
-        var wantTop = Math.max(96, Math.round(mer.bottom + 8));
+        /* 4413: also clear the burger (right of identity) */
+        var bu = $("sn-burger"), bur = bu && getComputedStyle(bu).display !== "none" && !bu.classList.contains("sn-chrome-off") ? bu.getBoundingClientRect() : null;
+        var under = mer.bottom;
+        if (bur && bur.height) under = Math.max(under, bur.bottom);
+        var wantTop = Math.max(96, Math.round(under + 8));
         mo.style.setProperty("top", wantTop + "px", "important");
         mo.style.setProperty("left", Math.round(mer.left) + "px", "important");
         mr = mo.getBoundingClientRect();
@@ -6903,7 +6928,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     var isl = visRect($("island"));
     if (isl) t = Math.max(t, isl.bottom - cr.top + 8);
     /* 4409/4410: fold every HUD chrome control into the visible box (power, GPS, wallet, guest, …) */
-    ["sn-money", "sn-hunt-n", "sn-me", "sn-you-where", "sn-globe", "sn-power-tag", "sn-power", "sn-compass", "gps", "plus", "go", "sn-support", "sn-architect", "sn-mic"].forEach(function (id) {
+    ["sn-money", "sn-hunt-n", "sn-me", "sn-you-where", "sn-globe", "sn-power-tag", "sn-power", "sn-compass", "gps", "plus", "go", "sn-support", "sn-architect", "sn-mic", "sn-burger"].forEach(function (id) {
       var x = $(id); if (!x) return;
       var cs = getComputedStyle(x), q = x.getBoundingClientRect();
       if (cs.display === "none" || cs.visibility === "hidden" || +cs.opacity === 0 || q.width < 2 || q.height < 2) return;
@@ -8091,6 +8116,147 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     try { localStorage.setItem("sn:auto", JSON.stringify(autos)); } catch (e2) {}
     renderLeft();
   }
+
+  /* 4413: burger menu — DataNet / Architect / Settings(AUTOMATIONS) / shortcut toggles */
+  var SHORTCUTS_DEF = [
+    { id: "power", el: "sn-power", label: "Power" },
+    { id: "support", el: "sn-support", label: "Support" },
+    { id: "globe", el: "sn-globe", label: "Global" },
+    { id: "money", el: "sn-money", label: "Wallet" },
+    { id: "gps", el: "gps", label: "GPS" },
+    { id: "compass", el: "sn-compass", label: "Compass" },
+    { id: "mic", el: "sn-mic", label: "Mic" }
+  ];
+  function shortcutsGet() {
+    var out = {};
+    SHORTCUTS_DEF.forEach(function (s) { out[s.id] = true; });
+    try {
+      var raw = JSON.parse(localStorage.getItem("sn:shortcuts") || "null");
+      if (raw && typeof raw === "object") {
+        SHORTCUTS_DEF.forEach(function (s) {
+          if (Object.prototype.hasOwnProperty.call(raw, s.id)) out[s.id] = !!raw[s.id];
+        });
+      }
+    } catch (e) {}
+    return out;
+  }
+  function shortcutsSave(map) {
+    try { localStorage.setItem("sn:shortcuts", JSON.stringify(map || shortcutsGet())); } catch (e) {}
+    /* 4413: no existing profile/prefs API or column — localStorage only (guests + signed-in). Note in menu. */
+    applyShortcuts();
+  }
+  function applyShortcuts() {
+    var map = shortcutsGet();
+    SHORTCUTS_DEF.forEach(function (s) {
+      var el = $(s.el);
+      if (!el) return;
+      var on = map[s.id] !== false;
+      el.classList.toggle("sn-chrome-off", !on);
+      if (s.id === "money") {
+        var tag = $("sn-power-tag");
+        /* power-tag is not a shortcut; leave alone */
+      }
+      if (s.id === "power") {
+        var pt = $("sn-power-tag");
+        if (pt) pt.classList.toggle("sn-chrome-off", !on);
+      }
+    });
+    try { placeRibbon(); } catch (eP) {}
+  }
+  function closeMenu() {
+    var box = $("sn-menu");
+    if (box) box.classList.remove("on");
+    eatClicks(400);
+  }
+  function openExt(url) {
+    var w = null;
+    try { w = window.open(url, "_blank", "noopener,noreferrer"); } catch (eW) {}
+    if (!w) {
+      var a = document.createElement("a");
+      a.href = url; a.target = "_blank"; a.rel = "noopener noreferrer";
+      document.body.appendChild(a); a.click(); a.remove();
+    }
+  }
+  function renderMenu() {
+    var box = $("sn-menu");
+    if (!box) {
+      box = document.createElement("div");
+      box.id = "sn-menu";
+      box.setAttribute("aria-label", "Menu");
+      document.body.appendChild(box);
+      box.addEventListener("click", function (e) {
+        var b = e.target.closest("[data-act]");
+        if (!b) return;
+        var act = b.getAttribute("data-act");
+        e.preventDefault(); e.stopPropagation();
+        if (act === "menu-close" || act === "menu-bg") { closeMenu(); return; }
+        if (act === "datanet") { openExt("https://datanet.astranov.eu"); closeMenu(); return; }
+        if (act === "architect") { openExt("https://architect.astranov.eu"); closeMenu(); return; }
+        if (act === "settings") { closeMenu(); openLeft(); return; }
+        if (act === "shortcut-tog") {
+          var kid = b.getAttribute("data-k") || "";
+          var map = shortcutsGet();
+          map[kid] = !map[kid];
+          shortcutsSave(map);
+          renderMenu();
+          say(map[kid] ? (kid.toUpperCase() + " on.") : (kid.toUpperCase() + " hidden."));
+          return;
+        }
+      });
+    }
+    var map = shortcutsGet();
+    var rows = SHORTCUTS_DEF.map(function (s) {
+      var on = map[s.id] !== false;
+      return '<div class="tog"><span>' + s.label + '</span><button type="button" data-act="shortcut-tog" data-k="' + s.id + '" class="' + (on ? "on" : "") + '" aria-pressed="' + (on ? "true" : "false") + '">' + (on ? "ON" : "OFF") + "</button></div>";
+    }).join("");
+    box.innerHTML = '<div class="bg" data-act="menu-bg"></div><div class="card"><div class="bar"><b class="ttl">MENU</b><button type="button" class="x" data-act="menu-close" aria-label="Close">✕</button></div>' +
+      '<button type="button" class="go primary" data-act="datanet">Open DataNet</button>' +
+      '<button type="button" class="go" data-act="architect">Open Architect</button>' +
+      '<button type="button" class="go" data-act="settings">Settings · map & look</button>' +
+      '<b class="sec">SHORTCUTS</b>' +
+      '<p class="note">Show or hide main-screen buttons. Saved on this device.</p>' +
+      rows +
+      '<p class="note">Prefs stay in localStorage (sn:shortcuts). No profile sync column yet.</p>' +
+      "</div>";
+    box.classList.add("on");
+  }
+  function openMenu() {
+    var box = $("sn-menu");
+    if (box && box.classList.contains("on")) { closeMenu(); return; }
+    try { closeLeft(); } catch (eL) {}
+    renderMenu();
+  }
+  function bindBurger() {
+    var btn = $("sn-burger");
+    if (!btn) {
+      btn = document.createElement("button");
+      btn.type = "button";
+      btn.id = "sn-burger";
+      btn.setAttribute("aria-label", "Menu");
+      btn.title = "Menu";
+      btn.textContent = "☰";
+      document.body.appendChild(btn);
+    }
+    if (btn.__sn4413) return;
+    btn.__sn4413 = true;
+    btn.addEventListener("click", function (e) {
+      e.preventDefault(); e.stopPropagation();
+      openMenu();
+    });
+    if (!window.__snMenuEsc) {
+      window.__snMenuEsc = true;
+      document.addEventListener("keydown", function (e) {
+        if (e.key !== "Escape" && e.keyCode !== 27) return;
+        var box = $("sn-menu");
+        if (box && box.classList.contains("on")) {
+          e.preventDefault(); e.stopPropagation();
+          closeMenu();
+        }
+      }, true);
+    }
+    applyShortcuts();
+  }
+
   function ownTestShop(s) {
     if (!isAdmin() || !s) return false;
     if (s.src && s.src !== "listed") return false;
@@ -10388,7 +10554,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       if (lr && lr.height > 0 && lr.top < topIn && lr.top > window.innerHeight * 0.4) topIn = lr.top;
       document.documentElement.style.setProperty("--above-in", Math.round(window.innerHeight - topIn + 6) + "px");
     }
-    ["sn-me", "gps", "sn-money", "sn-support", "sn-power", "plus", "go"].forEach(function (id) {
+    ["sn-me", "gps", "sn-money", "sn-support", "sn-power", "plus", "go", "sn-burger"].forEach(function (id) {
       var el = $(id);
       if (!el) return;
       ["top", "left", "right", "bottom", "transform"].forEach(function (k) { el.style.removeProperty(k); });
@@ -13064,7 +13230,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true; window.__SN_4411 = true; window.__SN_4412 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true; window.__SN_4411 = true; window.__SN_4412 = true; window.__SN_4413 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
@@ -13133,6 +13299,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       zoomBall: function (s) { return zoomBallPack(s); },
       robotFace: robotSvg,
       openYou: openYou,
+      openMenu: openMenu, closeMenu: closeMenu, applyShortcuts: applyShortcuts,
       paintYou: paintYouIcon
     };
     try {
