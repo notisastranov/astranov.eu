@@ -1,0 +1,46 @@
+name: grokbuild 4413 (burger menu DataNet/Architect/Settings/shortcuts; self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/**", ".github/workflows/grokbuild-4413.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix4413
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          git fetch origin main
+          MAIN_TIP="$(git rev-parse origin/main)"
+          base64 -d .grokbuild/fix4413.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "4d22116b73f835d30f6c04ce1e2fe0ee95e415b75cc7fda9c08e9d0b26ccb0b8"
+          gunzip -c /tmp/f.gz > /tmp/fix4413.patch
+          test "$(sha256sum /tmp/fix4413.patch | cut -d' ' -f1)" = "13cb6b419ef9124dc43786f38e378fb10173e182685079cd4d3c13f179125f7d"
+          git rm -rq .grokbuild || true
+          git rm -f .github/workflows/grokbuild-4413.yml || true
+          git rm -f .github/workflows/grokbuild-4412g.yml || true
+          T0="$(git write-tree)"
+          test "$T0" = "bd805ae8911d24519a7089d32cbbb0eea7c9a6f1" || { echo "tree0 $T0"; exit 1; }
+          git apply --index /tmp/fix4413.patch
+          grep -q '__SN_4413' js/spacenet/app.js
+          grep -q 'sn:shortcuts' js/spacenet/app.js
+          grep -q 'datanet.astranov.eu' js/spacenet/app.js
+          grep -q 'architect.astranov.eu' js/spacenet/app.js
+          grep -q 'function openMenu' js/spacenet/app.js
+          grep -q 'id="sn-burger"' index.html
+          grep -q 'var VER = "4413"' sw.js
+          test "$(cat VERSION)" = "4413"
+          T="$(git write-tree)"
+          test "$T" = "57555f0cc6250736633e74bfe27a679271c8f5d3" || { echo "tree $T"; exit 1; }
+          C="$(git commit-tree "$T" -p HEAD -p "$MAIN_TIP" -m "merge main ($(git rev-parse --short $MAIN_TIP)) + 4413: burger menu — DataNet, Architect, Settings→AUTOMATIONS, shortcut toggles sn:shortcuts (localStorage). Keep 4412g.")"
+          git update-ref refs/heads/grokbuild/4328-street-level-gps "$C"
+          git push origin grokbuild/4328-street-level-gps
+          echo "TIP $C"
