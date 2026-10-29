@@ -12,6 +12,29 @@
   }
   function read(k, d) { try { var v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; } }
   function write(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function hostOk(h) { return h === "astranov.eu" || (h && h.slice(-13) === ".astranov.eu"); }
+  function setCook(name, value, maxAge) {
+    var bits = [name + "=" + encodeURIComponent(value || ""), "path=/", "max-age=" + (maxAge == null ? 2592000 : maxAge), "secure", "samesite=lax"];
+    if (hostOk(location.hostname)) bits.push("domain=.astranov.eu");
+    document.cookie = bits.join("; ");
+  }
+  function getCook(name) {
+    var all = document.cookie ? document.cookie.split("; ") : [];
+    for (var i = 0; i < all.length; i++) {
+      var n = all[i].indexOf("=");
+      if (n > 0 && all[i].slice(0, n) === name) return decodeURIComponent(all[i].slice(n + 1));
+    }
+    return "";
+  }
+  function remember(j) {
+    if (!j) return;
+    if (j.access_token) { write("sn:access", j.access_token); setCook("sn_at", j.access_token, 2592000); }
+    if (j.refresh_token) setCook("sn_rt", j.refresh_token, 2592000);
+  }
+  function dropQuiet() {
+    write("sn:user", ""); write("sn:access", ""); write("sn:pkce", "");
+    setCook("sn_at", "", 0); setCook("sn_rt", "", 0); setCook("sn_pkce", "", 0);
+  }
   function talk(s) { if (window.SN && SN.say) SN.say(s); else { var el = document.getElementById("line"); if (el) el.textContent = s; } }
   function headers(extra) {
     var h = Object.assign({ apikey: ANON, "Content-Type": "application/json" }, extra || {});
@@ -41,7 +64,7 @@
       name: (u.user_metadata && (u.user_metadata.full_name || u.user_metadata.name)) || u.name || "",
       photo: (u.user_metadata && (u.user_metadata.avatar_url || u.user_metadata.picture)) || u.picture || "",
       phone: u.phone || (u.user_metadata && u.user_metadata.phone) || read("sn:phone", "") || "",
-      verified: false
+      verified: !!(u.email_confirmed_at || (u.app_metadata && u.app_metadata.provider === "google") || (u.identities && u.identities.length))
     };
     write("sn:user", JSON.stringify(row));
     paintMe();
@@ -49,13 +72,20 @@
     return row;
   }
   function user() { try { return JSON.parse(read("sn:user", "null") || "null"); } catch (e) { return null; } }
-  function token() { return read("sn:access", ""); }
+  function token() {
+    var t = read("sn:access", "");
+    if (!t) t = getCook("sn_at");
+    if (t && !read("sn:access", "")) write("sn:access", t);
+    return t || "";
+  }
   function google(extra) {
     loadCfg(function () {
-      var dest = location.origin + "/?auth=google";
+      var dest = "https://astranov.eu/?auth=google";
       write("sn:auth-back", location.href.split("#")[0]);
+      if (location.hostname !== "astranov.eu") setCook("sn_back", location.href.split("#")[0], 600);
       var ver = rnd(64);
       write("sn:pkce", ver);
+      setCook("sn_pkce", ver, 600);
       talk("Opening Google…");
       var scopes = "email profile";
       if (extra) scopes += " " + extra;
@@ -89,6 +119,7 @@
   function out() {
     var t = token();
     write("sn:user", ""); write("sn:access", ""); write("sn:pkce", ""); write("sn:yt", "");
+    setCook("sn_at", "", 0); setCook("sn_rt", "", 0); setCook("sn_pkce", "", 0); setCook("sn_back", "", 0);
     if (t) fetch(SB + "/auth/v1/logout", { method: "POST", headers: headers({ Authorization: "Bearer " + t }) }).catch(function () {});
     paintMe();
     if (window.SN && SN.paintMoney) SN.paintMoney();
@@ -100,9 +131,9 @@
     return { email: String(email).trim(), password: String(password) };
   }
   function finishSession(j, email) {
-    if (j && j.access_token) return takeUser(j.access_token);
+    if (j && j.access_token) { remember(j); return takeUser(j.access_token); }
     if (j && (j.id || j.user) && !j.access_token) {
-      talk("Account opened for " + email + ". Confirm the mail, then sign in.");
+      talk("That path still waits on a mail confirmation. Use Google. It verifies the id with no SMS and no mail from Astranov.");
       return Promise.resolve(false);
     }
     talk((j && (j.error_description || j.msg || j.error_code || j.error)) || "Account did not open.");
@@ -122,19 +153,47 @@
       }).then(function () { fillBody(); paintMe(); }).catch(function () { talk("Account did not open."); });
     });
   }
+  function password(email, pass) {
+    email = String(email || "").trim();
+    pass = String(pass || "");
+    if (!email || !pass) return Promise.resolve({ ok: false, error: "Email and password." });
+    return new Promise(function (resolve) {
+      loadCfg(function () {
+        fetch(SB + "/auth/v1/token?grant_type=password", {
+          method: "POST",
+          headers: headers(),
+          body: JSON.stringify({ email: email, password: pass })
+        }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); }).then(function (x) {
+          if (x.j && x.j.access_token) {
+            remember(x.j);
+            return takeUser(x.j.access_token).then(function (ok) {
+              resolve(ok ? { ok: true, user: user() } : { ok: false, error: "Account has no email." });
+            });
+          }
+          resolve({ ok: false, error: (x.j && (x.j.error_description || x.j.msg || x.j.error)) || "Sign-in refused." });
+        }).catch(function () { resolve({ ok: false, error: "Sign-in did not finish." }); });
+      });
+    });
+  }
   function mailIn() {
     var b = mailFields();
-    if (!b.email || !b.password) { talk("Email and password."); return; }
-    loadCfg(function () {
-      talk("Signing in…");
-      fetch(SB + "/auth/v1/token?grant_type=password", {
-        method: "POST",
-        headers: headers(),
-        body: JSON.stringify({ email: b.email, password: b.password })
-      }).then(function (r) { return r.json(); }).then(function (j) {
-        return finishSession(j, b.email);
-      }).then(function () { fillBody(); paintMe(); }).catch(function () { talk("Sign-in did not finish."); });
+    password(b.email, b.password).then(function (res) {
+      if (!res.ok) talk(res.error || "Sign-in refused.");
+      fillBody(); paintMe();
     });
+  }
+  function setPassword(pw) {
+    pw = String(pw || "");
+    if (pw.length < 8) return Promise.resolve({ ok: false, error: "8 characters." });
+    if (!token()) return Promise.resolve({ ok: false, error: "Sign in with Google first." });
+    return fetch(SB + "/auth/v1/user", {
+      method: "PUT",
+      headers: headers(),
+      body: JSON.stringify({ password: pw })
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); }).then(function (x) {
+      if (x.ok) return { ok: true };
+      return { ok: false, error: (x.j && (x.j.error_description || x.j.msg || x.j.error)) || "Password was not set." };
+    }).catch(function () { return { ok: false, error: "Password was not set." }; });
   }
   function savePhone(raw) {
     var tel = String(raw || "").replace(/[^\d+ ]/g, "").trim();
@@ -142,16 +201,17 @@
     var u = user() || {};
     u.phone = tel; u.verified = false;
     write("sn:user", JSON.stringify(u));
-    talk(tel ? "Phone stored. Unverified until Twilio is live." : "Phone cleared.");
+    talk(tel ? "Phone stored. It does not verify this id." : "Phone cleared.");
     paintMe();
   }
-  function takeUser(at) {
+  function takeUser(at, quiet) {
     write("sn:access", at);
+    setCook("sn_at", at, 2592000);
     return fetch(SB + "/auth/v1/user", { headers: { apikey: ANON, Authorization: "Bearer " + at } })
       .then(function (r) { return r.json(); })
       .then(function (u) {
-        if (u && u.email) { saveUser(u); talk("Signed in as " + u.email + "."); return true; }
-        talk("Google returned no email.");
+        if (u && u.email) { saveUser(u); if (!quiet) talk("Signed in as " + u.email + "."); return true; }
+        if (!quiet) talk("Google returned no email.");
         return false;
       });
   }
@@ -177,7 +237,7 @@
       return takeUser(at).then(function (ok) { clean(); return ok; }).catch(function () { clean(); talk("Google sign-in did not finish."); return false; });
     }
     if (code) {
-      var ver = read("sn:pkce", "");
+      var ver = read("sn:pkce", "") || getCook("sn_pkce");
       var body = ver
         ? { grant_type: "pkce", auth_code: code, code_verifier: ver }
         : { grant_type: "authorization_code", code: code, redirect_uri: location.origin + "/?auth=google" };
@@ -189,15 +249,48 @@
         .then(function (r) { return r.json(); })
         .then(function (j) {
           write("sn:pkce", "");
+          setCook("sn_pkce", "", 0);
           if (j && j.provider_token) write("sn:yt", j.provider_token);
-          if (j && j.access_token) return takeUser(j.access_token);
+          if (j && j.access_token) { remember(j); return takeUser(j.access_token); }
           talk((j && (j.error_description || j.msg || j.error)) || "Google code was not exchanged.");
           return false;
         })
-        .then(function (ok) { clean(); return ok; })
+        .then(function (ok) { clean(); if (ok) bounce(); return ok; })
         .catch(function () { clean(); talk("Google sign-in did not finish."); return false; });
     }
     return Promise.resolve(!!user());
+  }
+  function bounce() {
+    var back = getCook("sn_back");
+    setCook("sn_back", "", 0);
+    if (!back) return;
+    try {
+      var u = new URL(back);
+      if (u.protocol !== "https:" || !hostOk(u.hostname)) return;
+      if (u.origin === location.origin) return;
+      location.href = u.origin + u.pathname + u.search;
+    } catch (e) {}
+  }
+  function session() {
+    return new Promise(function (resolve) {
+      loadCfg(function () {
+        var at = token();
+        if (!at) { resolve(null); return; }
+        takeUser(at, true).then(function (ok) {
+          if (ok) { resolve(user()); return; }
+          var rt = getCook("sn_rt");
+          if (!rt) { dropQuiet(); resolve(null); return; }
+          fetch(SB + "/auth/v1/token?grant_type=refresh_token", {
+            method: "POST",
+            headers: { apikey: ANON, "Content-Type": "application/json" },
+            body: JSON.stringify({ refresh_token: rt })
+          }).then(function (r) { return r.json(); }).then(function (j) {
+            if (j && j.access_token) { remember(j); return takeUser(j.access_token, true).then(function (ok2) { resolve(ok2 ? user() : null); }); }
+            dropQuiet(); resolve(null);
+          }).catch(function () { resolve(null); });
+        }).catch(function () { resolve(null); });
+      });
+    });
   }
   function css() {
     if (document.getElementById("sn-me-css")) return;
@@ -280,9 +373,14 @@
       (inNow && mine ? '<p class="note">' + mine + "</p>" : "") +
       (inNow
         ? roleBtn("client", "CLIENT", "C") + roleBtn("driver", "DRIVER", "D") + roleBtn("vendor", "VENDOR", "V") +
+          '<input id="sn-newpass" type="password" placeholder="Astranov password" autocomplete="new-password"/>' +
+          '<button type="button" class="go" data-act="set-pass">SET ASTRANOV PASSWORD</button>' +
           '<button type="button" class="go" data-act="out">SIGN OUT</button>'
-        : '<button type="button" class="go" data-act="google">GOOGLE</button>') +
-      '<p class="note">' + (inNow ? "All three can be on together." : "Google login.") + "</p>";
+        : '<button type="button" class="go" data-act="google">GOOGLE</button>' +
+          '<input id="sn-mail" type="email" placeholder="Astranov email" autocomplete="username"/>' +
+          '<input id="sn-pass" type="password" placeholder="Astranov password" autocomplete="current-password"/>' +
+          '<button type="button" class="go" data-act="mail-in">SIGN IN</button>') +
+      '<p class="note">' + (inNow ? "Google verified this id. The password is the Astranov account. No SMS." : "Google creates and verifies the id. No SMS and no confirmation mail. An existing Astranov password also signs in.") + "</p>";
   }
   function openMe() {
     css();
@@ -301,6 +399,11 @@
         if (act === "mail-up") { mailUp(); return; }
         if (act === "youtube") { youtube(); return; }
         if (act === "twitter") { x(); return; }
+        if (act === "set-pass") {
+          var pw = (document.getElementById("sn-newpass") || {}).value || "";
+          setPassword(pw).then(function (res) { talk(res.ok ? "Astranov password set. It signs in on every Astranov product." : (res.error || "Password was not set.")); });
+          return;
+        }
         if (act === "out") { out(); fillBody(); return; }
         if (act === "terms") { talk("Terms: work legal at that GPS. Notis activates roles."); return; }
         if (act === "role-set") {
@@ -342,7 +445,7 @@
       applyReturn().then(function () { paintMe(); });
     });
   }
-  window.SNAuth = { google: google, mailIn: mailIn, mailUp: mailUp, youtube: youtube, yt: yt, x: x, out: out, savePhone: savePhone, user: user, token: token, boot: boot, paint: paintMe, open: openMe };
+  window.SNAuth = { google: google, mailIn: mailIn, mailUp: mailUp, password: password, setPassword: setPassword, remember: remember, session: session, youtube: youtube, yt: yt, x: x, out: out, savePhone: savePhone, user: user, token: token, boot: boot, paint: paintMe, open: openMe };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
 })();

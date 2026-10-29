@@ -16,7 +16,18 @@ li{padding:8px 0;border-top:1px solid rgba(77,240,255,.2)}
 </style>
 </head>
 <body>
-<main>
+<div id="gate" style="max-width:420px;margin:10vh auto;padding:16px">
+<h1>SERVERNET</h1>
+<p>Google or an Astranov password. The same account as the globe.</p>
+<button type="button" id="google">GOOGLE</button>
+<form id="login">
+<input id="who" type="email" placeholder="Astranov email" autocomplete="username" style="display:block;width:100%;margin:8px 0"/>
+<input id="pw" type="password" placeholder="Astranov password" autocomplete="current-password" style="display:block;width:100%;margin:8px 0"/>
+<button type="submit">SIGN IN</button>
+</form>
+<p id="login-msg"></p>
+</div>
+<main id="app" style="display:none">
 <p><a href="https://astranov.eu">Earth</a> · <a href="https://datanet.astranov.eu">DataNet</a></p>
 <h1>SERVERNET</h1>
 <p id="me">Reading this device…</p>
@@ -27,8 +38,25 @@ li{padding:8px 0;border-top:1px solid rgba(77,240,255,.2)}
 <input id="file" type="file" accept="application/json" hidden/>
 <ul id="nodes"></ul>
 </main>
+<script src="/js/spacenet/auth.js?v=4407"></script>
 <script>
 var KEY = "sn:ledger";
+function showApp(u){
+  document.getElementById("gate").style.display = u ? "none" : "block";
+  document.getElementById("app").style.display = u ? "block" : "none";
+}
+document.getElementById("google").onclick = function(){ if(window.SNAuth) SNAuth.google(); };
+document.getElementById("login").onsubmit = function(e){
+  e.preventDefault();
+  if(!window.SNAuth) return;
+  SNAuth.password(document.getElementById("who").value, document.getElementById("pw").value).then(function(res){
+    var msg = document.getElementById("login-msg");
+    if(!res || !res.ok){ if(msg) msg.textContent = (res && res.error) || "Sign-in refused."; return; }
+    if(msg) msg.textContent = "";
+    showApp(res.user);
+  });
+};
+if(window.SNAuth) SNAuth.session().then(showApp); else showApp(null);
 function read(){ try { return JSON.parse(localStorage.getItem(KEY) || "[]") || []; } catch (e) { return []; } }
 function write(book){ localStorage.setItem(KEY, JSON.stringify(book.slice(-200))); paint(); }
 function id(){
