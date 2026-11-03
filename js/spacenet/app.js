@@ -1689,7 +1689,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   window.__SN_4413 = true; /* 4413: burger menu — DataNet, Architect, Settings→AUTOMATIONS, shortcut toggles sn:shortcuts */
   window.__SN_4413B = true; /* 4413b: actually bind #sn-burger click (bindBurger from bindChrome) */
   window.__SN_4415 = true; /* 4415: merge main 4407 burger+auth; sign-in entry; no TESTER PROFILE; real ⭐; Athens GR */
-  window.__SN_4417 = true; /* 4417: hunt pin stability + clear GPS (tiered fly) + speed>3km/h street drive watch */
+  window.__SN_4417 = true; /* 4417: hunt pin stability + clear GPS (tiered fly) + speed>3km/h street drive watch; raw speed arms 20s drone revert */
 (function () { /* 4411: NORTH compass stacks above the real GPS rect at every width, so the two never collide */
   function stackNorth() {
     try {
@@ -2871,13 +2871,16 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     try { localStorage.setItem("sn:here", JSON.stringify(hereLive)); } catch (eS) {}
     if (youMark && map) { try { youMark.setLatLng([pt.lat, pt.lng]); } catch (eY) {} }
     window.__snGpsWatch = { at: now, kmh: gpsSpeed.smooth, driving: gpsSpeed.driving };
-    if (gpsSpeed.smooth > 3) {
+    /* enter drive on smoothed speed (anti-jitter); leave drive on min(smooth, raw) so an explicit stop starts the 20s clock */
+    var gateUp = gpsSpeed.smooth;
+    var gateDown = Math.min(gpsSpeed.smooth, kmh);
+    if (gateUp > 3) {
       gpsSpeed.belowAt = 0;
       if (!gpsSpeed.driving) enterDriveView(pt);
       else if (driveMode === "head" && map) {
         try { map.panTo([pt.lat, pt.lng], { animate: true }); applyBearing(); } catch (eP) {}
       }
-    } else {
+    } else if (gateDown <= 3) {
       if (!gpsSpeed.belowAt) gpsSpeed.belowAt = now;
       if (gpsSpeed.driving && now - gpsSpeed.belowAt >= 20000) enterDroneView(pt);
     }
