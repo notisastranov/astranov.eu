@@ -1683,12 +1683,13 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true; window.__SN_4411 = true; window.__SN_4412 = true; window.__SN_4413 = true; window.__SN_4414 = true; window.__SN_4415 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true; window.__SN_4411 = true; window.__SN_4412 = true; window.__SN_4413 = true; window.__SN_4414 = true; window.__SN_4415 = true; window.__SN_4417 = true;
   window.__SN_4412F = true; /* 4412f: huntNearKm in merge + 12s api race */
   window.__SN_4412G = true; /* 4412g: await API (no race-to-empty), trust server rows, warm cold path, fit after final */
   window.__SN_4413 = true; /* 4413: burger menu — DataNet, Architect, Settings→AUTOMATIONS, shortcut toggles sn:shortcuts */
   window.__SN_4413B = true; /* 4413b: actually bind #sn-burger click (bindBurger from bindChrome) */
   window.__SN_4415 = true; /* 4415: merge main 4407 burger+auth; sign-in entry; no TESTER PROFILE; real ⭐; Athens GR */
+  window.__SN_4417 = true; /* 4417: hunt pin stability + clear GPS (tiered fly) + speed>3km/h street drive watch */
 (function () { /* 4411: NORTH compass stacks above the real GPS rect at every width, so the two never collide */
   function stackNorth() {
     try {
@@ -2806,34 +2807,169 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       '<button type="button" class="sheet-go primary" data-act="vid-love" data-id="' + esc(id) + '">VERY INTERESTING</button>';
     openTile({ kind: "video", title: "VIDEO", html: html });
   }
+  /* 4417: GPS button is the ONLY path that goes to the user. Tiered fly: solar→global→national→city.
+     Denied / unavailable = honest copy; never IP-as-you; never silent Rhodes. */
+  var gpsWatchId = 0;
+  var gpsSpeed = { kmh: 0, smooth: 0, belowAt: 0, driving: false, last: null, lastT: 0 };
+  function stopGpsWatch() {
+    try { if (gpsWatchId) navigator.geolocation.clearWatch(gpsWatchId); } catch (e) {}
+    gpsWatchId = 0;
+    window.__snGpsWatch = null;
+  }
+  function enterDriveView(pt) {
+    if (!cityOn || !map || !pt) return;
+    gpsSpeed.driving = true;
+    window.__snDriveAuto = { on: true, at: Date.now(), kmh: gpsSpeed.smooth };
+    try { armDrive(); } catch (eA) {}
+    try {
+      var z = map.getZoom();
+      if (z < 17 || z > 18) map.setView([+pt.lat, +pt.lng], 17, { animate: true });
+      else map.panTo([+pt.lat, +pt.lng], { animate: true });
+    } catch (eV) {}
+    try { applyBearing(); } catch (eB) {}
+    say("Driving · " + Math.round(gpsSpeed.smooth) + " km/h · street follow");
+  }
+  function enterDroneView(pt) {
+    if (!gpsSpeed.driving) return;
+    gpsSpeed.driving = false;
+    window.__snDriveAuto = { on: false, at: Date.now(), kmh: gpsSpeed.smooth };
+    try { armNorth(); } catch (eN) {}
+    if (cityOn && map && pt && isFinite(+pt.lat)) {
+      try { map.setView([+pt.lat, +pt.lng], Math.min(16, Math.max(14, map.getZoom())), { animate: true }); } catch (eZ) {}
+    }
+    say("Drone view · under 3 km/h");
+  }
+  function onGpsWatchFix(pos) {
+    if (!cityOn || seatKind !== "gps") { stopGpsWatch(); return; }
+    if (!pos || !pos.coords) return;
+    var c = pos.coords;
+    var pt = { lat: +c.latitude, lng: +c.longitude, how: "gps", acc: +c.accuracy };
+    if (!isFinite(pt.lat) || !isFinite(pt.lng)) return;
+    if (c.accuracy != null && isFinite(+c.accuracy) && !fixPrecise(+c.accuracy)) return;
+    var now = Date.now();
+    var kmh = null;
+    if (c.speed != null && isFinite(+c.speed) && +c.speed >= 0) kmh = +c.speed * 3.6;
+    else if (gpsSpeed.last && gpsSpeed.lastT) {
+      var dt = (now - gpsSpeed.lastT) / 1000;
+      if (dt > 0.4 && dt < 12) {
+        var dKm = haversineKm(gpsSpeed.last, pt);
+        kmh = (dKm / dt) * 3600;
+      }
+    }
+    if (kmh == null || !isFinite(kmh)) kmh = gpsSpeed.smooth || 0;
+    /* light smoothing against jitter */
+    gpsSpeed.smooth = gpsSpeed.smooth ? (gpsSpeed.smooth * 0.65 + kmh * 0.35) : kmh;
+    gpsSpeed.kmh = kmh;
+    if (c.heading != null && isFinite(+c.heading) && +c.heading >= 0) heading = +c.heading;
+    else if (gpsSpeed.last && haversineKm(gpsSpeed.last, pt) > 0.008) heading = bearingDeg(gpsSpeed.last, pt);
+    gpsSpeed.last = { lat: pt.lat, lng: pt.lng };
+    gpsSpeed.lastT = now;
+    saveFix(pt);
+    hereLive = { lat: pt.lat, lng: pt.lng, name: "GPS" };
+    here = hereLive;
+    window.__SN_HERE = here;
+    try { localStorage.setItem("sn:here", JSON.stringify(hereLive)); } catch (eS) {}
+    if (youMark && map) { try { youMark.setLatLng([pt.lat, pt.lng]); } catch (eY) {} }
+    window.__snGpsWatch = { at: now, kmh: gpsSpeed.smooth, driving: gpsSpeed.driving };
+    if (gpsSpeed.smooth > 3) {
+      gpsSpeed.belowAt = 0;
+      if (!gpsSpeed.driving) enterDriveView(pt);
+      else if (driveMode === "head" && map) {
+        try { map.panTo([pt.lat, pt.lng], { animate: true }); applyBearing(); } catch (eP) {}
+      }
+    } else {
+      if (!gpsSpeed.belowAt) gpsSpeed.belowAt = now;
+      if (gpsSpeed.driving && now - gpsSpeed.belowAt >= 20000) enterDroneView(pt);
+    }
+    paintCompass();
+  }
+  function startGpsWatch() {
+    if (!navigator.geolocation) return;
+    if (!cityOn || seatKind !== "gps") return;
+    if (gpsWatchId) return;
+    try {
+      gpsWatchId = navigator.geolocation.watchPosition(onGpsWatchFix, function () {}, { enableHighAccuracy: true, maximumAge: 1000, timeout: 12000 });
+      window.__snGpsWatch = { at: Date.now(), watching: true };
+    } catch (eW) { gpsWatchId = 0; }
+  }
+  function gpsFlyTo(pt) {
+    if (!pt || !isFinite(+pt.lat) || !isFinite(+pt.lng)) return;
+    var lat = +pt.lat, lng = +pt.lng;
+    if (pt.acc != null) window.__snLastAcc = +pt.acc;
+    if (pt.acc != null && isFinite(+pt.acc) && !fixPrecise(+pt.acc)) {
+      say("Only a rough network position came back (± " + Math.round(+pt.acc / 1000) + " km). Not used as you; allow precise location, or name a place.");
+      return;
+    }
+    adminPin = false;
+    ipView = null; window.__snIpView = null;
+    seatKind = "gps";
+    saveFix({ lat: lat, lng: lng });
+    hereLive = { lat: lat, lng: lng, name: "GPS" };
+    here = hereLive;
+    lastSeat = { lat: lat, lng: lng, name: "GPS" }; namedSeat = null;
+    window.__SN_HERE = here;
+    try { localStorage.setItem("sn:here", JSON.stringify(hereLive)); } catch (e) {}
+    aim = { lat: lat, lng: lng, name: "GPS" };
+    clearSeatPins();
+    var seq = ++gpsSeq;
+    window.__snGpsFly = { at: Date.now(), lat: lat, lng: lng, seq: seq };
+    /* already on city near the fix: recenter, start watch — no globe tour */
+    if (cityOn && map && haversineKm(map.getCenter(), aim) < 3) {
+      try { map.setView([lat, lng], Math.max(map.getZoom() || 16, 16), { animate: true }); } catch (eR) {}
+      say("GPS · " + lat.toFixed(4) + "," + lng.toFixed(4));
+      startGpsWatch();
+      pullListings();
+      return;
+    }
+    if (cityOn) { try { hideCity(); } catch (eH) {} }
+    /* one tier at a time: solar → global → national → city */
+    var start = cam.dist > 3.2 ? 0 : 1;
+    function step(i) {
+      if (seq !== gpsSeq) return;
+      if (i <= 2) {
+        settleTier(i, aim);
+        setTimeout(function () { step(i + 1); }, 720);
+        return;
+      }
+      openCity(aim, { zoom: 16 });
+      say("GPS · " + lat.toFixed(4) + "," + lng.toFixed(4));
+      pullListings();
+      startGpsWatch();
+    }
+    step(start);
+  }
   function bindGps() {
     var btn = $("gps");
     if (!btn || btn.__snGpsLock) return;
     btn.__snGpsLock = true;
     btn.style.setProperty("z-index", "280", "important");
     btn.style.setProperty("pointer-events", "auto", "important");
+    btn.style.setProperty("display", "block", "important");
+    btn.removeAttribute("hidden");
+    btn.classList.remove("sn-hide", "sn-chrome-off");
     function goGps(ev) {
       if (ev) { ev.preventDefault(); ev.stopPropagation(); if (ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
       try { closeSky(); } catch (e) {}
       say("Locating…");
-      /* 4374: the GPS button only ever lands on a real GPS fix. Blocked or failed geolocation keeps the view (or goes back to
-         the last real fix) with an honest message; it never jumps to the network (IP) guess and never invents a place */
+      /* 4417: GPS button → real fix only, tiered fly. Never IP-as-you, never silent Rhodes. */
       locate(function (pt) {
         if (pt && isFinite(+pt.lat) && pt.how === "gps") {
-          adminPin = false;
-          ipView = null; window.__snIpView = null; hereLive = { lat: +pt.lat, lng: +pt.lng, name: "GPS" };
           window.__snGpsBtn = { at: Date.now(), result: "fix" };
-          land(pt, false);
+          gpsFlyTo(pt);
           return;
         }
         var blocked = gpsPerm === "denied" || (pt && pt.how && pt.how !== "gps") || !pt;
         window.__snGpsBtn = { at: Date.now(), result: blocked ? "blocked" : "failed", how: pt && pt.how || "" };
-        if (hereLive && isFinite(+hereLive.lat) && !(map && cityOn && haversineKm(map.getCenter(), hereLive) < 0.05)) {
-          land({ lat: +hereLive.lat, lng: +hereLive.lng, name: "Last GPS fix", how: "gps" }, false);
-          say("Location blocked · back on your last real GPS fix. Allow location in the browser for a fresh one.");
+        stopGpsWatch();
+        if (gpsPerm === "denied" || (pt && pt.how === "net")) {
+          say("Location blocked or unavailable · the map stays where it is. Allow location to use GPS — never using IP as you.");
           return;
         }
-        say(gpsPerm === "denied" ? "Location blocked in this browser · the map stays where it is. Allow location to use GPS." : "No GPS fix · the map stays where it is. Allow location, or name a place.");
+        if (hereLive && isFinite(+hereLive.lat) && seatKind === "gps") {
+          say("No fresh GPS fix · still on your last real fix. Allow location to recalibrate.");
+          return;
+        }
+        say("No GPS fix · the map stays where it is. Allow location, or name a place.");
       }, false);
     }
     btn.addEventListener("click", goGps, true);
@@ -2847,7 +2983,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       });
     }
     paintCompass();
-    if (!window.__SN_GPS13) window.__SN_GPS13 = setInterval(function () { if (seatKind === "gps" && gpsPerm === "granted" && !adminPin) freshFix(null); }, 13000);
+    if (!window.__SN_GPS13) window.__SN_GPS13 = setInterval(function () { if (seatKind === "gps" && gpsPerm === "granted" && !adminPin && !gpsWatchId) freshFix(null); }, 13000);
   }
   function openCity(pt, opts) {
     opts = opts || {};
@@ -3371,6 +3507,9 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     });
   }
   function hideCity() {
+    try { stopGpsWatch(); } catch (eGW) {}
+    if (gpsSpeed && gpsSpeed.driving) { gpsSpeed.driving = false; try { armNorth(); } catch (eAN) {} }
+
     var el = $("city");
     if (el) {
       el.classList.remove("on");
@@ -4054,7 +4193,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       "input#in{padding-left:56px!important;padding-right:104px!important}",
       /* 4400: from main 4394-4396 — mic on search beside GO; single GPS button (label only); compass stays clear above it */
       "#sn-mic{position:fixed!important;bottom:max(8px,env(safe-area-inset-bottom))!important;right:calc(max(6px,env(safe-area-inset-right)) + 62px)!important;top:auto!important;left:auto!important;z-index:60!important;width:44px!important;height:44px!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.7)!important;background:rgba(4,16,28,.92)!important;color:#4df0ff!important;font:18px/1 system-ui!important;padding:0!important;display:flex!important;align-items:center!important;justify-content:center!important}",
-      "#gps .tgt{display:none!important}",
+      "#gps .tgt{display:flex!important;align-items:center!important;justify-content:center!important}", /* 4417: clear GPS button */
       "#dock{left:0!important;right:0!important;bottom:0!important;top:auto!important;padding:0!important;margin:0!important;background:rgba(4,14,28,.92)!important;border-top:1px solid rgba(80,220,255,.35)!important}",
       "#panel{width:100%!important;background:transparent!important}",
       "form#f{display:flex!important;width:100%!important;gap:0!important;align-items:center!important;min-height:48px!important;padding:0!important;margin:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}",
@@ -7392,7 +7531,9 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     try {
       if (!key || !huntView || !huntView.ids) return;
       var set = (shops || []).filter(function (s) { return s && huntView.ids[huntKey(s)]; });
-      if (set.length) {
+      var solid = set.filter(function (s) { return s && (s.fromServer || s.src === "find"); }).length;
+      /* 4417: never lock a thin browser-only / partial paint into the session memo */
+      if (set.length && (solid >= 8 || set.length >= 20 || (solid > 0 && solid >= Math.ceil(set.length * 0.6)))) {
         huntMemo[key] = { t: Date.now(), rows: set.slice() };
         var js = null;
         try { js = JSON.stringify({ t: Date.now(), rows: set }); } catch (eJ) { js = null; }
@@ -7415,7 +7556,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       /* 4406: the same query at the same place gives the same set: every real place seen here in the last 24 h (any source,
          any Nominatim page) is merged with this answer, and the merged set is what is saved, so runs converge, never shrink */
       if (outside.length && c0 && c0.rows && c0.rows.length && Date.now() - c0.t < 86400000) {
-        var unionR = uniqPlaces((rows || []).concat(c0.rows.map(function (r) { r.cached = true; return r; }).filter(function (p) { return nearSeat(p, huntNearKm()) && (!needle || huntMatch(p, needle)); }))); /* 4412f */
+        var unionR = uniqPlaces((rows || []).concat(c0.rows.map(function (r) { r.cached = true; return r; }).filter(function (p) { return p && (p.fromServer || p.src === "find" || nearSeat(p, huntNearKm())) && (!needle || huntMatch(p, needle)); }))); /* 4417 */
         var realU = unionR.filter(function (r) { return r && (!needle || huntMatch(r, needle)); });
         try { localStorage.setItem(key, JSON.stringify({ t: c0.t, rows: realU.slice(0, 80).map(huntSlim) })); } catch (eU) {}
         window.__snHuntCache = { key: key, used: true, n: realU.length, topUp: true };
@@ -7430,7 +7571,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var c = JSON.parse(localStorage.getItem(key) || "null");
       if (c && c.rows && c.rows.length && Date.now() - c.t < 86400000) {
         window.__snHuntCache = { key: key, used: true, n: c.rows.length };
-        return uniqPlaces((rows || []).concat(c.rows.map(function (r) { r.cached = true; return r; }).filter(function (p) { return nearSeat(p, huntNearKm()); }))); /* 4412f */
+        return uniqPlaces((rows || []).concat(c.rows.map(function (r) { r.cached = true; return r; }).filter(function (p) { return p && (p.fromServer || p.src === "find" || nearSeat(p, huntNearKm())); }))); /* 4417 */
       }
     } catch (e) {}
     window.__snHuntCache = { key: key, used: false, n: 0 };
@@ -7585,12 +7726,18 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       var memoKey = huntMemoKey(named || q, seat0), memo = huntMemo[memoKey];
       if (!memo) { try { var mS = JSON.parse(sessionStorage.getItem("sn:memo:" + memoKey) || "null"); if (mS && mS.rows && mS.rows.length) memo = huntMemo[memoKey] = { t: mS.t, rows: mS.rows }; } catch (eS2) {} }
       if (memo && Date.now() - memo.t < 3600000 && memo.rows.length) {
-        shops = uniqPlaces(memo.rows.slice());
-        if (huntView) { huntView.ids = {}; shops.forEach(function (p) { if (p) huntView.ids[huntKey(p)] = 1; }); huntView.via = "session"; }
-        window.__snHuntCache = { key: memoKey, used: true, n: shops.length, session: true };
-        huntCtrl = null;
-        showFound();
-        return;
+        var memoSolid = memo.rows.filter(function (r) { return r && (r.fromServer || r.src === "find"); }).length;
+        /* 4417: thin / partial memo must not freeze pin counts — seed then refetch */
+        if (memoSolid >= 8 || memo.rows.length >= 20 || (memoSolid > 0 && memoSolid >= Math.ceil(memo.rows.length * 0.6))) {
+          shops = uniqPlaces(memo.rows.slice());
+          if (huntView) { huntView.ids = {}; shops.forEach(function (p) { if (p) huntView.ids[huntKey(p)] = 1; }); huntView.via = "session"; }
+          window.__snHuntCache = { key: memoKey, used: true, n: shops.length, session: true };
+          huntCtrl = null;
+          showFound();
+          return;
+        }
+        shops = uniqPlaces((shops || []).concat(memo.rows));
+        window.__snHuntCache = { key: memoKey, used: false, n: memo.rows.length, session: true, thin: true };
       }
       /* 4404: one 4.5 s budget. Every source that answered in time is merged (server boxed OSM, browser Nominatim /
          Overpass, our listings, the last real answer here); a server answer that lands later still joins this hunt.
@@ -7710,8 +7857,14 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   }
   function pullListings() {
     var seat = activeSeat();
-    if (seat && isFinite(+seat.lat)) {
-      shops = (shops || []).filter(function (s) { return nearSeat(s, 50); });
+    /* 4417: never km-trim server/find/active-hunt rows (root of the 0–40 pin race) */
+    if (seat && isFinite(+seat.lat) && !findWanted) {
+      shops = (shops || []).filter(function (s) {
+        if (!s) return false;
+        if (s.fromServer || s.src === "find") return true;
+        if (huntView && huntView.ids && huntView.ids[huntKey(s)]) return true;
+        return nearSeat(s, 50);
+      });
     }
     if (!seat) return;
     here = { lat: seat.lat, lng: seat.lng, name: seat.name || (here && here.name) || "" };
@@ -7719,6 +7872,12 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     function stillHere() {
       var st = activeSeat();
       return !!(st && isFinite(+st.lat) && haversineKm(st, seat) < 25);
+    }
+    function keepShop(s) {
+      if (!s || !seesShop(s)) return false;
+      if (s.fromServer || s.src === "find") return true;
+      if (huntView && huntView.ids && huntView.ids[huntKey(s)]) return true;
+      return nearSeat(s, 50);
     }
     spaceGet(seat, 6000).then(function (j) {
       if (!stillHere()) return;
@@ -7728,7 +7887,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         var p = asPlace(r);
         if (p && nearSeat(p, 50)) { p.src = "listed"; shops.push(p); }
       });
-      shops = uniqPlaces(shops).filter(function (s) { return seesShop(s); });
+      shops = uniqPlaces(shops).filter(keepShop);
       paintShopsOnMap();
       try { paintPulse(); } catch (e) {}
       /* a hunt owns the line and FIND; never overwrite its status */
@@ -7740,9 +7899,10 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     }).catch(function () {});
     huntRace(huntNearby(), 4000).then(function (rows) {
       if (!stillHere()) return;
+      if (findWanted) return; /* 4417: mid-hunt — do not merge/clobber */
       var local = (rows || []).filter(function (s) { return nearSeat(s, 50); });
-      shops = uniqPlaces(shops.concat(local));
-      shops = shops.filter(function (s) { return nearSeat(s, 50) && seesShop(s); });
+      shops = uniqPlaces((shops || []).concat(local));
+      shops = shops.filter(keepShop);
       paintShopsOnMap();
       try { paintPulse(); } catch (e) {}
     });
@@ -13308,7 +13468,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true; window.__SN_4411 = true; window.__SN_4412 = true; window.__SN_4413 = true; window.__SN_4414 = true; window.__SN_4415 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true; window.__SN_4411 = true; window.__SN_4412 = true; window.__SN_4413 = true; window.__SN_4414 = true; window.__SN_4415 = true; window.__SN_4417 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
@@ -13374,6 +13534,10 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       overpassState: function () { var n = Date.now(); return { off: overpassOff, coolMs: Math.max(0, overpassCool - n), rest: [Math.max(0, ovRest[0] - n), Math.max(0, ovRest[1] - n)], used: ovUsed, owner: ovOwner }; },
       tileState: function () { var t = window.__snTiles; return t ? { src: t.src, max: t.max, heals: t.heals, lastAt: t.lastAt, why: t.why, z: t.z, osmRun: t.osmRun, altErr: t.altErr, vis: t.vis, ok: t.ok, err: t.err, loading: t.loading } : null; }, /* 4350 */
       seatState: function () { return { kind: seatKind, here: here, hereLive: hereLive, ip: ipView, perm: gpsPerm, liveLoaded: liveLoaded }; },
+      gpsFlyTo: function (pt) { return gpsFlyTo(pt); },
+      startGpsWatch: function () { return startGpsWatch(); },
+      stopGpsWatch: function () { return stopGpsWatch(); },
+      gpsSpeed: function () { return { kmh: gpsSpeed.smooth, driving: gpsSpeed.driving, watching: !!gpsWatchId }; },
       zoomBall: function (s) { return zoomBallPack(s); },
       robotFace: robotSvg,
       openYou: openYou,
