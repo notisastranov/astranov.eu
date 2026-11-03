@@ -1689,7 +1689,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   window.__SN_4413 = true; /* 4413: burger menu — DataNet, Architect, Settings→AUTOMATIONS, shortcut toggles sn:shortcuts */
   window.__SN_4413B = true; /* 4413b: actually bind #sn-burger click (bindBurger from bindChrome) */
   window.__SN_4415 = true; /* 4415: merge main 4407 burger+auth; sign-in entry; no TESTER PROFILE; real ⭐; Athens GR */
-  window.__SN_4417 = true; /* 4417: hunt pin stability + clear GPS (tiered fly) + speed>3km/h street drive watch; raw speed arms 20s drone revert */
+  window.__SN_4417 = true; /* 4417: hunt pin + clear GPS always tier-fly; speed>3 drive; raw<=3 arms 20s drone revert */
 (function () { /* 4411: NORTH compass stacks above the real GPS rect at every width, so the two never collide */
   function stackNorth() {
     try {
@@ -2871,16 +2871,16 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     try { localStorage.setItem("sn:here", JSON.stringify(hereLive)); } catch (eS) {}
     if (youMark && map) { try { youMark.setLatLng([pt.lat, pt.lng]); } catch (eY) {} }
     window.__snGpsWatch = { at: now, kmh: gpsSpeed.smooth, driving: gpsSpeed.driving };
-    /* enter drive on smoothed speed (anti-jitter); leave drive on min(smooth, raw) so an explicit stop starts the 20s clock */
-    var gateUp = gpsSpeed.smooth;
-    var gateDown = Math.min(gpsSpeed.smooth, kmh);
-    if (gateUp > 3) {
+    /* enter drive only when smoothed > 3 (anti-jitter); the 20s drone clock arms on raw/computed kmh <= 3 so lag in smooth cannot reset it */
+    if (kmh > 3) {
       gpsSpeed.belowAt = 0;
-      if (!gpsSpeed.driving) enterDriveView(pt);
-      else if (driveMode === "head" && map) {
-        try { map.panTo([pt.lat, pt.lng], { animate: true }); applyBearing(); } catch (eP) {}
+      if (gpsSpeed.smooth > 3) {
+        if (!gpsSpeed.driving) enterDriveView(pt);
+        else if (driveMode === "head" && map) {
+          try { map.panTo([pt.lat, pt.lng], { animate: true }); applyBearing(); } catch (eP) {}
+        }
       }
-    } else if (gateDown <= 3) {
+    } else {
       if (!gpsSpeed.belowAt) gpsSpeed.belowAt = now;
       if (gpsSpeed.driving && now - gpsSpeed.belowAt >= 20000) enterDroneView(pt);
     }
@@ -2916,14 +2916,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     clearSeatPins();
     var seq = ++gpsSeq;
     window.__snGpsFly = { at: Date.now(), lat: lat, lng: lng, seq: seq };
-    /* already on city near the fix: recenter, start watch — no globe tour */
-    if (cityOn && map && haversineKm(map.getCenter(), aim) < 3) {
-      try { map.setView([lat, lng], Math.max(map.getZoom() || 16, 16), { animate: true }); } catch (eR) {}
-      say("GPS · " + lat.toFixed(4) + "," + lng.toFixed(4));
-      startGpsWatch();
-      pullListings();
-      return;
-    }
+    /* 4417: GPS button always flies one tier at a time — never skip the globe tour */
     if (cityOn) { try { hideCity(); } catch (eH) {} }
     /* one tier at a time: solar → global → national → city */
     var start = cam.dist > 3.2 ? 0 : 1;
