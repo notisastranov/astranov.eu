@@ -431,7 +431,11 @@
       if (!isFinite(+s.lat) || !isFinite(+s.lng)) return;
       if (isTestFixture(s)) return;
       var m = L.marker([+s.lat, +s.lng], { icon: icon("", (s.name || "S").slice(0, 1).toUpperCase()) }).addTo(map);
-      m.on("click", function (ev) { L.DomEvent.stopPropagation(ev); openVendor(s); });
+      m.on("click", function (ev) {
+        L.DomEvent.stopPropagation(ev);
+        if (holdFired) { holdFired = false; return; } /* hold menu wins over pin */
+        openVendor(s);
+      });
       markers.push(m);
     });
     var p = places();
@@ -900,7 +904,11 @@
       if (!isFinite(+s.lat) || isTestFixture(s)) return;
       if (!shops.some(function (x) { return x.id === s.id; })) shops.push(s);
       var m = L.marker([+s.lat, +s.lng], { icon: icon("hunt", (s.name || "?").slice(0, 1).toUpperCase()) }).addTo(map);
-      m.on("click", function (ev) { L.DomEvent.stopPropagation(ev); openVendor(s); });
+      m.on("click", function (ev) {
+        L.DomEvent.stopPropagation(ev);
+        if (holdFired) { holdFired = false; return; } /* hold menu wins over pin */
+        openVendor(s);
+      });
       huntMarkers.push(m);
       bounds.push([+s.lat, +s.lng]);
     });
