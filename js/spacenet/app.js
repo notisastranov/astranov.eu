@@ -1,4 +1,4 @@
-/* SpaceNet 4421 — map, search, one menu, one drawer. GPS tiers + stockpile fixes. */
+/* SpaceNet 4422 — map, search, one menu, one drawer. GPS tiers + stockpile fixes. */
 (function () {
   "use strict";
   var RHODES = { lat: 36.434, lng: 28.217 };
@@ -53,7 +53,12 @@
   }
   function money(n) { return (Math.round((+n || 0) * 100) / 100).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   function me() {
-    try { var u = window.SNAuth && SNAuth.user && SNAuth.user(); return u || null; } catch (e) { return null; }
+    try {
+      var u = window.SNAuth && SNAuth.user && SNAuth.user();
+      if (u && u.email) return u;
+      try { u = JSON.parse(localStorage.getItem("sn:user") || "null"); } catch (e2) { u = null; }
+      return (u && u.email) ? u : null;
+    } catch (e) { return null; }
   }
   function myName() {
     var p = profile();
@@ -263,28 +268,51 @@
     q = String(q || "").trim();
     if (q.length < 2) return Promise.resolve(null);
     var center = opts.center || mapCenter();
-    var preferGR = /greece|hellas|athens|athina|rhodes|rodos|crete|syntagma|συνταγμα|αθην/i.test(q) || !!viewCityHint();
+    /* 4422: national landmarks (Syntagma etc.) must NOT inherit view-city (Rhodes) Photon bias */
+    var landmark = /syntagma|συνταγμα|σύνταγμα|acropolis|ακροπολ|monastiraki|μοναστηρακ|plaka|πλακα|ocolonaki|κολωνακ|othonos|οθωνοσ/i.test(q);
+    var preferGR = landmark || /greece|hellas|athens|athina|rhodes|rodos|crete|αθην/i.test(q) || !!viewCityHint();
     var url = "/api/find?limit=8&q=" + encodeURIComponent(q);
-    if (isFinite(center.lat) && isFinite(center.lng)) url += "&lat=" + center.lat.toFixed(5) + "&lng=" + center.lng.toFixed(5);
-    if (preferGR && !/greece|hellas/i.test(q)) url += "&city=" + encodeURIComponent(viewCityHint() || "Greece");
+    if (isFinite(center.lat) && isFinite(center.lng) && !landmark) url += "&lat=" + center.lat.toFixed(5) + "&lng=" + center.lng.toFixed(5);
+    if (preferGR && !/greece|hellas/i.test(q)) {
+      var cityBias = landmark ? "Athens" : (viewCityHint() || "Greece");
+      url += "&city=" + encodeURIComponent(cityBias);
+    }
+    function pack(hit, places) {
+      return {
+        lat: +hit.lat, lng: +(hit.lng || hit.lon), name: hit.name || q, raw: hit.raw || hit.display_name || hit.name || q,
+        type: hit.type || "", cls: hit.cls || hit.class || "", places: places || []
+      };
+    }
+    function pickLandmark(places) {
+      if (!landmark || !places || !places.length) return places && places[0];
+      /* Prefer Athens-area Syntagma (~37.97,23.73); reject Rhodes/Spain/Germany misses */
+      for (var i = 0; i < places.length; i++) {
+        var p = places[i];
+        var lat = +p.lat, lng = +(p.lng || p.lon);
+        if (!isFinite(lat) || !isFinite(lng)) continue;
+        if (lat > 37.85 && lat < 38.15 && lng > 23.55 && lng < 24.0) return p;
+        if (/σύνταγμα|συνταγμα|syntagma|πλατεία συντάγματος/i.test(String(p.name || "") + " " + String(p.raw || ""))) {
+          if (lat > 37.5 && lat < 38.5 && lng > 23.2 && lng < 24.2) return p;
+        }
+      }
+      return null;
+    }
     return fetch(url, { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {
       var places = (j && j.places) || [];
       if (!places.length && Array.isArray(j)) places = j;
-      var hit = places[0];
-      if (!hit && j && j.lat) hit = j;
+      var hit = pickLandmark(places) || (!landmark && places[0]) || null;
+      if (!hit && j && j.lat && !landmark) hit = j;
       if (!hit) {
-        return fetch("/api/find?op=nominatim&limit=5&q=" + encodeURIComponent(preferGR ? q + " Greece" : q), { cache: "no-store" })
+        var nq = landmark ? (q + " Athens Greece") : (preferGR ? q + " Greece" : q);
+        return fetch("/api/find?op=nominatim&limit=5&q=" + encodeURIComponent(nq), { cache: "no-store" })
           .then(function (r) { return r.json(); })
           .then(function (rows) {
-            var x = rows && rows[0];
+            var x = pickLandmark(rows) || (rows && rows[0]);
             if (!x || !isFinite(+x.lat)) return null;
-            return { lat: +x.lat, lng: +(x.lon || x.lng), name: x.name || x.display_name || q, raw: x.display_name || q, type: x.type || "", cls: x.class || x.cls || "", places: rows };
+            return pack({ lat: +x.lat, lng: +(x.lon || x.lng), name: x.name || x.display_name || q, raw: x.display_name || q, type: x.type || "", cls: x.class || x.cls || "" }, rows);
           });
       }
-      return {
-        lat: +hit.lat, lng: +(hit.lng || hit.lon), name: hit.name || q, raw: hit.raw || hit.display_name || hit.name || q,
-        type: hit.type || "", cls: hit.cls || "", places: places
-      };
+      return pack(hit, places);
     }).catch(function () { return null; });
   }
 
@@ -405,9 +433,9 @@
   }
   function paintStamp() {
     var el = $("sn-ribbon");
-    if (el) el.textContent = "SpaceNet V4421";
+    if (el) el.textContent = "SpaceNet V4422";
     var m = $("sn-stamp-menu");
-    if (m) m.textContent = "SpaceNet V4421";
+    if (m) m.textContent = "SpaceNet V4422";
   }
   function icon(cls, letter) {
     return L.divIcon({ className: "", iconSize: [36, 36], iconAnchor: [18, 18], html: '<div class="pin ' + cls + '">' + esc(letter) + "</div>" });
@@ -584,7 +612,7 @@
     openDrawer("MONEY",
       '<p class="price">' + esc(label.replace(" · guest", "")) + "</p>" +
       '<p class="note">' + esc(note) + "</p>" +
-      '<p class="note">SpaceNet V4421</p>', "MONEY");
+      '<p class="note">SpaceNet V4422</p>', "MONEY");
   }
   function shopById(id) {
     for (var i = 0; i < shops.length; i++) if (shops[i].id === id) return shops[i];
@@ -792,8 +820,12 @@
   function callWho(phone) {
     phone = String(phone || "").trim();
     if (phone) {
-      try { location.href = "tel:" + phone; say("Calling " + phone + "…"); return; }
-      catch (e) { say("Could not open the dialer."); return; }
+      try {
+        say("Calling " + phone + "…");
+        /* 4422: toast first — headless/tel: navigations can abort before say */
+        location.href = "tel:" + phone;
+        return;
+      } catch (e) { say("Could not open the dialer."); return; }
     }
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       say("CALL unavailable on this device — no phone number and no microphone.");
@@ -1149,8 +1181,8 @@
   function bootChrome() {
     function bind(id, fn) {
       var el = $(id);
-      if (!el || el.__sn4421) return;
-      el.__sn4421 = true;
+      if (!el || el.__sn4422) return;
+      el.__sn4422 = true;
       el.addEventListener("click", function (e) {
         e.preventDefault();
         e.stopPropagation();
@@ -1181,8 +1213,8 @@
       say("North is up.");
     });
     var form = $("search");
-    if (form && !form.__sn4421) {
-      form.__sn4421 = true;
+    if (form && !form.__sn4422) {
+      form.__sn4422 = true;
       form.addEventListener("submit", function (e) { e.preventDefault(); searchTo($("q").value); });
     }
     bind("mic", function () {
@@ -1200,8 +1232,8 @@
     });
     bind("logo", function () { map.setView([RHODES.lat, RHODES.lng], 13); });
     /* Esc closes any sheet; never leave PROFILE stuck */
-    if (!window.__snEsc4421) {
-      window.__snEsc4421 = true;
+    if (!window.__snEsc4422) {
+      window.__snEsc4422 = true;
       document.addEventListener("keydown", function (e) {
         if (e.key === "Escape" || e.keyCode === 27) {
           if ($("menu") && !$("menu").hidden) {
@@ -1216,8 +1248,8 @@
     }
     /* backup bind for sn-me if auth missed it */
     var meBtn = $("sn-me");
-    if (meBtn && !meBtn.__sn4421me) {
-      meBtn.__sn4421me = true;
+    if (meBtn && !meBtn.__sn4422me) {
+      meBtn.__sn4422me = true;
       meBtn.addEventListener("click", function (e) {
         e.preventDefault();
         e.stopPropagation();
@@ -1227,7 +1259,7 @@
     }
   }
   function loadShops() {
-    fetch("/datanet/menus.json?v=4421").then(function (r) { return r.json(); }).then(function (j) {
+    fetch("/datanet/menus.json?v=4422").then(function (r) { return r.json(); }).then(function (j) {
       shops = ((j && j.shops) || []).filter(function (s) {
         return s && isFinite(+s.lat) && isFinite(+s.lng) && s.src !== "fake" && !isTestFixture(s);
       });
@@ -1251,6 +1283,8 @@
     walletLabel: walletLabel,
     map: function () { return map; },
     openList: openList,
+    checkout: checkout,
+    openVendor: openVendor,
     setRoleOn: function (role, on) {
       var r = roles();
       r[role] = !!on;
@@ -1258,9 +1292,10 @@
     },
     gpsSpeed: function () { return { kmh: gpsSpeed.smooth, driving: gpsSpeed.driving, watching: !!gpsWatchId }; },
     __holdMs: HOLD_MS,
-    __build: "4421"
+    huntCount: function () { return huntMarkers.length; },
+    __build: "4422"
   };
-  window.__SN_4421 = true;
+  window.__SN_4422 = true;
   scrubLegacyWallet();
   paintStamp();
   paintPower();
