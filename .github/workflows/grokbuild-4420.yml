@@ -1,0 +1,42 @@
+name: grokbuild 4420 (sheet above drawer + thin route + SW catch; self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/fix4420.b64", ".github/workflows/grokbuild-4420.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix4420 as merge of main
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          git fetch origin main
+          MAIN_TIP="$(git rev-parse origin/main)"
+          test "$MAIN_TIP" = "7a66a1e5533f2eb0027fcaa559425a0ca6672e0b" || { echo "main moved: $MAIN_TIP"; exit 1; }
+          base64 -d .grokbuild/fix4420.b64 > /tmp/f.gz
+          test "$(sha256sum /tmp/f.gz | cut -d' ' -f1)" = "4f8899627cb0212d7c1d0f8c150b7d80daa234b01b44c9b2422bb9e860ddde8c"
+          gunzip -c /tmp/f.gz > /tmp/fix.patch
+          test "$(sha256sum /tmp/fix.patch | cut -d' ' -f1)" = "78df6a6e24d46ba26ab21433b4874de751dd0b58e2c69c68d7f3d0a986e5ee11"
+          git rm -rq .grokbuild || true
+          git rm -f .github/workflows/grokbuild-4420.yml || true
+          T0="$(git write-tree)"
+          test "$T0" = "670e8a29dc779146c9bca12d19255e994df3003e" || { echo "tree0 $T0"; exit 1; }
+          git apply --index /tmp/fix.patch
+          grep -q '__SN_4420' js/spacenet/app.js
+          test "$(cat VERSION)" = "4420"
+          grep -q 'stroke-width:4px' js/spacenet/app.js
+          grep -q 'rg.update().catch' js/spacenet/app.js
+          T="$(git write-tree)"
+          test "$T" = "793b81f8de50fbf8c1c980cc4424aac08e889cc1" || { echo "tree $T"; exit 1; }
+          C="$(git commit-tree "$T" -p HEAD -p "$MAIN_TIP" -m "4420: sheet above START drawer; thin route ≤4px; SW update catch; lockstep 4420. Wallet still needs owner sn_my_balance SQL.")"
+          git update-ref refs/heads/grokbuild/4328-street-level-gps "$C"
+          git push origin HEAD:grokbuild/4328-street-level-gps
+          echo "TIP $C"
