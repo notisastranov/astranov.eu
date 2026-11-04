@@ -1,1 +1,51 @@
-PLACEHOLDER
+name: grokbuild 4421 (stockpile+remine; self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/fix4421.b64", ".github/workflows/grokbuild-4421.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix4421 as merge of main
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          git fetch origin main
+          MAIN_TIP="$(git rev-parse origin/main)"
+          test "$MAIN_TIP" = "b920632c9fe62d6dacdb11c397e75d16ca052960" || { echo "main moved: $MAIN_TIP"; exit 1; }
+          base64 -d .grokbuild/fix4421.b64 > /tmp/f.tgz
+          test "$(sha256sum /tmp/f.tgz | cut -d' ' -f1)" = "90fdc6eaec971e685a247e2dab14f2b84c5ad44ad27fd96b5d9b736443d27923"
+          mkdir -p /tmp/f4421
+          tar -xzf /tmp/f.tgz -C /tmp/f4421
+          test "$(wc -c < /tmp/f4421/js/spacenet/app.js)" = "57091"
+          test "$(wc -c < /tmp/f4421/index.html)" = "8537"
+          test "$(cat /tmp/f4421/VERSION)" = "4421"
+          grep -q '__SN_4421' /tmp/f4421/js/spacenet/app.js
+          grep -q 'SpaceNet V4421' /tmp/f4421/index.html
+          grep -q 'HOLD_MS = 1500' /tmp/f4421/js/spacenet/app.js
+          grep -q 'sn_my_balance' /tmp/f4421/js/spacenet/app.js
+          grep -q 'hold always opens' /tmp/f4421/js/spacenet/app.js
+          git rm -rq .grokbuild || true
+          git rm -f .github/workflows/grokbuild-4421.yml || true
+          T0="$(git write-tree)"
+          test "$T0" = "150623d702f2144c9240828f3dbd29ff81a76ad4" || { echo "tree0 $T0"; exit 1; }
+          cp /tmp/f4421/VERSION VERSION
+          cp /tmp/f4421/index.html index.html
+          mkdir -p js/spacenet
+          cp /tmp/f4421/js/spacenet/app.js js/spacenet/app.js
+          cp /tmp/f4421/sw.js sw.js
+          cp /tmp/f4421/vercel.json vercel.json
+          git add VERSION index.html js/spacenet/app.js sw.js vercel.json
+          T="$(git write-tree)"
+          test "$T" = "fedc52383c1f7c527d18c08d08f590dfe33a7ae5" || { echo "tree $T"; exit 1; }
+          C="$(git commit-tree "$T" -p HEAD -p "$MAIN_TIP" -m "4421: stockpile+remine — SpaceNet V4421 stamp; HOLD 1.5s land+sea; no auto PROFILE; scrub 3M books wallet → sn_my_balance/⭐; category hunt via /api/find; CALL/Support binds; Syntagma street; search pin; order→HOLD.")"
+          git update-ref refs/heads/grokbuild/4328-street-level-gps "$C"
+          git push origin HEAD:grokbuild/4328-street-level-gps
