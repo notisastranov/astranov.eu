@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again."; window.__SN_APPJS = true; /* 4393: the start watchdog sees app.js ran and never reloads it */
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4419"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4420"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -365,9 +365,9 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!u || !u.id || !tok) return;
     fetch("/api/public-config", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (cfg) {
       if (!cfg || !cfg.anon || !cfg.sb) return null;
-      /* 4357 (q): avc_balance is not column-granted to authenticated (403 even with a good JWT) and a stale access token
-         gives 401. Ask the own-row RPC sn_my_balance() (SECURITY DEFINER, prepared migration, not applied) with the user's
-         JWT; on 401 refresh the session once and retry; if the RPC is not there yet, stop asking this session */
+      /* 4357/4420: avc_balance is not column-granted to authenticated (403 with a good JWT; stale token → 401).
+         Ask sn_my_balance() (SECURITY DEFINER) with the user's JWT; on 401 refresh once and retry; on 404 stop asking
+         this session and show "⭐ unavailable" (never invent a figure). OWNER must apply migration_sn_my_balance.sql. */
       function ask(t2) {
         return fetch(cfg.sb + "/rest/v1/rpc/sn_my_balance", {
           method: "POST",
@@ -1691,7 +1691,8 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   window.__SN_4415 = true; /* 4415: merge main 4407 burger+auth; sign-in entry; no TESTER PROFILE; real ⭐; Athens GR */
   window.__SN_4417 = true; /* 4417: hunt pin + clear GPS always tier-fly; speed>3 drive; raw<=3 arms 20s drone revert */
   window.__SN_4418 = true; /* 4418: GPS harden + always-visible bottom drawer + no auto PROFILE on start */
-  window.__SN_4419 = true; /* 4419: merge main 4419 (Rhodes menus.json); pending offer on I AM THE DRIVER; stamps 4419 incl headers */
+  window.__SN_4420 = true; /* 4420: sheet above START drawer; thin route ≤4px; SW update catch; wallet SQL owner step; stamps 4420 */
+  window.__SN_4419 = true; /* keep prior flag for older suite probes */
 (function () { /* 4411: NORTH compass stacks above the real GPS rect at every width, so the two never collide */
   function stackNorth() {
     try {
@@ -1714,7 +1715,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
           window.__SN_SW = true;
           /* 4393: an older build's shell cache can never answer this page: drop every sn-shell-N below this build, then update the worker */
           try { if (window.caches && caches.keys) caches.keys().then(function (ks) { ks.forEach(function (k) { var m = /^sn-shell-(\d+)$/.exec(k); if (m && Number(m[1]) < Number(VER)) caches.delete(k); }); }).catch(function () {}); } catch (eC) {}
-          navigator.serviceWorker.register("/sw.js", { scope: "/" }).then(function (rg) { try { rg.update(); } catch (eU) {} }).catch(function () {});
+          navigator.serviceWorker.register("/sw.js", { scope: "/" }).then(function (rg) { return rg.update().catch(function () {}); }).catch(function () {});
           navigator.serviceWorker.addEventListener("message", function (ev) {
             var d = ev && ev.data;
             if (d && d.type === "sn-sw" && Number(d.ver) > Number(VER)) safeReload(String(d.ver));
@@ -3987,8 +3988,9 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     s.textContent = [
       "#sn-sheet.on{pointer-events:none!important}",
       "#sn-sheet .bg{pointer-events:none!important;display:none!important}",
-      "#sn-sheet .card{position:absolute!important;left:14px!important;right:14px!important;width:auto!important;transform:none!important;bottom:78px!important;height:auto!important;max-height:var(--sn-rest,30vh)!important;box-sizing:border-box!important;padding:0!important;margin:0!important;border-radius:16px!important;border:1px solid rgba(77,240,255,.65)!important;overflow:hidden!important;background:rgba(4,16,32,.58)!important;backdrop-filter:blur(8px)!important;box-shadow:0 0 22px rgba(77,240,255,.28), inset 0 0 28px rgba(77,240,255,.06)!important}",
-      "#sn-sheet-body{overflow:auto!important;max-height:calc(var(--sn-rest,30vh) - 48px)!important;-webkit-overflow-scrolling:touch!important;touch-action:pan-y!important;padding:8px 10px 12px!important}",
+      "#sn-sheet,#sn-sheet.on{z-index:100!important}", /* 4420: above #sn-drawer (90) so cards never sit under START */
+      "#sn-sheet .card{position:absolute!important;left:14px!important;right:14px!important;width:auto!important;transform:none!important;bottom:calc(var(--drawer-h, 36px) + var(--dock, 0px) + var(--safe-b, 0px) + 8px)!important;height:auto!important;max-height:min(42vh, var(--sn-rest, 30vh))!important;box-sizing:border-box!important;padding:0!important;margin:0!important;border-radius:16px!important;border:1px solid rgba(77,240,255,.65)!important;overflow:hidden!important;background:rgba(4,16,32,.58)!important;backdrop-filter:blur(8px)!important;box-shadow:0 0 22px rgba(77,240,255,.28), inset 0 0 28px rgba(77,240,255,.06)!important}",
+      "#sn-sheet-body{overflow-x:hidden!important;overflow-y:auto!important;max-height:calc(min(42vh, var(--sn-rest, 30vh)) - 48px)!important;-webkit-overflow-scrolling:touch!important;touch-action:pan-y!important;padding:8px 10px 12px!important;max-width:100%!important}", /* 4420: single vertical scroll; never horizontal */
       /* 4376 (main ab5159d V4370): menus fit the text — the body shrink-wraps; the grip keeps the height */
       "#sn-sheet-body{width:max-content!important;max-width:100%!important;box-sizing:border-box!important}",
       ".sn-zoom{width:max-content!important;max-width:100%!important;padding:0!important}",
@@ -4059,8 +4061,8 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       ".leaflet-sn-route-pane{filter:none!important}",
       "@keyframes sn-flow{to{stroke-dashoffset:-28}}",
       ".sn-flow{animation:sn-flow .7s linear infinite!important}",
-      ".sn-route-one{stroke:#1a3cff!important;stroke-width:7px!important;stroke-linecap:round;stroke-linejoin:round;animation:none!important;filter:drop-shadow(0 0 1px #f7fbff) drop-shadow(0 0 3px #1a3cff)!important}",
-      ".sn-route-case{stroke:#f7fbff!important;stroke-width:11px!important;stroke-linecap:round;stroke-linejoin:round;animation:none!important}",
+      ".sn-route-one{stroke:#1a3cff!important;stroke-width:2.5px!important;stroke-linecap:round;stroke-linejoin:round;animation:none!important;filter:drop-shadow(0 0 1px #f7fbff) drop-shadow(0 0 3px #1a3cff)!important}",
+      ".sn-route-case{stroke:#f7fbff!important;stroke-width:4px!important;stroke-linecap:round;stroke-linejoin:round;animation:none!important}",
       "@keyframes sn-route-glow{0%,100%{stroke:#2f6bff;filter:drop-shadow(0 0 4px #2f6bff) drop-shadow(0 0 10px #1a3cff) drop-shadow(0 0 18px #4df0ff)}50%{stroke:#eaf6ff;filter:drop-shadow(0 0 8px #9ecbff) drop-shadow(0 0 18px #2f6bff) drop-shadow(0 0 28px #4df0ff)}}",
       ".sn-you-bot{background:transparent!important;border:0!important}",
       "#sn-me .tgt{overflow:visible!important}",
@@ -4116,7 +4118,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       ".leaflet-container .leaflet-marker-pane img,.sn-pin img{width:40px!important;height:40px!important;max-width:40px!important;max-height:40px!important;object-fit:cover!important;display:block!important;position:static!important;border-radius:50%!important;border:2px solid #4df0ff!important;box-sizing:border-box!important;background:#102033!important}",
       ".leaflet-marker-icon.sn-shop-pin{width:76px!important;height:62px!important;overflow:hidden!important;background:transparent!important;border:0!important}",
       /* 4404: a pin card fits in one view (no scroll) under the 42% cap: no placeholder photo, compact empty fields */
-      "#sn-sheet.tile .card,#sn-sheet.tile.tall .card{max-height:42vh!important}#sn-sheet.tile #sn-sheet-body{max-height:calc(42vh - 48px)!important}#sn-sheet.tile .sn-prof>em[title='No photo listed']{display:none!important}",
+      "#sn-sheet.tile .card,#sn-sheet.tile.tall .card{max-height:42vh!important;min-height:min(220px,42vh)!important;overflow:hidden!important}#sn-sheet.tile #sn-sheet-body{max-height:calc(42vh - 48px)!important;overflow-x:hidden!important;overflow-y:auto!important;width:100%!important;max-width:100%!important}#sn-sheet.tile .sn-zoom{width:100%!important;max-width:100%!important}#sn-sheet.tile .sn-prof>em[title='No photo listed']{display:none!important}", /* 4420: reachable fields above drawer; no double scrollbars */
       "#sn-sheet.tile .sn-prof:not(:has(img)){display:block!important}#sn-sheet.tile .sn-prof>div{flex:1 1 auto!important;min-width:min(240px,60vw)!important}#sn-sheet.tile .sn-prof{gap:6px!important;margin:0 0 2px!important;min-height:0!important}#sn-sheet.tile .sn-prof b{font-size:15px!important;line-height:1.2!important}",
       "#sn-sheet.tile .sn-miss{display:block!important;font:500 12px/1.3 system-ui!important;margin:0!important}#sn-sheet.tile p.note{margin:3px 0!important;font-size:12px!important;line-height:1.3!important}",
       "#sn-sheet.tile .sn-dish{margin:3px 0!important}#sn-sheet.tile .sheet-go{margin:4px 0!important;min-height:40px!important}",
@@ -5059,6 +5061,8 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     var sh = $("sn-sheet"), card = $("sn-sheet-card");
     if (!sh || !card) return;
     sheetLaw();
+    try { if (typeof setDrawerOpen === "function") setDrawerOpen(false); } catch (eDr) {} /* 4420: collapse START so card sits clear above the handle */
+    try { syncDrawerH && syncDrawerH(); } catch (eDh) {}
     sheetLeave();
     if (listBack && !(sh.classList.contains("on") && sheetSeq === listBack.seq)) dropBack();
     sheetHold = true;
@@ -6330,10 +6334,11 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     var line = lines[Math.max(0, chosen || 0)] || lines[0];
     if (!line || line.length < 2) return;
     /* 4401: from main 4397-4398 — steady deep-blue route with a white casing */
-    add(line, { pane: "sn-route", className: "sn-route-case", color: "#f7fbff", weight: 11, opacity: 0.95, interactive: false, lineCap: "round", lineJoin: "round" });
-    add(line, { pane: "sn-route", className: "sn-route-one", color: "#1a3cff", weight: 7, opacity: 1, interactive: false, lineCap: "round", lineJoin: "round" });
+    /* 4420: thin route — widest visible stroke ≤4 px (demoProbe FAIL was weight 7/11) */
+    add(line, { pane: "sn-route", className: "sn-route-case", color: "#f7fbff", weight: 4, opacity: 0.95, interactive: false, lineCap: "round", lineJoin: "round" });
+    add(line, { pane: "sn-route", className: "sn-route-one", color: "#1a3cff", weight: 2.5, opacity: 1, interactive: false, lineCap: "round", lineJoin: "round" });
     hitLine(line, function () { openRouteTile(id); });
-    window.__snRouteMax = 7; window.__snRouteW = "7";
+    window.__snRouteMax = 4; window.__snRouteW = "4";
     var total = lineKm(line);
     if (total < 0.05) return;
     var spot = pointAtKm(line, total);
@@ -8014,7 +8019,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   function robotSrc() {
     var style = botSpec().style || "spartan";
     if (style !== "courier" && style !== "wire") style = "spartan";
-    return "/js/spacenet/robots/" + style + ".jpg?v=4407";
+    return "/js/spacenet/robots/" + style + ".jpg?v=4420";
   }
   function robotFilter() {
     var c = botSpec().color;
@@ -8323,7 +8328,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     var needProf = false;
     try { needProf = signed() && !profileReady(); } catch (e) {}
     var bits = [];
-    bits.push('<p class="note">4418 · quick actions. Profile stays in name / ☰ — never a start popup.</p>');
+    bits.push('<p class="note">4420 · quick actions. Profile stays in name / ☰ — never a start popup.</p>');
     if (guest) bits.push('<button type="button" class="go primary" data-act="drawer-signin">Sign in</button>');
     else bits.push('<button type="button" class="go" data-act="drawer-you">You · profile</button>');
     if (needProf) bits.push('<button type="button" class="go primary" data-act="drawer-profile">Complete profile</button>');
@@ -8370,10 +8375,10 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       if (act === "drawer-updates") {
         setDrawerOpen(false);
         var ver = "";
-        try { ver = (($("ver") || {}).textContent || "").replace(/^V/, "") || "4419"; } catch (eV) { ver = "4419"; }
+        try { ver = (($("ver") || {}).textContent || "").replace(/^V/, "") || "4420"; } catch (eV) { ver = "4420"; }
         openSheet("UPDATES",
           '<p class="note">Loaded build <b>V' + esc(ver) + '</b>.</p>' +
-          '<p class="note">What\'s new in 4419: Rhodes shop menus and prices, GPS button, always-visible START drawer, no profile popup on start.</p>' +
+          '<p class="note">What\'s new in 4420: vendor cards sit above the START drawer, thin routes, honest wallet, no SW update crash.</p>' +
           '<button type="button" class="sheet-go primary" data-act="drawer-check-latest">Check LATEST</button>', false);
         return;
       }
@@ -8730,13 +8735,15 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         if (!card || !body) return;
         var bar = card.querySelector(".sheet-bar");
         var need = (bar ? bar.offsetHeight : 48) + body.scrollHeight + 16;
-        var cap = Math.max(160, Math.floor(window.innerHeight * 0.72));
-        var h = Math.min(Math.max(need, 120), cap);
+        /* 4420: ≤42% sheet law; min tall enough for name/phone/address; only body scrolls vertically */
+        var cap = Math.max(200, Math.floor(window.innerHeight * 0.42));
+        var h = Math.min(Math.max(need, 200), cap);
         card.style.setProperty("height", h + "px", "important");
         card.style.setProperty("max-height", h + "px", "important");
-        card.style.setProperty("overflow", need > cap ? "auto" : "hidden", "important");
+        card.style.setProperty("overflow", "hidden", "important");
         body.style.setProperty("max-height", Math.max(0, h - (bar ? bar.offsetHeight : 48)) + "px", "important");
-        body.style.setProperty("overflow", need > cap ? "auto" : "hidden", "important");
+        body.style.setProperty("overflow-x", "hidden", "important");
+        body.style.setProperty("overflow-y", need > h ? "auto" : "hidden", "important");
         try { if (window.__snGrip && window.__snGrip.place) window.__snGrip.place(); } catch (eG) {}
       });
     } catch (eFitC) {}
@@ -12850,7 +12857,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
        and the dock (the card's bottom edge, which already sits above the safe area), measured in innerHeight px, not vh */
     var baseH = 0, springT = null;
     function area() {
-      var top = 0, bot = window.innerHeight - 78;
+      var top = 0, bot = window.innerHeight - (function(){ var dh=36; try{ dh=parseInt(getComputedStyle(document.documentElement).getPropertyValue("--drawer-h"),10)||36; }catch(e){} return Math.max(36, dh) + 8; })(); /* 4420: above START drawer */
       try { var isl = $("island"); if (isl) { var ir = isl.getBoundingClientRect(); if (ir.height > 0 && ir.bottom < window.innerHeight / 2) top = ir.bottom; } } catch (eA) {}
       try { if (sh.classList.contains("on")) { var cr = card.getBoundingClientRect(); if (cr.height > 20) bot = cr.bottom; } } catch (eB) {}
       return Math.max(160, bot - top);
@@ -12863,7 +12870,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       return Math.max(200, h);
     }
     function below() {
-      var b = window.innerHeight - 78;
+      var b = window.innerHeight - (function(){ var dh=36; try{ dh=parseInt(getComputedStyle(document.documentElement).getPropertyValue("--drawer-h"),10)||36; }catch(e){} return Math.max(36, dh) + 8; })(); /* 4420 */
       try { if (sh.classList.contains("on")) { var cr2 = card.getBoundingClientRect(); if (cr2.height > 20) b = cr2.bottom; } } catch (eB2) {}
       return Math.max(0, window.innerHeight - b);
     }
@@ -13480,7 +13487,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     try { scrubFixtureProfile(); } catch (eSc) {}
     try { bindDrawer(); } catch (eDr) {}
     setTimeout(gateUser, 1400); /* 4418: never auto-open PROFILE; drawer holds immediate actions */
-    fetch("/datanet/menus.json?v=4419").then(function (r) { return r.json(); }).then(function (j) {
+    fetch("/datanet/menus.json?v=4420").then(function (r) { return r.json(); }).then(function (j) {
       ((j && j.shops) || []).forEach(function (s) {
         if (!s || !s.name || !isFinite(+s.lat) || !isFinite(+s.lng)) return;
         shops = shops.filter(function (x) { return !x || x.id !== s.id; });

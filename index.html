@@ -3,14 +3,14 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4419"/>
+<meta name="astranov-build" content="4420"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 rx=%2714%27 fill=%27%2304101c%27/%3E%3Ccircle cx=%2732%27 cy=%2732%27 r=%2727%27 fill=%27none%27 stroke=%27%234df0ff%27 stroke-width=%274%27/%3E%3Ctext x=%2732%27 y=%2744%27 font-family=%27monospace%27 font-size=%2734%27 font-weight=%27800%27 text-anchor=%27middle%27 fill=%27%234df0ff%27%3EA%3C/text%3E%3C/svg%3E"/>
-<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4419"/>
+<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4420"/>
 <script>
 (function () {
   function kill(n) {
@@ -76,7 +76,7 @@ button, [role="button"]{cursor:pointer}
 #sn-tabs .tab .fill{position:absolute;top:4px;right:4px;width:16px;height:16px;border:0;border-radius:99px;background:rgba(77,240,255,.35);color:#041018;font:800 9px/16px system-ui;padding:0}
 #sn-tabs .tab.support .fill{background:rgba(255,90,90,.55)}
 #sn-tabs .tab.offer .fill{background:rgba(80,255,140,.55)}
-#sn-sheet,#sn-tasks{z-index:70;pointer-events:none}
+#sn-sheet,#sn-tasks{z-index:100;pointer-events:none}
 #sn-sheet.on,#sn-tasks.on{pointer-events:auto}
 #sn-sheet .card,#sn-tasks .card{bottom:calc(var(--safe-b) + var(--dock) + 8px);box-shadow:0 -12px 40px rgba(0,0,0,.45)}
 #sn-sheet.min .card,#sn-tasks.min .card{height:0;padding:0;overflow:hidden;border:0}
@@ -143,10 +143,10 @@ body.sn-support #sn-desk{display:block;text-align:center}
 
 .hud-row{display:none!important;opacity:0;filter:blur(8px);transform:scale(.86) translateY(-10px);pointer-events:none;gap:8px;justify-content:center}
 .hud-row.mat{display:flex!important;opacity:1;filter:none;transform:none;pointer-events:auto}
-#sn-sheet,#sn-tasks{display:none;position:fixed;inset:0;z-index:80}
+#sn-sheet,#sn-tasks{display:none;position:fixed;inset:0;z-index:100}
 #sn-sheet.on,#sn-tasks.on{display:block}
 #sn-sheet .bg,#sn-tasks .bg{position:absolute;inset:0}
-#sn-sheet .card,#sn-tasks .card{position:absolute;left:50%;bottom:86px;transform:translateX(-50%);width:min(420px,94vw);height:33vh;overflow:auto;padding:12px;background:rgba(4,14,28,.97);border:1px solid rgba(126,233,255,.4);border-radius:16px}
+#sn-sheet .card,#sn-tasks .card{position:absolute;left:50%;bottom:calc(var(--drawer-h, 36px) + var(--dock, 0px) + var(--safe-b, 0px) + 8px);transform:translateX(-50%);width:min(420px,94vw);height:33vh;overflow:hidden;padding:12px;background:rgba(4,14,28,.97);border:1px solid rgba(126,233,255,.4);border-radius:16px}
 #sn-count{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;pointer-events:none}#sn-count.on{display:flex}#sn-count b{font:800 46vw/0.78 system-ui;color:#e8fbff;letter-spacing:-.08em;text-shadow:0 0 8px #fff,0 0 18px #4df0ff,0 0 36px #4df0ff,0 0 72px #1a6cff,0 0 120px #1a6cff}
 .leaflet-container{background:var(--bg);filter:saturate(.35) brightness(.78) contrast(1.15)}
 form#f{display:flex;gap:8px;align-items:center;min-height:52px;padding:6px 8px;border:1px solid rgba(126,233,255,.35);border-radius:16px;background:rgba(2,4,10,.96)}
@@ -290,7 +290,7 @@ body.sn-scan #sn-radar-hud{animation-duration:1.1s}
 <div id="top">
   <div id="sn-topchrome-drag" class="sn-trivial-law" aria-hidden="true"></div>
   <div id="island">
-    <div class="r1"><button type="button" class="a" id="sn-brand-a">ASTRANOV</button><button type="button" class="s" id="sn-brand-s">Astranov.Eu SpaceNet V4419</button><span id="ver">V4419</span><button type="button" id="sn-signin" aria-label="Sign in with Google" title="Sign in with Google">SIGN IN</button><button type="button" id="sn-latest" aria-label="Latest version">LATEST</button><button type="button" id="sn-update" hidden>UPDATE NOW</button></div>
+    <div class="r1"><button type="button" class="a" id="sn-brand-a">ASTRANOV</button><button type="button" class="s" id="sn-brand-s">Astranov.Eu SpaceNet V4420</button><span id="ver">V4420</span><button type="button" id="sn-signin" aria-label="Sign in with Google" title="Sign in with Google">SIGN IN</button><button type="button" id="sn-latest" aria-label="Latest version">LATEST</button><button type="button" id="sn-update" hidden>UPDATE NOW</button></div>
     <div class="r2"><span id="sn-local">-</span><span id="sn-utc">-</span><span id="sn-wx"></span><span id="sn-node"></span><canvas id="sn-spark" width="120" height="28"></canvas></div>
   </div>
 
@@ -339,10 +339,10 @@ body.sn-scan #sn-radar-hud{animation-duration:1.1s}
 </div>
 <div id="dock"><div id="panel"><div id="cli-drag" class="sn-trivial-law" aria-hidden="true"></div><div id="sn-tabs"></div><div id="line"></div><form id="f"><input id="in" autocomplete="off" enterkeyhint="send" placeholder="Command the HUD · show, hide, or reshape"/></form></div></div>
 <input id="sn-file" type="file" accept="image/*,application/pdf,text/*" hidden/>
-<script src="/js/vendor/leaflet.js?v=4419"></script>
-<script src="/js/spacenet/app.js?v=4419"></script>
-<script src="/js/spacenet/auth.js?v=4419"></script>
-<script src="/guardian.js?v=4419"></script>
+<script src="/js/vendor/leaflet.js?v=4420"></script>
+<script src="/js/spacenet/app.js?v=4420"></script>
+<script src="/js/spacenet/auth.js?v=4420"></script>
+<script src="/guardian.js?v=4420"></script>
 <script>
 (function(){
   function force(el){
@@ -448,7 +448,7 @@ body.sn-scan #sn-radar-hud{animation-duration:1.1s}
       h.type = "button";
       h.id = "sn-helper";
       h.setAttribute("aria-label", "Helper");
-      h.innerHTML = '<img alt="" src="/js/spacenet/robots/spartan.jpg?v=4419">';
+      h.innerHTML = '<img alt="" src="/js/spacenet/robots/spartan.jpg?v=4420">';
       h.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); cmds(); });
       document.body.appendChild(h);
     }
