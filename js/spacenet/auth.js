@@ -358,7 +358,11 @@
     var mail = inNow ? u.email : "Not signed in";
     var tel = (u && u.phone) || read("sn:phone", "") || "";
     var mine = "";
-    try { if (inNow && window.SN && SN.avcGet) mine = Math.round(SN.avcGet()).toLocaleString("en-GB") + " AV€"; } catch (e) {}
+    try {
+      if (window.SN && typeof SN.walletLabel === "function") mine = SN.walletLabel();
+      else if (inNow && window.SN && SN.avcGet) mine = Math.round(SN.avcGet()).toLocaleString("en-GB") + " ⭐";
+      else mine = "0.00 ⭐";
+    } catch (e) { mine = inNow ? "" : "0.00 ⭐"; }
     var roles = { client: false, driver: false, vendor: false };
     try {
       var saved = JSON.parse(localStorage.getItem("sn:roles") || "null");

@@ -8,8 +8,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4407"},
-        {"key": "X-Astranov-Ship", "value": "4407-real"}
+        {"key": "X-Astranov-Build", "value": "4419"},
+        {"key": "X-Astranov-Ship", "value": "4418-real"}
       ]
     },
     {
@@ -17,8 +17,17 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4407"},
-        {"key": "X-Astranov-Ship", "value": "4407-real"}
+        {"key": "X-Astranov-Build", "value": "4419"},
+        {"key": "X-Astranov-Ship", "value": "4418-real"}
+      ]
+    },
+    {
+      "source": "/VERSION",
+      "headers": [
+        {"key": "Content-Type", "value": "text/plain; charset=utf-8"},
+        {"key": "Content-Disposition", "value": "inline"},
+        {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
+        {"key": "X-Content-Type-Options", "value": "nosniff"}
       ]
     },
     {
@@ -44,8 +53,6 @@
     }
   ],
   "redirects": [
-    {"source": "/", "has": [{"type": "host", "value": "datanet.astranov.eu"}], "destination": "/datanet", "permanent": false},
-    {"source": "/index.html", "has": [{"type": "host", "value": "datanet.astranov.eu"}], "destination": "/datanet", "permanent": false},
     {"source": "/host", "destination": "/servernet", "permanent": false},
     {"source": "/host/", "destination": "/servernet", "permanent": false},
     {"source": "/hostnet", "destination": "/servernet", "permanent": false},
@@ -56,12 +63,13 @@
     {"source": "/index.html", "has": [{"type": "host", "value": "datanet.astranov.eu"}], "destination": "/datanet/index.html"},
     {"source": "/", "has": [{"type": "host", "value": "servernet.astranov.eu"}], "destination": "/servernet/index.html"},
     {"source": "/index.html", "has": [{"type": "host", "value": "servernet.astranov.eu"}], "destination": "/servernet/index.html"},
+    {"source": "/favicon.ico", "destination": "/icon-192.png"},
     {"source": "/", "has": [{"type": "host", "value": "spacenet.astranov.eu"}], "destination": "/index.html"},
     {"source": "/index.html", "has": [{"type": "host", "value": "spacenet.astranov.eu"}], "destination": "/index.html"},
-    {"source": "/", "has": [{"type": "host", "value": "astranov.eu"}], "destination": "/index.html"},
-    {"source": "/index.html", "has": [{"type": "host", "value": "astranov.eu"}], "destination": "/index.html"},
-    {"source": "/", "has": [{"type": "host", "value": "www.astranov.eu"}], "destination": "/index.html"},
-    {"source": "/index.html", "has": [{"type": "host", "value": "www.astranov.eu"}], "destination": "/index.html"},
+    {"source": "/", "has": [{"type": "host", "value": "astranov.eu"}], "destination": "/room/index.html"},
+    {"source": "/index.html", "has": [{"type": "host", "value": "astranov.eu"}], "destination": "/room/index.html"},
+    {"source": "/", "has": [{"type": "host", "value": "www.astranov.eu"}], "destination": "/room/index.html"},
+    {"source": "/index.html", "has": [{"type": "host", "value": "www.astranov.eu"}], "destination": "/room/index.html"},
     {"source": "/api/ai/pricing", "destination": "/api/ai"},
     {"source": "/api/paypal/config", "destination": "/api/paypal"},
     {"source": "/datanet", "destination": "/datanet/index.html"},

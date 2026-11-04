@@ -21,7 +21,7 @@ The ribbon and the constellations stay off. The zoom ladder is back, one step at
 
 On the map, five instruments only, each 44px except the radar and the monitor strip: power top-left, the stored AV€ balance top-center (no invented figure; a guest shows AV€ with no number), GPS bottom-right, the round radar sweep on the globe and on the city, and a short hardware monitor that stops before the GPS button. Delivery is unchanged: shop, street, cyan route, one stage per tap.
 
-Stamp 4382.
+Stamp 4382. (Branch 4388 keeps its own zoom engine, the ribbon stamp, the ⭐ wallet and the helper; this block is recorded, not applied there.)
 
 ---
 
@@ -378,3 +378,79 @@ Evolve. The helper develops the running rules, not a new login.
 - Grok may return `act:evolve` plus a patch of known rule keys only. `SN.evolve` applies it in the running engine. Never `eval` untrusted JS.
 - Keys may be rates, hunt cap (max 8), voice, and courier timing. Login chrome, SMS claims, secrets, and source text are not keys.
 - Asked to optimize: keep these locks, tune only those keys, say what changed. Never invent a shop. Never claim the app rewrote itself.
+
+## 4390 branch note
+- Main V4383 merged (c5deee9e). Taken: nothing in code. Main swapped its handle law() from hide to force() 10px. The branch has no hide law, and its handles already render at 10px. Main's sw/api/version literals are superseded by the branch stamps; api/version reads VERSION.
+- Stamp truth: meta, ?v=, VERSION, sw.js and the vercel.json X-Astranov-Build/Ship headers all move together in one commit (inbox 4383 header mismatch).
+- Pin labels: up to 112px wide on two lines. With no room, a short first-word label is shown, else the label is hidden; title and aria-label always carry the full name.
+
+## 4391 branch note
+- A signed-out visitor sees a SIGN IN button in the ribbon; it starts the existing Google sign-in. There is no auto prompt.
+- Pin labels get a final collision guard: a shown label that touches another marker's face, number or label is hidden. The higher number yields.
+
+- 4392: pin labels: a rendered-bounds hit-test pass (elementsFromPoint over the painted label box) hides any label covered by another marker face/number/label, the YOU marker or HUD; label box is plain block, 12px lines, max two lines (no -webkit-box clamp, which painted long names as empty dark boxes). SIGN IN on preview aliases lands on the Site URL because Supabase rejects the preview redirect_to (allow list); client link is correct.
+- 4393: no page reload during use: the index.html start watchdog prevents native submit of #f, waits while app.js runs, never fires after any input, and only retries when app.js never ran; safeReload never reloads after a hunt/command/touch (ribbon offers the update). sw.js serves offline fallbacks only from its own shell cache and never caches-answers a ?v= newer than itself; the page deletes sn-shell-N caches older than its build and calls registration.update().
+
+## 4394
+Merged main de23b20b (V4386: api consolidated into api/[...path].js + lib/http for the Hobby function cap; Earth-first root rewrite; solar app ring; international mesh + level tag). Branch engine wins: main's zoom/pinch rewrite, #sn-seek top search (its styling lived in the hide-all sn-4382 block; branch hunt CLI already searches places), and every hide list (sn-4379/sn-4382 style blocks, app.js #top/#island/#ver display:none) stay OUT. lib/http/version.js reads VERSION. Lockstep 4394.
+
+## 4395
+Main unmoved (de23b20b). Declutter: the YOU marker, other non-shop markers and the HUD buttons are placement obstacles; a leader through a name scores as crowded; a second declutter pass runs 320 ms after every moveend/zoomend/viewreset/resize and after every fitHunt. Touch: fitHunt and its re-fit timers never run while a finger is on the map, within 2.5 s of a hold, or after any user press since the last fit; a pin tap/hold opens the pin under the finger at press start; the LIST hold point is fixed at press start. Hide blocks sn-4379/sn-4382 and the app.js hide list stay out. Lockstep 4395.
+
+## 4396
+Merged main 08348856 (4387 device ledger / crew) with a merge commit; the branch engine and stamps win. The collision pass (declutterSoon, declutterLate) never moves a pin or label while a pointer is down on the map, while a mouse hovers a pin, or for 1.5 s after either ends; it is deferred and runs once afterwards. window.__snDeclBusy / __snDeclAt / __snDeclFrozen let tests wait for it to settle. hold.js waits for the late pass to settle before it picks a target. Lockstep 4396.
+
+## 4397
+4396 shipped, but its alias run still lost about 1 in 6 holds: the pin repaint (paintShopsOnMap, on late results / zoomend) swapped the markers under a held pointer. Now a repaint waits (at most 8 s) while a pointer is down on the map, hovers a pin, or for 1.5 s after either; the pin tap listener is bound after addTo (before, it never existed) and fires only for the pin pressed at start with <12 px travel. Lockstep 4397.
+
+## 4398
+Cause of "supermarket Heraklion → 0 pins": not upstream (/api/find nominatim + server hunt answer for Heraklion) and not 4396/4397 (4394–4397 all fail the same). The line only split "X in/near/at Y"; "supermarket Heraklion" hunted the whole string at the current seat, and plural "supermarkets" missed the trade-word regex, so it was geocoded as a place. Now: "TRADE PLACE" / "PLACE TRADE" are rewritten to "TRADE in PLACE", and plural trade words hunt at the seat. Merged main 2fa79161 (4388): /datanet/ and /host/ pages, the rewrites, DATANET/HOST app bodies with path frames. Main's globe dot, gesture retune, autorotate removal and #sn-bar hide CSS are kept out (the branch engine wins). Commands on #in: crew|guide|agents|drill|ambassador|diplomat → runCrew; host|mesh|hosting → HOST; datanet|database → DATANET (optional leading "/").
+
+## 4399
+Merged main 509d2f4c (4389–4393) with a merge commit so main stays an ancestor. The other app repositories (architect, chatgpt, claude, composer, datanet-trends, personality, racing, yachts, gemini, frogschool, auditors, coin, grok, deepseek, presence, apps/registry.json) are carried as files only; their supabase/migrations and supabase/functions are never applied or deployed from here. host/ became servernet/ (redirects /host, /hostnet → /servernet), with datanet/servernet host rewrites and the subdomain redirect script at the top of index.html. The app bodies read /apps/registry.json, falling back to the built-in list; DataNet and ServerNet frame same-origin. The branch engine, stamps and the hide-block exclusions win. #in: servernet|hostnet|host|mesh|hosting → SERVERNET.
+
+## 4400
+Merged main b5ed295c (4394–4396) with a merge commit so main stays an ancestor. Ported: apps/registry.json is now path-based (solar-system apps open same-origin; the ring accepts path rows and still takes host rows); a 🎤 #sn-mic beside GO hears in the device language and sends through talk(); #gps is a single button (the 📍 target is hidden, the label stays) with the compass clear above it; 🎧 support was already on the branch. The index.html subdomain redirect script is gone, as on main (vercel.json rewrites still serve the subdomains). Skipped: main's hiding of #go/#plus, #sn-bar, and its support/compass repositioning; the branch engine wins in index.html, app.js and sw.js.
+
+## 4400 (second merge: main e0e59bdb, V4397–4398)
+Main dropped the other app repositories (auditors, chatgpt, claude, coin, composer, datanet-trends, deepseek, exchange, frogschool, gemini, grok, investors, presence, racing: 700 files) and their vercel.json rewrites; the merge takes those deletions. The registry is now DATANET, SERVERNET, ARCHITECT (host), YACHTS, PERSONALITY (host); the branch ring already takes host rows. Not ported (main's engine; the branch engine wins): the #sn-nav Global/Solar/National/City view switch, the #sn-offer drawer that replaces offer tiles, the deep-blue route with white casing, quieter "Offers live/off", and the support button moved to the left. The stamp stays 4400.
+
+## 4401 (merge: main 953d504f, V4399–4400)
+Ported into the branch engine: globe trackball inertia (a released flick keeps turning, damped 0.92 per frame, velocity capped at ±0.08 yaw / ±0.05 pitch; the aim lands where the globe stops; a hold over 120 ms before release stops it dead); roles on the login card (CONSUMER / VENDOR / DRIVER set sn:role; signed out → Google; the email login and APPLY AGENT/AMBASSADOR stay); needLogin also opens the login card; the map menu items START A JOB / EXPLORE / LIST AN EVENT (sn:events) folded into the hold LIST card (a single tap still closes cards); the deep-blue #1a3cff 7px route with an 11px white casing; "Offers live." / "Offers off.". The login picture is already there (photo, else /you.png). Not ported: the #sn-nav view switch, the #sn-offer drawer, #sn-me inside #sn-bar, the support button moved left, the file picker replacing the post camera. Stamp 4401.
+
+## 4402 (fixes after the 4401 remine; main still 953d504f)
+1) crew/drill/guide/agents/ambassador ran into "seekHold is not defined" (and markTier, also main-only): the branch now declares seekHold (null, crew falls back to aim/here) and a markTier on the branch tier scale. 2) The CONSUMER/VENDOR/DRIVER role buttons show on every login card (signed out too: a tap keeps the pick as sn:role-want, starts Google, and the role applies once signed in); the ribbon SIGN IN opens that card instead of going straight to Google; the needLogin wall (START A JOB etc.) opens the same card. The preview landing on production after Google sign-in is the Supabase redirect allow-list (Auth config untouched). 3) 🎤 and GO voice: one micListen() asks getUserMedia and starts SpeechRecognition inside the tap, then says the real reason: Mic blocked / No microphone found / no speech engine / speech service unreachable / heard nothing (no more bare "Mic closed."). Tests: bake-4402 crew.js, role.js, mic.js, dense.js (labels, hit ring, off-centre pin hold → pin card, first-pin latency).
+
+## 4403 (label guard after manual zoom; main still 953d504f)
+1) lab2 at 390 after a manual wheel zoom-out could show a label on a neighbour's label or face (intermittent; the decl pass could measure mid-animation or before a repaint). New labelGuard() runs every 500 ms while the map is still (not frozen by press/hover, no zoom animation): it measures every shown shop label against all marker faces/numbers and the shown labels of higher-priority pins (lower number) and hides the lower-priority label (sn-lbl-off). It only hides, never moves pins, so a held pin stays put.
+2) The hover reveal of hidden labels (.sn-lbl-off:hover b) now applies only under @media (hover:hover), so a sticky touch :hover cannot put a hidden name back on top of neighbours.
+3) hold "no pin early" (once in s103): not reproduced locally (3/3 BAD 0); no product change for it.
+Stamps 4403 lockstep; __SN_4403 added.
+
+## 4404 (remine of 4403; main still 953d504f)
+1) Search "Finding…" stall: one ~4.5 s budget (space 4 s, server 4.5 s, Nominatim 4 s, Overpass 2.5 s; was an 11 s server race). Every source is merged (server, browser Nominatim/Overpass, listed rows, rows already on the map), a thin live answer is topped up from the last 24 h cache, and if nothing has landed the line and sheet say "Still searching X at Y… the map service is slow. Tap GO to retry." A late server answer still merges in. A re-search while zoomed out keeps the named place (namedSeat holds the seat while the map centre is within 15 km of it).
+2) 500 px labels: a name that does not fit is dropped, never cut to its first word (the 4390 short-name path is gone); the guard also drops clipped labels, hides a face that sits on a higher-priority face (or on YOU) until the map frees it, runs under a mouse hover (it only hides), and fades the YOU-where chip while a shown pin is under it. After a hunt fit, three wheel notches stay in the field (closeBelow = fit zoom - 1.5, min zoom follows). window.__snMap exposes the map for tests.
+3) Pin card: under the 42vh cap with no scroll; no placeholder photo (the real photo still shows); compact name/phone/address/notes; "No phone listed" and "(approx. address)" kept.
+4) The ✕ on the SIGN IN (YOU) card closes only that card (stopPropagation + app close handler ignores #sn-me-sheet).
+Tests: bake-4404/t lab3.js (500/390 labels, chip, 3 wheel notches), card.js (no scroll, 42%, no placeholder, SIGN IN ✕), ttime.js, slow.js, he2e5.sh. Stamps 4404 lockstep; __SN_4404 added.
+
+## 4405 (remine of 4404; tests rebuilt to the owner's conditions first)
+Why 4404 tests passed: they ran with mobile/touch emulation at 900 px height, hidden scrollbars, single 100-px wheel events, and checked labels only against labels/badges (no pin faces of other pins, leader lines or HUD).
+1) 500 px labels (Χαλκιαδάκης, pin 3): the guard now also treats HUD chips (wallet, globe, YOU, GPS, compass, hunt count, power tag) and other pins' leader lines (.sn-lead, from marker+38/+31, width and rotate) as obstacles, and does a final elementFromPoint probe on a 3x3 grid inside each label; anything else on top hides the label.
+2) Wheel: a burst of wheel events (trackpad / one notch on many mice) is one gesture; a gesture steps at most once per 400 ms. After a hunt fit closeBelow = max(6, min(8, fit-2.5)). Reaching the floor only arms the exit ("Widest view of this place. Wheel out again to go back to the globe."); a NEW gesture is needed to go back to the globe.
+3) Pin card (real Bazar card, 500x650 / 1280x630): the name column min-width pushed the body 7 px wide; the dish box and ORDER now share a row, notes follow. No inner scroll either axis, card <= 42vh, 'No product on the menu yet.' in view.
+4) WALLET caption: never shrinks, nowrap, 9 px gap to the chip, paints above it.
+Tests: bake-4404/t lab4.js (desktop, no touch, faces+leaders+HUD+pixel check, burst wheel to floor and exit), card2.js (scrollbars shown, short windows), wallet.js (caption text rect vs chip, elementFromPoint, hunt/long-text/wide-font variants). Stamps 4405 lockstep; __SN_4405 added.
+
+## 4406 (remine of 4405)
+1) Ribbon: placeRibbon() stacks the top-left chips in one column with 6 px gaps: WALLET chip, then the hunt chip (#sn-hunt-n) under the wallet chip's real bottom (wraps, max-width stops short of the globe button), then the power tag. Runs on every hunt badge update, resize and each second. Test: wallet.js also checks a caption-to-pill gap of at least 4 px and no overlap between the ribbon chips (1248x671, 500x515, 500x600, 390x844, 1280x800, as a guest, with and without a hunt).
+2) Labels: a name is hidden if it touches any other pin's face or number badge (2 px margin, strict), overlaps its own face, has another pin's leader through it (2 px margin), or its own leader crosses any other name. Test: lab5.js (500x515, 500x600, 390, 1248x671).
+3) Zoom never re-hunts: with a hunt open, moveend ignores centre drift from zooming; only a real drag (within 2.5 s) that takes the view 15 km+ from the hunt's place re-seats. After a hunt fit, closeBelow = max(5, min(7, fit-3.5)), so 7 wheel notches out stay in the field with the same pins. Test: hunt7.js.
+4) Determinism: a query at a place is answered once per session (memory + sessionStorage); asking again shows that exact set. Across sessions, every real place seen for that query and place in the last 24 h is merged in (union saved, up to 80), so runs converge instead of drifting. Nothing synthetic. Test: hunt7.js (same page and after reload: identical set).
+
+## 4407 (merge main 4405 + signed-in mine + 4406 nits)
+1) Merge main 07d5d08e (live 4405): branch engine wins for index.html, app.js, sw.js, auth.js. DataNet menus/pages from main. Hide blocks sn-4379/sn-4382, app.js hide-of-ribbon, and #sn-bar stay out. Live favicon.ico 404 fixed with a root favicon.
+2) Identity (#sn-me): opens the account panel (not the YOU tasks card). Signed-in: Google name, email, avatar from the Supabase session + SIGN OUT. Guest: SIGN IN only.
+3) Wallet: personal chip reads the ledger via sn_my_balance only. Guest stays at ⭐ 0.00. If the ledger is unreadable (401 / missing RPC), show "⭐ unavailable" — never a local 3M / books / OWNER_CAPITAL figure. Pool remains owner-only inside the sheet.
+4) 4406 nits: a leader that crosses a neighbouring pin's face/number (2 px) is removed and the pin snaps home; closeBelow is always fitZoom − 3.5 (exactly 7 notches to Widest view), no absolute 5–7 clamp.
+Lockstep 4407; __SN_4407.
