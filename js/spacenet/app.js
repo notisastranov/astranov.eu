@@ -608,10 +608,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     return false;
   }
   function gateUser() {
-    /* 4415: scrub fixture names only — never auto-open blocking PROFILE (TESTER CLIENT).
-       needReady still opens PROFILE when the user tries to order. */
-    if (!signed()) return;
+    /* 4415/4418: scrub fixture names only — never auto-open PROFILE/ROLES on start.
+       needReady still opens PROFILE when the user tries to order. Immediate actions live in #sn-drawer. */
     scrubFixtureProfile();
+    try { renderDrawer(); } catch (eD) {}
   }
   function scrubFixtureProfile() {
     /* local device only — never touches the database */
@@ -1683,13 +1683,14 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true; window.__SN_4411 = true; window.__SN_4412 = true; window.__SN_4413 = true; window.__SN_4414 = true; window.__SN_4415 = true; window.__SN_4417 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true; window.__SN_4411 = true; window.__SN_4412 = true; window.__SN_4413 = true; window.__SN_4414 = true; window.__SN_4415 = true; window.__SN_4417 = true; window.__SN_4418 = true;
   window.__SN_4412F = true; /* 4412f: huntNearKm in merge + 12s api race */
   window.__SN_4412G = true; /* 4412g: await API (no race-to-empty), trust server rows, warm cold path, fit after final */
   window.__SN_4413 = true; /* 4413: burger menu — DataNet, Architect, Settings→AUTOMATIONS, shortcut toggles sn:shortcuts */
   window.__SN_4413B = true; /* 4413b: actually bind #sn-burger click (bindBurger from bindChrome) */
   window.__SN_4415 = true; /* 4415: merge main 4407 burger+auth; sign-in entry; no TESTER PROFILE; real ⭐; Athens GR */
   window.__SN_4417 = true; /* 4417: hunt pin + clear GPS always tier-fly; speed>3 drive; raw<=3 arms 20s drone revert */
+  window.__SN_4418 = true; /* 4418: GPS harden + always-visible bottom drawer + no auto PROFILE on start */
 (function () { /* 4411: NORTH compass stacks above the real GPS rect at every width, so the two never collide */
   function stackNorth() {
     try {
@@ -4177,8 +4178,9 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       "#sn-architect{display:none!important}",
       "#sn-me{position:fixed!important;left:max(6px,env(safe-area-inset-left))!important;right:auto!important;top:max(6px,env(safe-area-inset-top))!important;bottom:auto!important;z-index:70!important}",
       /* 4411: GPS and NORTH share the right stack; both rise with --sheet-h so they never collide at 500 */
-      "#gps{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;top:auto!important;bottom:calc(var(--safe-b, 12px) + var(--dock) + var(--sheet-h, 0px) + 8px)!important;z-index:280!important;pointer-events:auto!important}",
-      "#sn-compass{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;bottom:calc(var(--safe-b, 12px) + var(--dock) + var(--sheet-h, 0px) + 88px)!important;top:auto!important;z-index:280!important;width:48px!important;height:48px!important;padding:0!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.95)!important;background:rgba(4,16,28,.96)!important;color:#4df0ff!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;box-shadow:0 0 12px rgba(77,240,255,.35)!important}",
+      "#gps{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;top:auto!important;bottom:calc(var(--safe-b, 12px) + var(--dock) + var(--drawer-h, 36px) + var(--sheet-h, 0px) + 8px)!important;z-index:280!important;pointer-events:auto!important;display:flex!important;flex-direction:column!important;align-items:center!important;visibility:visible!important;opacity:1!important;width:auto!important;min-width:48px!important;min-height:64px!important;height:auto!important;overflow:visible!important;background:transparent!important;border:0!important;padding:0!important}",
+      "#gps .lbl{display:block!important;visibility:visible!important;opacity:1!important}",
+      "#sn-compass{position:fixed!important;right:max(8px,env(safe-area-inset-right))!important;left:auto!important;bottom:calc(var(--safe-b, 12px) + var(--dock) + var(--drawer-h, 36px) + var(--sheet-h, 0px) + 88px)!important;top:auto!important;z-index:280!important;width:48px!important;height:48px!important;padding:0!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.95)!important;background:rgba(4,16,28,.96)!important;color:#4df0ff!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;box-shadow:0 0 12px rgba(77,240,255,.35)!important}",
       "#sn-compass .lbl{display:block!important;font:800 8px/1 system-ui!important;letter-spacing:.06em!important}",
       "#sn-compass .tgt{display:block!important;font:800 14px/1 system-ui!important}",
       "#sn-compass.head{color:#7dff9a!important;border-color:#7dff9a!important}",
@@ -4189,7 +4191,17 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       "input#in{padding-left:56px!important;padding-right:104px!important}",
       /* 4400: from main 4394-4396 — mic on search beside GO; single GPS button (label only); compass stays clear above it */
       "#sn-mic{position:fixed!important;bottom:max(8px,env(safe-area-inset-bottom))!important;right:calc(max(6px,env(safe-area-inset-right)) + 62px)!important;top:auto!important;left:auto!important;z-index:60!important;width:44px!important;height:44px!important;border-radius:999px!important;border:1.5px solid rgba(77,240,255,.7)!important;background:rgba(4,16,28,.92)!important;color:#4df0ff!important;font:18px/1 system-ui!important;padding:0!important;display:flex!important;align-items:center!important;justify-content:center!important}",
-      "#gps .tgt{display:flex!important;align-items:center!important;justify-content:center!important}", /* 4417: clear GPS button */
+      "#gps .tgt{display:flex!important;align-items:center!important;justify-content:center!important;visibility:visible!important;opacity:1!important;width:48px!important;height:48px!important;min-width:48px!important;min-height:48px!important}", /* 4417/4418: clear GPS button never collapse */
+
+      /* 4418: always-visible bottom drawer */
+      "#sn-drawer{position:fixed!important;left:0!important;right:0!important;bottom:calc(var(--dock) + var(--safe-b, 0px))!important;top:auto!important;z-index:90!important;display:flex!important;flex-direction:column!important;align-items:stretch!important;pointer-events:none!important;max-height:42vh!important}",
+      "#sn-drawer > *{pointer-events:auto!important}",
+      "#sn-drawer-handle{display:flex!important;align-items:center!important;justify-content:center!important;gap:8px!important;height:36px!important;min-height:36px!important;border:0!important;border-top:1px solid rgba(77,240,255,.45)!important;border-radius:14px 14px 0 0!important;background:rgba(4,14,28,.96)!important;color:#4df0ff!important;font:800 11px/1 system-ui!important;letter-spacing:.14em!important;cursor:pointer!important}",
+      "#sn-drawer.open #sn-drawer-panel{display:flex!important}",
+      "#sn-drawer-panel{display:none;flex-direction:column!important;background:rgba(4,14,28,.97)!important;max-height:calc(42vh - 36px)!important;overflow:auto!important}",
+      "#sn-drawer .sheet-apply{color:#7dff9a!important;order:-1!important;margin-right:auto!important}",
+      "#sn-drawer .sheet-x{color:#ff8a8a!important;order:99!important;margin-left:auto!important}",
+
       "#dock{left:0!important;right:0!important;bottom:0!important;top:auto!important;padding:0!important;margin:0!important;background:rgba(4,14,28,.92)!important;border-top:1px solid rgba(80,220,255,.35)!important}",
       "#panel{width:100%!important;background:transparent!important}",
       "form#f{display:flex!important;width:100%!important;gap:0!important;align-items:center!important;min-height:48px!important;padding:0!important;margin:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}",
@@ -8279,6 +8291,99 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     renderLeft();
   }
 
+
+  /* 4418: always-visible bottom drawer — immediate actions, never a forced PROFILE dialog */
+  function syncDrawerH() {
+    var d = $("sn-drawer");
+    var h = 36;
+    try {
+      if (d) {
+        var r = d.getBoundingClientRect();
+        if (r && r.height > 8) h = Math.round(r.height);
+      }
+    } catch (e) {}
+    try { document.documentElement.style.setProperty("--drawer-h", h + "px"); } catch (e2) {}
+    try { placeRibbon && placeRibbon(); } catch (e3) {}
+    try { if (typeof stackNorth === "function") stackNorth(); } catch (e4) {}
+  }
+  function setDrawerOpen(on) {
+    var d = $("sn-drawer");
+    var handle = $("sn-drawer-handle");
+    if (!d) return;
+    d.classList.toggle("open", !!on);
+    d.classList.toggle("collapsed", !on);
+    if (handle) handle.setAttribute("aria-expanded", on ? "true" : "false");
+    syncDrawerH();
+  }
+  function renderDrawer() {
+    var body = $("sn-drawer-body");
+    if (!body) return;
+    var guest = !signed();
+    var needProf = false;
+    try { needProf = signed() && !profileReady(); } catch (e) {}
+    var bits = [];
+    bits.push('<p class="note">4418 · quick actions. Profile stays in name / ☰ — never a start popup.</p>');
+    if (guest) bits.push('<button type="button" class="go primary" data-act="drawer-signin">Sign in</button>');
+    else bits.push('<button type="button" class="go" data-act="drawer-you">You · profile</button>');
+    if (needProf) bits.push('<button type="button" class="go primary" data-act="drawer-profile">Complete profile</button>');
+    bits.push('<button type="button" class="go" data-act="drawer-news">News</button>');
+    bits.push('<button type="button" class="go" data-act="drawer-updates">Updates</button>');
+    bits.push('<button type="button" class="go" data-act="drawer-settings">Settings</button>');
+    bits.push('<button type="button" class="go" data-act="drawer-gps">GPS · locate me</button>');
+    body.innerHTML = bits.join("");
+    syncDrawerH();
+  }
+  function bindDrawer() {
+    var d = $("sn-drawer");
+    if (!d || d.__bound4418) return;
+    d.__bound4418 = true;
+    renderDrawer();
+    setDrawerOpen(false);
+    d.addEventListener("click", function (e) {
+      var t = e.target && e.target.closest ? e.target.closest("[data-act],#sn-drawer-handle") : null;
+      if (!t) return;
+      var act = t.id === "sn-drawer-handle" ? "drawer-toggle" : (t.getAttribute("data-act") || "");
+      e.preventDefault(); e.stopPropagation();
+      if (act === "drawer-toggle") { setDrawerOpen(!d.classList.contains("open")); return; }
+      if (act === "drawer-close" || act === "drawer-apply") { setDrawerOpen(false); say(act === "drawer-apply" ? "Start · ready." : "Start closed."); return; }
+      if (act === "drawer-signin") {
+        setDrawerOpen(false);
+        try {
+          if (window.SNAuth && typeof SNAuth.open === "function") SNAuth.open();
+          else if ($("sn-signin")) $("sn-signin").click();
+          else if ($("sn-me")) $("sn-me").click();
+        } catch (eSi) {}
+        return;
+      }
+      if (act === "drawer-you") { setDrawerOpen(false); try { if ($("sn-me")) $("sn-me").click(); } catch (eY) {} return; }
+      if (act === "drawer-profile") { setDrawerOpen(false); try { openProfile(); } catch (eP) {} return; }
+      if (act === "drawer-news") {
+        setDrawerOpen(false);
+        openSheet("NEWS",
+          '<p class="note">SpaceNet news.</p>' +
+          '<p class="note">• GPS returns: globe → national → city, then street drive above 3 km/h.</p>' +
+          '<p class="note">• Bottom START drawer holds sign-in, updates and settings.</p>' +
+          '<p class="note">• Profile is never forced on boot.</p>', false);
+        return;
+      }
+      if (act === "drawer-updates") {
+        setDrawerOpen(false);
+        var ver = "";
+        try { ver = (($("ver") || {}).textContent || "").replace(/^V/, "") || "4418"; } catch (eV) { ver = "4418"; }
+        openSheet("UPDATES",
+          '<p class="note">Loaded build <b>V' + esc(ver) + '</b>.</p>' +
+          '<p class="note">What\'s new in 4418: GPS button hardened, always-visible START drawer, no profile popup on start.</p>' +
+          '<button type="button" class="sheet-go primary" data-act="drawer-check-latest">Check LATEST</button>', false);
+        return;
+      }
+      if (act === "drawer-settings") { setDrawerOpen(false); try { openLeft(); } catch (eS) { try { openMenu(); } catch (eM) {} } return; }
+      if (act === "drawer-gps") { setDrawerOpen(false); try { if ($("gps")) $("gps").click(); } catch (eG) {} return; }
+    });
+    window.addEventListener("resize", function () { try { syncDrawerH(); } catch (eR) {} });
+    setTimeout(syncDrawerH, 200);
+    setTimeout(syncDrawerH, 800);
+  }
+
   /* 4413: burger menu — DataNet / Architect / Settings(AUTOMATIONS) / shortcut toggles */
   var SHORTCUTS_DEF = [
     { id: "power", el: "sn-power", label: "Power" },
@@ -10805,6 +10910,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   function bindChrome() {
     bindGps();
     try { bindBurger(); } catch (eB) {}
+    try { bindDrawer(); } catch (eBD) {}
     try { bindSignIn(); } catch (eSi) {}
     var latest = $("sn-latest");
     var update = $("sn-update");
@@ -11317,6 +11423,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         return;
       }
       if (act === "sheet-apply") { applySheet(); return; }
+      if (act === "drawer-check-latest") { try { var lat = $("sn-latest"); if (lat) lat.click(); } catch (eL) {} return; }
       if ((act === "close" || act === "hide") && t.closest && t.closest("#sn-sheet,#sn-me-sheet")) return;
       if (act === "close" && t.classList && t.classList.contains("bg")) return;
       var id = t.getAttribute("data-id");
@@ -13363,7 +13470,8 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     people = (people || []).filter(function (p) { return !p || !isTestFixture(p) || testView(); });
     try { savePeople(); } catch (ePe) {}
     try { scrubFixtureProfile(); } catch (eSc) {}
-    setTimeout(gateUser, 1400); /* 4408: signed-in → PROFILE from Google identity; guest → nothing */
+    try { bindDrawer(); } catch (eDr) {}
+    setTimeout(gateUser, 1400); /* 4418: never auto-open PROFILE; drawer holds immediate actions */
     locate(function (pt) {
       if (seated || !pt) return;
       /* 4385: only a precise fix (or the stored precise one) is ever "here"; IP / coarse answers are dropped */
@@ -13464,7 +13572,7 @@ window.__SN_4383 = true;
 window.__SN_4384 = true;
 window.__SN_4385 = true;
 window.__SN_4386 = true;
-window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true; window.__SN_4411 = true; window.__SN_4412 = true; window.__SN_4413 = true; window.__SN_4414 = true; window.__SN_4415 = true; window.__SN_4417 = true;
+window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; window.__SN_4390 = true; window.__SN_4391 = true; window.__SN_4392 = true; window.__SN_4393 = true; window.__SN_4394 = true; window.__SN_4395 = true; window.__SN_4396 = true; window.__SN_4397 = true; window.__SN_4398 = true; window.__SN_4399 = true; window.__SN_4400 = true; window.__SN_4401 = true; window.__SN_4402 = true; window.__SN_4403 = true; window.__SN_4404 = true; window.__SN_4405 = true; window.__SN_4406 = true; window.__SN_4407 = true; window.__SN_4408 = true; window.__SN_4409 = true; window.__SN_4410 = true; window.__SN_4410C = true; window.__SN_4410D = true; window.__SN_4410E = true; window.__SN_4411 = true; window.__SN_4412 = true; window.__SN_4413 = true; window.__SN_4414 = true; window.__SN_4415 = true; window.__SN_4417 = true; window.__SN_4418 = true;
     function scenario() {
       var report = { ver: VER, hold: false, faces: 0, menu: false, order: false, route: window.__snRouteW || "", faults: [] };
       try {
@@ -13531,6 +13639,8 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       tileState: function () { var t = window.__snTiles; return t ? { src: t.src, max: t.max, heals: t.heals, lastAt: t.lastAt, why: t.why, z: t.z, osmRun: t.osmRun, altErr: t.altErr, vis: t.vis, ok: t.ok, err: t.err, loading: t.loading } : null; }, /* 4350 */
       seatState: function () { return { kind: seatKind, here: here, hereLive: hereLive, ip: ipView, perm: gpsPerm, liveLoaded: liveLoaded }; },
       gpsFlyTo: function (pt) { return gpsFlyTo(pt); },
+      bindDrawer: function () { return bindDrawer(); },
+      setDrawerOpen: function (on) { return setDrawerOpen(on); },
       startGpsWatch: function () { return startGpsWatch(); },
       stopGpsWatch: function () { return stopGpsWatch(); },
       gpsSpeed: function () { return { kmh: gpsSpeed.smooth, driving: gpsSpeed.driving, watching: !!gpsWatchId }; },
