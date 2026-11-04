@@ -361,7 +361,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     if (!offersLive()) { say("Hold the power button to receive and place orders."); return true; }
     return false;
   }
-  function gateUser() { needReady(); }
+  function gateUser() {}
   function visRect(el) {
     if (!el) return null;
     var cs = getComputedStyle(el);
@@ -1753,14 +1753,14 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       '<button type="button" class="sheet-go" data-act="map-driver">MY DRIVER BASE</button>', true);
   }
   function listAt(pt) {
-    if (needReady()) return;
+    if (needLogin()) return;
     if (!pt || !isFinite(pt.lat) || !isFinite(pt.lng)) return;
     listPt = { lat: pt.lat, lng: pt.lng };
     listAlt = altitudeFromDist(cam.dist);
-    var html = '<button type="button" class="sheet-go primary" data-act="form-vendor">LIST A VENDOR</button>' +
-      '<button type="button" class="sheet-go" data-act="form-drop">LIST A CLIENT</button>' +
-      '<button type="button" class="sheet-go" data-act="form-driver">LIST A DRIVER</button>' +
-      '<button type="button" class="sheet-go" data-act="form-post">POST</button>';
+    var html = '<button type="button" class="sheet-go primary" data-act="form-vendor">VENDOR</button>' +
+      '<button type="button" class="sheet-go" data-act="form-drop">CLIENT</button>' +
+      '<button type="button" class="sheet-go" data-act="form-driver">DRIVER</button>' +
+      '<button type="button" class="sheet-go" data-act="i-am-driver">I AM THE DRIVER HERE</button>';
     openTile({ kind: "list", title: "LIST", html: html });
   }
   function persistListing(row) {
@@ -2395,10 +2395,12 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     }, 200);
   }
   function offersLive() {
-    try { return localStorage.getItem("sn:offers") !== "0"; } catch (e) { return true; }
+    var r = rolesGet();
+    return !!(r && r.driver);
   }
   function openOfferDrawer(job, drivers) {
-    if (!job || !offersLive()) return;
+    if (!job) return;
+    if (!offersLive()) { say("Driver is off. Turn DRIVER on to take this offer."); return; }
     var el = offerDrawer();
     var v = job.vendor || {};
     var d = job.drop || {};
@@ -3449,6 +3451,42 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       });
     });
   }
+  function paintJobDriver(job) {
+    if (!map || !job || typeof L === "undefined") return;
+    var drv = null;
+    people.forEach(function (p) {
+      if (!p || p.role !== "driver" || !isFinite(+p.lat)) return;
+      if (String(p.id) === String(job.driverId) || (job.driver && p.name === job.driver)) drv = p;
+    });
+    if (!drv && driverPin && isFinite(+driverPin.lat)) {
+      drv = { id: driverPin.id || "me-driver", name: driverPin.name || "Driver", role: "driver", lat: driverPin.lat, lng: driverPin.lng, photo: driverPin.photo || "", owner: driverPin.owner || me(), manual: true };
+    }
+    if (!drv) return;
+    var mark = L.marker([+drv.lat, +drv.lng], { icon: faceIcon("driver", drv.photo, drv.name || "driver"), zIndexOffset: 960, draggable: true, keyboard: false, bubblingMouseEvents: false });
+    mark.bindTooltip((drv.name || "Driver") + " · drag along the route", { direction: "top" });
+    mark.on("click", function (e) {
+      if (e && e.originalEvent) L.DomEvent.stop(e.originalEvent);
+      rideArm = drv.id;
+      say((drv.name || "Driver") + " selected. Drag along the route.");
+    });
+    mark.on("dragend", function () {
+      var ll = mark.getLatLng();
+      rideArm = drv.id;
+      nudgeArmed({ lat: ll.lat, lng: ll.lng });
+    });
+    mark.addTo(map);
+    shopMarks.push(mark);
+  }
+  function myVenture() {
+    var i, shop;
+    for (i = 0; i < shops.length; i++) {
+      shop = shops[i];
+      if (!shop || !isFinite(+shop.lat) || shop.status === "denied") continue;
+      if (shop.src && shop.src !== "listed" && shop.src !== "live") continue;
+      if (!shop.owner || shop.owner === me()) return shop;
+    }
+    return null;
+  }
   function paintShopsOnMap() {
     if (!map || typeof L === "undefined") return;
     absorbMine();
@@ -3498,6 +3536,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       var dropMark = L.marker([+focus.drop.lat, +focus.drop.lng], { icon: faceIcon("client", focus.drop.photo, focus.drop.name || "Client"), zIndexOffset: 700, keyboard: false, bubblingMouseEvents: false });
       dropMark.addTo(map);
       shopMarks.push(dropMark);
+      paintJobDriver(focus);
       return;
     }
     if (isAdmin()) paintAdminPins();
@@ -4937,7 +4976,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     function jobBtn(j) {
       var items = (j.lines || []).map(function (l) { return (l.n || 1) + " " + (l.name || "item"); }).join(", ");
       var state = j.received ? "DONE" : j.cancelled ? "CANCELLED" : "PENDING";
-      return '<button type="button" class="sheet-go" data-act="open-job" data-id="' + esc(j.id) + '">' + esc(state + " · " + (j.fee || 0) + " AV€ · " + (items || "order")) + "</button>";
+      var ready = (!j.ready && !j.received && !j.cancelled) ? '<button type="button" class="sheet-go primary" data-act="mark-ready" data-id="' + esc(j.id) + '">READY</button>' : "";
+      return '<button type="button" class="sheet-go" data-act="open-job" data-id="' + esc(j.id) + '">' + esc(state + " · " + (j.fee || 0) + " AV€ · " + (items || "order")) + "</button>" + ready;
     }
     var orders = mineJobs.map(jobBtn).join("");
     var html = '<div class="sn-prof">' + tilePhoto(s.photo, "🏪") + "<div><b>" + esc(s.name || "Vendor") + "</b>" + tileContact(s.phone, where) + "</div></div>" +
@@ -5102,7 +5142,13 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     rideArm = id;
     if (!cityOn) openCity(pt);
     else paintShopsOnMap();
-    if (!quiet) say(name + " is the driver here. Tap the map to move. Start an order from a shop, or hold and tap Start the order.");
+    if (!quiet) say(name + " is the driver here. Offers land in the drawer while DRIVER is on. Drag the pin along the route.");
+    var pending = null;
+    jobs.forEach(function (j) {
+      if (pending || !j || j.driverAccepted || j.received || j.cancelled || !j.vendor || !j.drop) return;
+      pending = j;
+    });
+    if (pending) openDriverOffer(pending, freeDrivers(pending.vendor));
   }
   function snapToLine(p, line) {
     var best = null, bestD = 1e9, i;
@@ -5246,7 +5292,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (!j || j.received || j.cancelled || !j.vendor || !j.drop) return;
       if (String(j.driverId) === String(p.id) || (j.driver && j.driver === p.name)) job = j;
     });
-    if (job && job.test) {
+    if (job && (job.test || isAdmin())) {
       var line = roads[roadKey(job.vendor, job.drop)];
       if (!line || line.length < 2) { say("The route is still drawing."); return; }
       var off = distToRoad(pt, line);
@@ -5372,7 +5418,8 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     drawRoute(job.vendor, job.drop);
     closeSheet();
     closeOfferDrawer();
-    say((job.driver) + " accepted. Route is on. " + job.fee + " AV€ is in the mutual account. Tap the map to move along the route.");
+    paintShopsOnMap();
+    say((job.driver) + " accepted. Route is on. " + job.fee + " AV€ is in the mutual account. Drag the driver along the route.");
   }
   function offerNo(id) {
     var job = jobById(id);
@@ -7109,6 +7156,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       if (act === "i-am-driver") {
         if (!isAdmin()) { say("Only the administrator lists themselves as the driver."); return; }
         if (!listPt) { say("Hold the map first."); return; }
+        setRoleOn("driver", true);
         placeMeDriver(listPt);
         closeSheet();
         return;
@@ -7250,9 +7298,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           nm = "Vendor";
         }
         if (!listPt) { say("Hold the street on the map first."); return; }
-        if (!address) { say("Type the street and the number."); return; }
-        say("Checking " + address + "…");
-        verifyAddress(address, listPt, function (hit) {
+        if (!address && !isAdmin()) { say("Type the street and the number."); return; }
+        if (!address) address = "Pinned";
+        var pinNow = !!isAdmin();
+        say(pinNow ? ("Pinning " + nm) : ("Checking " + address + "…"));
+        var afterHit = function (hit) {
           if (!hit) { say("That address did not resolve. Correct the street and the number."); return; }
           listPt = { lat: hit.lat, lng: hit.lng };
           address = hit.label || address;
@@ -7283,8 +7333,10 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
             if (map) { try { map.setView([listPt.lat, listPt.lng], 17); } catch (e) {} }
           }
           closeSheet();
-          say(nm + " checked. " + address);
-        });
+          say(nm + " is on the map. " + (menu.length ? menu.length + " items." : "Add a price on the row."));
+        };
+        if (pinNow) afterHit({ lat: listPt.lat, lng: listPt.lng, label: address });
+        else verifyAddress(address, listPt, afterHit);
       }
       if (act === "list-drop" || act === "save-drop") {
         if (needLogin()) return;
@@ -7304,9 +7356,11 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           if (!isAdmin()) { say("Your name."); return; }
           dname = "Client";
         }
-        if (!address) { say("Type the street and the number."); return; }
-        say("Checking " + address + "…");
-        verifyAddress(address, listPt, function (hit) {
+        if (!address && !isAdmin()) { say("Type the street and the number."); return; }
+        if (!address) address = "Pinned";
+        var pinDrop = !!isAdmin();
+        say(pinDrop ? ("Pinning " + (dname || "Client")) : ("Checking " + address + "…"));
+        var afterDrop = function (hit) {
           if (!hit) { say("That address did not resolve. Correct the street and the number."); return; }
           listPt = { lat: hit.lat, lng: hit.lng };
           address = hit.label || address;
@@ -7323,8 +7377,17 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
           else paintShopsOnMap();
           if (map) { try { map.setView([listPt.lat, listPt.lng], 17); } catch (e2) {} }
           closeSheet();
-          say((dname || "Client") + " checked. " + address);
-        });
+          var venture = myVenture();
+          if (venture) {
+            var lines = (venture.menu || []).filter(function (m) { return m && m.name; }).slice(0, 8).map(function (m) {
+              return { name: m.name, price: m.price || "", n: 1, vol: m.vol || "", kg: m.kg || "", temp: m.temp || "" };
+            });
+            say((dname || "Client") + " pinned. Starting the order from " + (venture.name || "your vendor") + ".");
+            flyOffer(venture, homeDrop, lines);
+          } else say((dname || "Client") + " pinned. Long-tap a vendor first, then this client starts the order.");
+        };
+        if (pinDrop) afterDrop({ lat: listPt.lat, lng: listPt.lng, label: address });
+        else verifyAddress(address, listPt, afterDrop);
         return;
       }
       if (act === "admin-gps") {
@@ -8521,6 +8584,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     try {
       localStorage.setItem("sn:roles", JSON.stringify(o));
       localStorage.setItem("sn:role", o.driver ? "driver" : o.vendor ? "vendor" : o.client ? "client" : "");
+      localStorage.setItem("sn:offers", o.driver ? "1" : "0");
     } catch (e) {}
     paintRoles();
     if (role === "driver" && on) {
