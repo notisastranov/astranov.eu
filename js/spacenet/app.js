@@ -3478,14 +3478,15 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
     shopMarks.push(mark);
   }
   function myVenture() {
-    var i, shop;
+    var i, shop, loose = null;
     for (i = 0; i < shops.length; i++) {
       shop = shops[i];
       if (!shop || !isFinite(+shop.lat) || shop.status === "denied") continue;
       if (shop.src && shop.src !== "listed" && shop.src !== "live") continue;
-      if (!shop.owner || shop.owner === me()) return shop;
+      if (shop.owner === me()) return shop;
+      if (!loose && !shop.owner) loose = shop;
     }
-    return null;
+    return loose;
   }
   function paintShopsOnMap() {
     if (!map || typeof L === "undefined") return;
@@ -8787,6 +8788,19 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
       }
     } catch (e5) {}
     dropFakes();
+    fetch("/datanet/menus.json?v=4409").then(function (r) { return r.json(); }).then(function (j) {
+      ((j && j.shops) || []).forEach(function (s) {
+        if (!s || !s.name || !isFinite(+s.lat) || !isFinite(+s.lng)) return;
+        shops = shops.filter(function (x) { return !x || x.id !== s.id; });
+        shops.push({
+          id: s.id, name: s.name, lat: +s.lat, lng: +s.lng, kind: s.kind || "shop",
+          phone: s.phone || "", address: s.address || "", menu: s.menu || [],
+          src: "listed", status: s.status || "live", owner: ""
+        });
+      });
+      shops = uniqPlaces(shops);
+      if (cityOn) paintShopsOnMap();
+    }).catch(function () {});
     setTimeout(gateUser, 1400);
     try {
       var purseUser = JSON.parse(localStorage.getItem("sn:user") || "null");
