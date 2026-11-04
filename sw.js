@@ -1,7 +1,7 @@
-/* SpaceNet SW 4422 — one entity. Tree lock. */
-var CACHE = "sn-shell-4422";
-var VER = "4422";
-var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4422", "/js/spacenet/auth.js?v=4422", "/js/vendor/leaflet.js?v=4422", "/js/vendor/leaflet.css?v=4422", "/icon-192.png", "/manifest.webmanifest"];
+/* SpaceNet SW 4423 — one entity. Tree lock. */
+var CACHE = "sn-shell-4423";
+var VER = "4423";
+var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4423", "/js/spacenet/auth.js?v=4423", "/js/vendor/leaflet.js?v=4423", "/js/vendor/leaflet.css?v=4423", "/icon-192.png", "/manifest.webmanifest"];
 function allowedScript(path) {
   return /\/js\/(spacenet\/(app|auth)|vendor\/leaflet)\.js/.test(path);
 }
