@@ -1241,6 +1241,8 @@
     paintMoney: paintMoney,
     avcGet: avc,
     walletLabel: walletLabel,
+    map: function () { return map; },
+    openList: openList,
     setRoleOn: function (role, on) {
       var r = roles();
       r[role] = !!on;
