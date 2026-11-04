@@ -4,26 +4,26 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4420"/>
+<meta name="astranov-build" content="4421"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
-<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4420"/>
+<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4421"/>
 <style>
 :root{
   --bg:#02040a; --fg:#e8fbff; --muted:#8ec8d8; --accent:#4df0ff;
   --safe-t:max(8px, env(safe-area-inset-top));
   --safe-b:max(8px, env(safe-area-inset-bottom));
-  --drawer-h:48px;
+  --drawer-h:10px;
 }
 html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:system-ui,sans-serif;overflow:hidden}
 #map{position:fixed;inset:0;background:var(--bg)}
 button,input{font-family:inherit}
 button{cursor:pointer}
 
-#top{position:fixed;z-index:40;top:0;left:0;right:0;height:calc(var(--safe-t) + 48px);display:flex;align-items:flex-end;justify-content:space-between;padding:0 12px 6px;pointer-events:none}
+#top{position:fixed;z-index:40;top:0;left:0;right:0;height:calc(var(--safe-t) + 10px);display:flex;align-items:flex-end;justify-content:space-between;padding:0 12px 6px;pointer-events:none}
 #logo{pointer-events:auto;border:0;background:transparent;color:#4df0ff;font:800 18px/1 system-ui;letter-spacing:.22em;padding:8px 4px}
 #sn-support{pointer-events:auto;width:44px;height:44px;border-radius:999px;border:1.5px solid rgba(255,90,90,.9);background:rgba(22,4,6,.96);color:#ffb4b4;font-size:20px;box-shadow:0 0 12px rgba(255,40,40,.35)}
 
@@ -68,16 +68,21 @@ textarea.field{min-height:88px}
 .pin.me{border-color:#fff;background:#1a3cff}
 .pin.drop{border-color:#7dff9a}
 .pin.drv{border-color:#ffb020}
+#sn-topchrome-drag,#cli-drag{height:10px;min-height:10px;max-height:10px;width:100%;font-size:0;line-height:0;color:transparent;overflow:hidden;pointer-events:auto;background:transparent;border:0;padding:0;margin:0;cursor:grab;user-select:none}
+#sn-topchrome-drag::before,#sn-topchrome-drag::after,#cli-drag::before,#cli-drag::after{content:none}
+#handle{height:10px;min-height:10px;max-height:10px;font-size:0;color:transparent;overflow:hidden;border:0;background:transparent}
+
 </style>
 </head>
 <body>
 <div id="map"></div>
+<div id="sn-topchrome-drag" class="sn-trivial-law" aria-hidden="true"></div>
 <header id="top">
   <button type="button" id="logo" aria-label="Astranov">ASTRANOV</button>
   <button type="button" id="sn-support" aria-label="Support">🎧</button>
 </header>
 <form id="search">
-  <input id="q" autocomplete="off" enterkeyhint="search" placeholder="Search a place"/>
+  <input id="q" autocomplete="off" enterkeyhint="search" placeholder="Command the HUD · show, hide, or reshape"/>
   <button type="button" id="mic" aria-label="Speak a search">🎤</button>
 </form>
 <button type="button" id="sn-burger" aria-label="Menu" aria-expanded="false">☰</button>
@@ -91,12 +96,13 @@ textarea.field{min-height:88px}
   <button type="button" id="sn-compass">COMPASS</button>
 </nav>
 <div id="drawer">
+  <div id="cli-drag" class="sn-trivial-law" aria-hidden="true"></div>
   <button type="button" id="handle">OFFERS</button>
   <div id="sheet"></div>
 </div>
 <div id="toast" role="status"></div>
-<script src="/js/vendor/leaflet.js?v=4420"></script>
-<script src="/js/spacenet/app.js?v=4420"></script>
-<script src="/js/spacenet/auth.js?v=4420"></script>
+<script src="/js/vendor/leaflet.js?v=4421"></script>
+<script src="/js/spacenet/app.js?v=4421"></script>
+<script src="/js/spacenet/auth.js?v=4421"></script>
 </body>
 </html>

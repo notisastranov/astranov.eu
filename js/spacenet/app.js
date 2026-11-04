@@ -1,4 +1,4 @@
-/* SpaceNet 4420 — map, search, one menu, one drawer. No leftover chrome. */
+/* SpaceNet 4421 — map, search, one menu, one drawer. No leftover chrome. */
 (function () {
   "use strict";
   var RHODES = { lat: 36.434, lng: 28.217 };
@@ -706,7 +706,7 @@
     $("logo").addEventListener("click", function () { map.setView([RHODES.lat, RHODES.lng], 13); });
   }
   function loadShops() {
-    fetch("/datanet/menus.json?v=4420").then(function (r) { return r.json(); }).then(function (j) {
+    fetch("/datanet/menus.json?v=4421").then(function (r) { return r.json(); }).then(function (j) {
       shops = ((j && j.shops) || []).filter(function (s) { return s && isFinite(+s.lat) && isFinite(+s.lng) && s.src !== "fake"; });
       draw();
     }).catch(function () { say("Menus did not load."); });
@@ -722,7 +722,7 @@
       write("sn:roles", JSON.stringify(r));
     }
   };
-  window.__SN_4420 = true;
+  window.__SN_4421 = true;
   paintPower();
   paintMoney();
   bootMap();
