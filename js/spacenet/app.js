@@ -8,7 +8,7 @@ If the reload fails, both numbers stay. UPDATE NOW forces the update again.
 (function () {
   "use strict";
   var SPEC = "On every start the top states V and the loaded number, then LATEST. If the loaded number is older, clear caches and service workers and hard-reload. Never clear the wallet, listings, jobs, or queue. If the reload fails, both numbers stay. UPDATE NOW forces the update again."; window.__SN_APPJS = true; /* 4393: the start watchdog sees app.js ran and never reloads it */
-  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4415"; })();
+  var VER = (function () { /* 4380: the ribbon number is the build stamp (page meta, else this script's ?v=), never a stale literal */ try { var m = document.querySelector('meta[name="astranov-build"]'); if (m && /^\d{4,}$/.test(m.content || "")) return m.content; var cs = document.currentScript && String(document.currentScript.src || "").match(/[?&]v=(\d{4,})/); if (cs) return cs[1]; } catch (eV) {} return "4419"; })();
   var latestVer = "";
   var INTRO_MS = 4500, INTRO_MIN = 1500; /* 4341: boot zooms as soon as a location answers (>= 1.5 s of globe), at most 4.5 s of countdown */
   var LAND = [];
@@ -1691,6 +1691,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   window.__SN_4415 = true; /* 4415: merge main 4407 burger+auth; sign-in entry; no TESTER PROFILE; real ⭐; Athens GR */
   window.__SN_4417 = true; /* 4417: hunt pin + clear GPS always tier-fly; speed>3 drive; raw<=3 arms 20s drone revert */
   window.__SN_4418 = true; /* 4418: GPS harden + always-visible bottom drawer + no auto PROFILE on start */
+  window.__SN_4419 = true; /* 4419: merge main 4419 (Rhodes menus.json); pending offer on I AM THE DRIVER; stamps 4419 incl headers */
 (function () { /* 4411: NORTH compass stacks above the real GPS rect at every width, so the two never collide */
   function stackNorth() {
     try {
@@ -8369,10 +8370,10 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       if (act === "drawer-updates") {
         setDrawerOpen(false);
         var ver = "";
-        try { ver = (($("ver") || {}).textContent || "").replace(/^V/, "") || "4418"; } catch (eV) { ver = "4418"; }
+        try { ver = (($("ver") || {}).textContent || "").replace(/^V/, "") || "4419"; } catch (eV) { ver = "4419"; }
         openSheet("UPDATES",
           '<p class="note">Loaded build <b>V' + esc(ver) + '</b>.</p>' +
-          '<p class="note">What\'s new in 4418: GPS button hardened, always-visible START drawer, no profile popup on start.</p>' +
+          '<p class="note">What\'s new in 4419: Rhodes shop menus and prices, GPS button, always-visible START drawer, no profile popup on start.</p>' +
           '<button type="button" class="sheet-go primary" data-act="drawer-check-latest">Check LATEST</button>', false);
         return;
       }
@@ -9086,6 +9087,13 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     if (!cityOn) openCity(pt);
     else paintShopsOnMap();
     say(name + " is the driver here. Tap the map to move. Start an order from a shop, or hold and tap Start the order.");
+    /* 4419 (from main 4408): a pending order waiting for a driver opens its offer right away */
+    var pending = null;
+    jobs.forEach(function (j) {
+      if (pending || !j || j.driverAccepted || j.received || j.cancelled || !j.vendor || !j.drop) return;
+      pending = j;
+    });
+    if (pending) { try { openDriverOffer(pending); } catch (eP) {} }
   }
   function snapToLine(p, line) {
     var best = null, bestD = 1e9, i;
@@ -13472,6 +13480,19 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     try { scrubFixtureProfile(); } catch (eSc) {}
     try { bindDrawer(); } catch (eDr) {}
     setTimeout(gateUser, 1400); /* 4418: never auto-open PROFILE; drawer holds immediate actions */
+    fetch("/datanet/menus.json?v=4419").then(function (r) { return r.json(); }).then(function (j) {
+      ((j && j.shops) || []).forEach(function (s) {
+        if (!s || !s.name || !isFinite(+s.lat) || !isFinite(+s.lng)) return;
+        shops = shops.filter(function (x) { return !x || x.id !== s.id; });
+        shops.push({
+          id: s.id, name: s.name, lat: +s.lat, lng: +s.lng, kind: s.kind || "shop",
+          phone: s.phone || "", address: s.address || "", menu: s.menu || [],
+          src: "listed", status: s.status || "live", owner: ""
+        });
+      });
+      shops = uniqPlaces(shops);
+      if (cityOn) paintShopsOnMap();
+    }).catch(function () {});
     locate(function (pt) {
       if (seated || !pt) return;
       /* 4385: only a precise fix (or the stored precise one) is ever "here"; IP / coarse answers are dropped */
