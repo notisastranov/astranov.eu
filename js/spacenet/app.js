@@ -356,7 +356,11 @@
           src: p.src || "find",
           menu: []
         };
-      }).filter(function (s) { return s.name && isFinite(s.lat) && !isTestFixture(s); });
+      }).filter(function (s) {
+        if (!s.name || !isFinite(s.lat) || isTestFixture(s)) return false;
+        /* belt: never keep pins outside the view city radius (blocks Spain/Germany Photon leaks) */
+        return haversine(center, s) < 80;
+      });
       if (rows.length) return rows;
       return overpassCategory(cat, center, 12000).then(function (ov) {
         if (ov && ov.length) return ov;
