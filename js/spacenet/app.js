@@ -1691,7 +1691,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   window.__SN_4415 = true; /* 4415: merge main 4407 burger+auth; sign-in entry; no TESTER PROFILE; real ⭐; Athens GR */
   window.__SN_4417 = true; /* 4417: hunt pin + clear GPS always tier-fly; speed>3 drive; raw<=3 arms 20s drone revert */
   window.__SN_4418 = true; /* 4418: GPS harden + always-visible bottom drawer + no auto PROFILE on start */
-  window.__SN_4420 = true; /* 4420: sheet above START drawer; thin route ≤4px; SW update catch; wallet SQL owner step; stamps 4420 */
+  window.__SN_4420 = true; /* 4420/4420b: sheet above START; thin route; SW catch; form cards no max-content scroll; wallet SQL owner step */
   window.__SN_4419 = true; /* keep prior flag for older suite probes */
 (function () { /* 4411: NORTH compass stacks above the real GPS rect at every width, so the two never collide */
   function stackNorth() {
@@ -3992,8 +3992,8 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       "#sn-sheet .card{position:absolute!important;left:14px!important;right:14px!important;width:auto!important;transform:none!important;bottom:calc(var(--drawer-h, 36px) + var(--dock, 0px) + var(--safe-b, 0px) + 8px)!important;height:auto!important;max-height:min(42vh, var(--sn-rest, 30vh))!important;box-sizing:border-box!important;padding:0!important;margin:0!important;border-radius:16px!important;border:1px solid rgba(77,240,255,.65)!important;overflow:hidden!important;background:rgba(4,16,32,.58)!important;backdrop-filter:blur(8px)!important;box-shadow:0 0 22px rgba(77,240,255,.28), inset 0 0 28px rgba(77,240,255,.06)!important}",
       "#sn-sheet-body{overflow-x:hidden!important;overflow-y:auto!important;max-height:calc(min(42vh, var(--sn-rest, 30vh)) - 48px)!important;-webkit-overflow-scrolling:touch!important;touch-action:pan-y!important;padding:8px 10px 12px!important;max-width:100%!important}", /* 4420: single vertical scroll; never horizontal */
       /* 4376 (main ab5159d V4370): menus fit the text — the body shrink-wraps; the grip keeps the height */
-      "#sn-sheet-body{width:max-content!important;max-width:100%!important;box-sizing:border-box!important}",
-      ".sn-zoom{width:max-content!important;max-width:100%!important;padding:0!important}",
+      "#sn-sheet-body{width:100%!important;max-width:100%!important;box-sizing:border-box!important;overflow-x:hidden!important}", /* 4420b */
+      ".sn-zoom{width:100%!important;max-width:100%!important;padding:0!important;box-sizing:border-box!important}", /* 4420b */
       "#sn-sheet .sheet-bar{display:flex!important;align-items:stretch!important;gap:0!important;margin:0!important;padding:0!important;width:100%!important;position:sticky!important;top:0!important;z-index:5!important;height:48px!important;border-radius:16px 16px 0 0!important;overflow:hidden!important;background:rgba(4,16,28,.42)!important}",
       "#sn-sheet.offer .sheet-bar{height:48px!important}",
       "#sn-sheet .sheet-apply,#sn-sheet .sheet-x{flex:none!important;display:flex!important;align-items:center!important;justify-content:center!important;min-width:56px!important;height:48px!important;margin:0!important;padding:0 8px!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;pointer-events:auto!important;z-index:6!important}",
@@ -4159,7 +4159,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       "#cli-drag.sn-grip.max::after,#cli-drag.sn-grip.min::after{content:\"MAX\"!important;display:block!important;position:absolute!important;left:50%!important;top:0!important;transform:translateX(-50%)!important;padding:1px 8px!important;border-radius:8px!important;background:rgba(40,22,0,.82)!important;color:#ffb347!important;font:800 10px/12px system-ui,sans-serif!important;letter-spacing:.1em!important;box-shadow:0 0 8px rgba(255,179,71,.7)!important;pointer-events:none!important}",
       "#cli-drag.sn-grip.min::after{content:\"REST\"!important}",
       "#sn-sheet.sn-spring .card,#sn-sheet.sn-spring #sn-sheet-body{transition:height .34s cubic-bezier(.2,.9,.3,1.25),max-height .34s cubic-bezier(.2,.9,.3,1.25)!important}",
-      "#sn-sheet .card,#sn-sheet.tall .card{max-height:var(--sn-rest,30vh)!important}#sn-tasks .card{max-height:42vh!important}",
+      "#sn-sheet .card,#sn-sheet.tall .card{max-height:min(42vh, var(--sn-rest, 30vh))!important;min-height:min(220px,42vh)!important}#sn-tasks .card{max-height:42vh!important}", /* 4420b */
       "#top{top:0!important;left:0!important;right:0!important;margin:0!important;padding:0!important;height:32px!important;min-height:32px!important;max-height:32px!important;overflow:hidden!important;display:flex!important;flex-direction:column!important}",
       "#island{position:relative!important;z-index:2!important;display:flex!important;align-items:center!important;gap:8px!important;height:32px!important;max-height:32px!important;margin:0!important;padding:0 36px!important;overflow:hidden!important}",
       "#island .r1{flex:none!important;flex-wrap:nowrap!important;white-space:nowrap!important;overflow:hidden!important;height:32px!important;align-items:center!important}",
@@ -4171,7 +4171,8 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       "#sn-sheet.research .card{max-height:78vh!important}",
       "#sn-sheet.research #sn-sheet-body{max-height:calc(78vh - 52px)!important}",
       /* 4376 (main V4370): the card is as wide as its text, centred, 280..340 px; height stays the grip's (--sn-rest) */
-      "#sn-sheet .card,#sn-sheet.tall .card,#sn-tasks .card,#sn-sheet.tile .card{left:50%!important;right:auto!important;width:max-content!important;min-width:min(280px,calc(100vw - 28px))!important;max-width:min(340px,calc(100vw - 28px))!important;transform:translateX(-50%)!important}",
+      "#sn-sheet .card,#sn-sheet.tall .card,#sn-tasks .card{left:14px!important;right:14px!important;width:auto!important;min-width:0!important;max-width:none!important;transform:none!important}", /* 4420b */
+      "#sn-sheet.tile .card{left:50%!important;right:auto!important;width:max-content!important;min-width:min(280px,calc(100vw - 28px))!important;max-width:min(340px,calc(100vw - 28px))!important;transform:translateX(-50%)!important}",
       "#sn-power{position:fixed!important;top:auto!important;left:max(8px,env(safe-area-inset-left))!important;right:auto!important;bottom:calc(var(--dock) + 16px)!important;width:48px!important;height:48px!important;transform:none!important;z-index:46!important}",
       "#sn-power svg{width:22px!important;height:22px!important}",
       "#sn-support{position:fixed!important;top:0!important;right:max(2px,env(safe-area-inset-right))!important;left:auto!important;bottom:auto!important;width:32px!important;height:32px!important;font-size:14px!important;transform:none!important;z-index:60!important}",
@@ -5057,6 +5058,28 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       if (map.getZoom() < 15) map.setZoom(16);
     } catch (e) {}
   }
+  function fitFormSheet() {
+    /* 4420b: vendor/client/driver form cards — ≤42%, above START, body-only vertical scroll */
+    requestAnimationFrame(function () {
+      var card = $("sn-sheet-card"), body = $("sn-sheet-body"), sh = $("sn-sheet");
+      if (!card || !body || !sh || !sh.classList.contains("on")) return;
+      if (sh.classList.contains("tile") || sh.classList.contains("offer")) return;
+      try { if (typeof setDrawerOpen === "function") setDrawerOpen(false); } catch (e0) {}
+      try { syncDrawerH && syncDrawerH(); } catch (e1) {}
+      var bar = card.querySelector(".sheet-bar");
+      var need = (bar ? bar.offsetHeight : 48) + body.scrollHeight + 16;
+      var cap = Math.max(200, Math.floor(window.innerHeight * 0.42));
+      var h = Math.min(Math.max(need, 220), cap);
+      card.style.setProperty("height", h + "px", "important");
+      card.style.setProperty("max-height", h + "px", "important");
+      card.style.setProperty("overflow", "hidden", "important");
+      body.style.setProperty("max-height", Math.max(0, h - (bar ? bar.offsetHeight : 48)) + "px", "important");
+      body.style.setProperty("overflow-x", "hidden", "important");
+      body.style.setProperty("overflow-y", need > h ? "auto" : "hidden", "important");
+      body.style.setProperty("width", "100%", "important");
+      try { if (window.__snGrip && window.__snGrip.place) window.__snGrip.place(); } catch (eG) {}
+    });
+  }
   function openSheet(title, html, tall, mid) {
     var sh = $("sn-sheet"), card = $("sn-sheet-card");
     if (!sh || !card) return;
@@ -5087,6 +5110,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     materialize(false);
     liftChrome();
     if (sh.classList.contains("offer")) setTimeout(fitOfferRoute, 40);
+    if (tall && !sh.classList.contains("tile") && !sh.classList.contains("offer")) setTimeout(fitFormSheet, 40); /* 4420b */
   }
   function armPinch(body) {
     if (!body || body.__pinch) return;
@@ -11669,6 +11693,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
         placePhoto = "";
         openSheet("VENDOR", vendorSheet(), true);
         addMenuRow(true);
+        try { fitFormSheet(); } catch (eFit) {}
       }
       if (act === "edit-vendor") { openVendorEdit(id); return; }
       if (act === "delete-vendor") { deleteVendor(id); return; }
