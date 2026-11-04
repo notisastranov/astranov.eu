@@ -1691,7 +1691,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
   window.__SN_4415 = true; /* 4415: merge main 4407 burger+auth; sign-in entry; no TESTER PROFILE; real ⭐; Athens GR */
   window.__SN_4417 = true; /* 4417: hunt pin + clear GPS always tier-fly; speed>3 drive; raw<=3 arms 20s drone revert */
   window.__SN_4418 = true; /* 4418: GPS harden + always-visible bottom drawer + no auto PROFILE on start */
-  window.__SN_4420 = true; /* 4420/4420b: sheet above START; thin route; SW catch; form cards no max-content scroll; wallet SQL owner step */
+  window.__SN_4420 = true; /* 4420/4420b/4420c: sheet above START; thin route; SW catch; tall form no h-overflow; wallet SQL owner step */
   window.__SN_4419 = true; /* keep prior flag for older suite probes */
 (function () { /* 4411: NORTH compass stacks above the real GPS rect at every width, so the two never collide */
   function stackNorth() {
@@ -4172,6 +4172,11 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       "#sn-sheet.research #sn-sheet-body{max-height:calc(78vh - 52px)!important}",
       /* 4376 (main V4370): the card is as wide as its text, centred, 280..340 px; height stays the grip's (--sn-rest) */
       "#sn-sheet .card,#sn-sheet.tall .card,#sn-tasks .card{left:14px!important;right:14px!important;width:auto!important;min-width:0!important;max-width:none!important;transform:none!important}", /* 4420b */
+      "#sn-sheet.tall #sn-sheet-body,#sn-sheet.tall #sn-rows,#sn-sheet.tall .sn-row,#sn-sheet.tall .sn-zoom{width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important;overflow-x:hidden!important}", /* 4420c */
+      "#sn-sheet.tall input,#sn-sheet.tall textarea,#sn-sheet.tall .sn-row input{width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important}", /* 4420c */
+      "#sn-sheet.tall .sn-photo,#sn-sheet.tall .phbtn{max-width:100%!important}", /* 4420c */
+      "#sn-sheet.tall .sn-trio{width:100%!important;max-width:100%!important;grid-template-columns:1fr 1fr 1fr!important}", /* 4420c */
+      "#sn-sheet.tall #sn-sheet-body p.note,#sn-sheet.tall .note{min-width:0!important;max-width:100%!important;width:100%!important}", /* 4420c */
       "#sn-sheet.tile .card{left:50%!important;right:auto!important;width:max-content!important;min-width:min(280px,calc(100vw - 28px))!important;max-width:min(340px,calc(100vw - 28px))!important;transform:translateX(-50%)!important}",
       "#sn-power{position:fixed!important;top:auto!important;left:max(8px,env(safe-area-inset-left))!important;right:auto!important;bottom:calc(var(--dock) + 16px)!important;width:48px!important;height:48px!important;transform:none!important;z-index:46!important}",
       "#sn-power svg{width:22px!important;height:22px!important}",
@@ -5059,7 +5064,7 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
     } catch (e) {}
   }
   function fitFormSheet() {
-    /* 4420b: vendor/client/driver form cards — ≤42%, above START, body-only vertical scroll */
+    /* 4420b/4420c: vendor/client/driver form cards — ≤42%, above START, body-only vertical scroll; no horizontal overflow */
     requestAnimationFrame(function () {
       var card = $("sn-sheet-card"), body = $("sn-sheet-body"), sh = $("sn-sheet");
       if (!card || !body || !sh || !sh.classList.contains("on")) return;
@@ -5079,6 +5084,17 @@ window.__SN_4387 = true; window.__SN_4388 = true; window.__SN_4389 = true; windo
       body.style.setProperty("width", "100%", "important");
       try { if (window.__snGrip && window.__snGrip.place) window.__snGrip.place(); } catch (eG) {}
     });
+
+    try {
+      var body = $("sn-sheet-body");
+      if (body) {
+        body.style.overflowX = "hidden";
+        body.style.maxWidth = "100%";
+        Array.prototype.forEach.call(body.querySelectorAll("input,textarea,.sn-row,#sn-rows,.note,.sn-photo,.phbtn,.sn-trio"), function (el) {
+          try { el.style.maxWidth = "100%"; el.style.boxSizing = "border-box"; } catch (e1) {}
+        });
+      }
+    } catch (eC) {} /* 4420c */
   }
   function openSheet(title, html, tall, mid) {
     var sh = $("sn-sheet"), card = $("sn-sheet-card");
