@@ -1,9 +1,9 @@
-/* SpaceNet SW 4423 — one entity. Tree lock. */
-var CACHE = "sn-shell-4423";
-var VER = "4423";
-var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4423", "/js/spacenet/auth.js?v=4423", "/js/vendor/leaflet.js?v=4423", "/js/vendor/leaflet.css?v=4423", "/icon-192.png", "/manifest.webmanifest"];
+/* SpaceNet SW 4424 — one entity. Tree lock. */
+var CACHE = "sn-shell-4424";
+var VER = "4424";
+var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4424", "/js/spacenet/portions.js?v=4424", "/js/spacenet/auth.js?v=4424", "/js/vendor/leaflet.js?v=4424", "/js/vendor/leaflet.css?v=4424", "/icon-192.png", "/manifest.webmanifest"];
 function allowedScript(path) {
-  return /\/js\/(spacenet\/(app|auth)|vendor\/leaflet)\.js/.test(path);
+  return /\/js\/(spacenet\/(app|auth|portions)|vendor\/leaflet)\.js/.test(path);
 }
 self.addEventListener("install", function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(SHELL); }).then(function () { return self.skipWaiting(); }));
