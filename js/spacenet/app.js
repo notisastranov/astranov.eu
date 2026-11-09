@@ -1,4 +1,4 @@
-/* SpaceNet 4424 — map, search, one menu, one drawer. GPS tiers + stockpile fixes. */
+/* SpaceNet 4425 — map, search, one menu, one drawer. GPS tiers + stockpile fixes. */
 (function () {
   "use strict";
   var RHODES = { lat: 36.434, lng: 28.217 };
@@ -268,7 +268,7 @@
     q = String(q || "").trim();
     if (q.length < 2) return Promise.resolve(null);
     var center = opts.center || mapCenter();
-    /* 4424: national landmarks (Syntagma etc.) must NOT inherit view-city (Rhodes) Photon bias */
+    /* 4425: national landmarks (Syntagma etc.) must NOT inherit view-city (Rhodes) Photon bias */
     var landmark = /syntagma|συνταγμα|σύνταγμα|acropolis|ακροπολ|monastiraki|μοναστηρακ|plaka|πλακα|ocolonaki|κολωνακ|othonos|οθωνοσ/i.test(q);
     var preferGR = landmark || /greece|hellas|athens|athina|rhodes|rodos|crete|αθην/i.test(q) || !!viewCityHint();
     var url = "/api/find?limit=8&q=" + encodeURIComponent(q);
@@ -433,9 +433,9 @@
   }
   function paintStamp() {
     var el = $("sn-ribbon");
-    if (el) el.textContent = "SpaceNet V4424";
+    if (el) el.textContent = "SpaceNet V4425";
     var m = $("sn-stamp-menu");
-    if (m) m.textContent = "SpaceNet V4424";
+    if (m) m.textContent = "SpaceNet V4425";
   }
   function icon(cls, letter) {
     return L.divIcon({ className: "", iconSize: [36, 36], iconAnchor: [18, 18], html: '<div class="pin ' + cls + '">' + esc(letter) + "</div>" });
@@ -612,7 +612,7 @@
     openDrawer("MONEY",
       '<p class="price">' + esc(label.replace(" · guest", "")) + "</p>" +
       '<p class="note">' + esc(note) + "</p>" +
-      '<p class="note">SpaceNet V4424</p>', "MONEY");
+      '<p class="note">SpaceNet V4425</p>', "MONEY");
   }
   function shopById(id) {
     for (var i = 0; i < shops.length; i++) if (shops[i].id === id) return shops[i];
@@ -822,7 +822,7 @@
     if (phone) {
       try {
         say("Calling " + phone + "…");
-        /* 4424: toast first — headless/tel: navigations can abort before say */
+        /* 4425: toast first — headless/tel: navigations can abort before say */
         location.href = "tel:" + phone;
         return;
       } catch (e) { say("Could not open the dialer."); return; }
@@ -1182,8 +1182,8 @@
   function bootChrome() {
     function bind(id, fn) {
       var el = $(id);
-      if (!el || el.__sn4424) return;
-      el.__sn4424 = true;
+      if (!el || el.__sn4425) return;
+      el.__sn4425 = true;
       el.addEventListener("click", function (e) {
         e.preventDefault();
         e.stopPropagation();
@@ -1214,8 +1214,8 @@
       say("North is up.");
     });
     var form = $("search");
-    if (form && !form.__sn4424) {
-      form.__sn4424 = true;
+    if (form && !form.__sn4425) {
+      form.__sn4425 = true;
       form.addEventListener("submit", function (e) { e.preventDefault(); searchTo($("q").value); });
     }
     bind("mic", function () {
@@ -1233,8 +1233,8 @@
     });
     bind("logo", function () { map.setView([RHODES.lat, RHODES.lng], 13); });
     /* Esc closes any sheet; never leave PROFILE stuck */
-    if (!window.__snEsc4424) {
-      window.__snEsc4424 = true;
+    if (!window.__snEsc4425) {
+      window.__snEsc4425 = true;
       document.addEventListener("keydown", function (e) {
         if (e.key === "Escape" || e.keyCode === 27) {
           if ($("menu") && !$("menu").hidden) {
@@ -1249,8 +1249,8 @@
     }
     /* backup bind for sn-me if auth missed it */
     var meBtn = $("sn-me");
-    if (meBtn && !meBtn.__sn4424me) {
-      meBtn.__sn4424me = true;
+    if (meBtn && !meBtn.__sn4425me) {
+      meBtn.__sn4425me = true;
       meBtn.addEventListener("click", function (e) {
         e.preventDefault();
         e.stopPropagation();
@@ -1260,7 +1260,7 @@
     }
   }
   function loadShops() {
-    fetch("/datanet/menus.json?v=4424").then(function (r) { return r.json(); }).then(function (j) {
+    fetch("/datanet/menus.json?v=4425").then(function (r) { return r.json(); }).then(function (j) {
       shops = ((j && j.shops) || []).filter(function (s) {
         return s && isFinite(+s.lat) && isFinite(+s.lng) && s.src !== "fake" && !isTestFixture(s);
       });
@@ -1294,9 +1294,9 @@
     gpsSpeed: function () { return { kmh: gpsSpeed.smooth, driving: gpsSpeed.driving, watching: !!gpsWatchId }; },
     __holdMs: HOLD_MS,
     huntCount: function () { return huntMarkers.length; },
-    __build: "4424"
+    __build: "4425"
   };
-  window.__SN_4424 = true;
+  window.__SN_4425 = true;
   scrubLegacyWallet();
   paintStamp();
   paintPower();

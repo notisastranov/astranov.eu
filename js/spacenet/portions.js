@@ -1,5 +1,6 @@
 /* Individual land portions. Official KAEK polygons where the operating cadastre has them.
-   Rhodes is not in that layer: the solid rings are the Italian individual portions. */
+   Rhodes is not in that layer: the solid rings are the Italian individual portions.
+   PORTIONS never silently no-ops — every path speaks an honest state. */
 (function () {
   var VAULT = [
     { name: "Particella 214", kind: "individual", ring: [[36.291326, 27.947511], [36.291362, 27.948358], [36.291847, 27.948403], [36.291811, 27.947556]] },
@@ -11,9 +12,21 @@
   var PORTION_ZOOM = 15;
   var group = null;
   var token = 0;
+  var lastMsg = "";
 
   function say(text) {
+    text = String(text || "");
+    lastMsg = text;
     if (window.SN && window.SN.say) window.SN.say(text);
+    else {
+      var el = document.getElementById("toast");
+      if (el) {
+        el.textContent = text;
+        el.classList.add("on");
+        clearTimeout(say._t);
+        say._t = setTimeout(function () { el.classList.remove("on"); }, 4200);
+      }
+    }
   }
 
   function ringsOf(geom) {
@@ -43,22 +56,33 @@
     });
   }
 
-  function load(map) {
-    if (!group) return;
+  function inVaultBounds(west, south, east, north) {
+    return west < 27.951 && east > 27.946 && south < 36.294 && north > 36.290;
+  }
+
+  function load(map, opts) {
+    opts = opts || {};
+    var forced = !!opts.forced;
+    if (!group || !map) {
+      if (forced) say("Map is not ready for parcels yet.");
+      return;
+    }
     group.clearLayers();
     var z = map.getZoom();
-    if (z < PORTION_ZOOM) {
-      if (z < 8) say("National view. Zoom in past Greece to open each land portion.");
-      return;
-    }
     var b = map.getBounds();
     var west = b.getWest(), south = b.getSouth(), east = b.getEast(), north = b.getNorth();
-    var inVault = west < 27.951 && east > 27.946 && south < 36.294 && north > 36.290;
-    if (inVault) drawVault(map);
-    if (east - west > 0.04 || north - south > 0.04) {
-      say(inVault ? "Italian individual portions. Zoom closer for official KAEK lines where they exist." : "Zoom in to see all parcels");
+    var vault = inVaultBounds(west, south, east, north);
+
+    if (z < PORTION_ZOOM) {
+      if (forced || z < 8) say("Zoom in to see parcels");
       return;
     }
+    if (vault) drawVault(map);
+    if (east - west > 0.04 || north - south > 0.04) {
+      say("Zoom in to see parcels");
+      return;
+    }
+
     var mine = ++token;
     var q = "/api/parcels?west=" + west.toFixed(5) + "&south=" + south.toFixed(5) + "&east=" + east.toFixed(5) + "&north=" + north.toFixed(5);
     fetch(q).then(function (r) { return r.json(); }).then(function (body) {
@@ -72,30 +96,71 @@
           .bindTooltip(kaek, { sticky: true })
           .addTo(group);
       });
-      if (body && (body.truncated || body.reason === "zoom")) {
-        say("Zoom in to see all parcels");
-      } else if (!features.length && inVault) {
-        say("No official portion boundaries on Rhodes yet. Solid rings are the Italian individual portions. The dashed ring is only the cumulative sheet.");
+      if (!body || body.ok === false) {
+        say((body && body.error) || "Parcel data failed to load");
+      } else if (body.truncated || body.reason === "zoom") {
+        say(body.message || "Zoom in to see parcels");
       } else if (features.length) {
         say(features.length + " official land portions in this frame, each with a KAEK.");
+      } else if (vault) {
+        say("No official portion boundaries on Rhodes yet. Solid rings are the Italian individual portions. The dashed ring is only the cumulative sheet.");
+      } else {
+        say("No parcel data here");
       }
     }).catch(function () {
-      if (inVault) say("Official portion lines did not load. The Italian individual graphs stay on.");
+      if (vault) say("Official portion lines did not load. The Italian individual graphs stay on.");
+      else say("Parcel data failed to load");
     });
+  }
+
+  function onPortionsClick() {
+    var map = window.__SN_MAP;
+    if (!map || !window.L) {
+      say("Map is not ready for parcels yet.");
+      return;
+    }
+    if (!group) {
+      group = L.layerGroup().addTo(map);
+      map.on("moveend", function () { load(map, { forced: false }); });
+    }
+    // Close the burger so the toast is visible
+    var menu = document.getElementById("menu");
+    if (menu) menu.hidden = true;
+    var burger = document.getElementById("sn-burger");
+    if (burger) burger.setAttribute("aria-expanded", "false");
+    load(map, { forced: true });
   }
 
   function attach() {
     var map = window.__SN_MAP;
-    if (!map || !window.L) return;
-    group = L.layerGroup().addTo(map);
-    map.on("moveend", function () { load(map); });
-    load(map);
+    if (!map || !window.L) {
+      // Retry briefly — never leave the button dead
+      if (!attach._tries) attach._tries = 0;
+      if (attach._tries++ < 40) setTimeout(attach, 100);
+      return;
+    }
+    if (!group) {
+      group = L.layerGroup().addTo(map);
+      map.on("moveend", function () { load(map, { forced: false }); });
+    }
     var btn = document.getElementById("sn-portions");
-    if (btn) btn.addEventListener("click", function () {
-      map.setView([36.2917, 27.9483], 17);
-      say("Italian individual portions. Official KAEK lines appear on the mainland when you zoom past the national view.");
-    });
+    if (btn && !btn.__snPortions) {
+      btn.__snPortions = true;
+      btn.addEventListener("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        onPortionsClick();
+      });
+    }
   }
+
+  window.__SN_PORTIONS = {
+    load: function (forced) {
+      var map = window.__SN_MAP;
+      if (map) load(map, { forced: !!forced });
+    },
+    lastMsg: function () { return lastMsg; }
+  };
 
   if (document.readyState === "complete") setTimeout(attach, 0);
   else window.addEventListener("load", function () { setTimeout(attach, 0); });
