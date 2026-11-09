@@ -268,6 +268,72 @@
       map.invalidateSize({ animate: false });
     } catch (e) { try { console.error("tiles", e); } catch (e2) {} }
   }
+  /* 4429: globe dist at city-enter → Leaflet z≈6-7 (never jump to z15 street) */
+  function handoffZoom(dist) {
+    var d = isFinite(dist) ? dist : CITY_ENTER_DIST;
+    var t = (0.78 - Math.max(CITY_ENTER_DIST - 0.08, Math.min(0.78, d))) / 0.24;
+    if (t < 0) t = 0; if (t > 1) t = 1;
+    return Math.round(6 + t * 2); /* 6..8 */
+  }
+  var handoffFloorZ = 5; /* zoom out below this → back to globe */
+  var viewWatch = 0;
+  function visibleContentOk() {
+    try {
+      var city = $("city");
+      if (cityOn && map && city && city.classList.contains("on")) {
+        var tiles = city.querySelectorAll("img.leaflet-tile, .leaflet-tile").length;
+        var op = parseFloat(getComputedStyle(city).opacity || "1");
+        var disp = getComputedStyle(city).display;
+        if (disp === "none" || op < 0.05) return false;
+        if (tiles < 1) return false;
+        return true;
+      }
+      var g = canvas || $("g");
+      if (!g) return false;
+      var cs = getComputedStyle(g);
+      if (cs.display === "none" || cs.visibility === "hidden" || parseFloat(cs.opacity || "1") < 0.05) return false;
+      return true;
+    } catch (e) { return true; }
+  }
+  function healView() {
+    try {
+      if (cityOn) {
+        var el = $("city");
+        if (el) {
+          el.classList.add("on");
+          el.style.setProperty("display", "block", "important");
+          el.style.setProperty("opacity", "1", "important");
+          el.style.setProperty("visibility", "visible", "important");
+        }
+        if (canvas) {
+          try { canvas.style.pointerEvents = "none"; } catch (e) {}
+        }
+        ensureTiles();
+        if (map && saneLatLng(aim)) {
+          map.setView([aim.lat, aim.lng], Math.max(handoffFloorZ + 1, map.getZoom() || handoffZoom(cam.dist)), { animate: false });
+        }
+        ensureTiles();
+        say((TIERS[Math.min(tierI, TIERS.length - 1)] || {}).name + " · " + (aim ? aim.lat.toFixed(2) + "," + aim.lng.toFixed(2) : ""));
+        return;
+      }
+      if (canvas) {
+        try {
+          canvas.style.pointerEvents = "auto";
+          canvas.style.opacity = "1";
+          canvas.style.visibility = "visible";
+        } catch (e) {}
+      }
+      var city = $("city");
+      if (city) city.classList.remove("on");
+      if (saneLatLng(aim)) softFly(aim, isFinite(cam.dist) ? cam.dist : 1.85);
+    } catch (e) { try { console.error("healView", e); } catch (e2) {} }
+  }
+  function armViewWatch() {
+    if (viewWatch) return;
+    viewWatch = setInterval(function () {
+      if (!visibleContentOk()) healView();
+    }, 2000);
+  }
   function wrapYaw(from, to) {
     var d = to - from;
     while (d > Math.PI) d -= Math.PI * 2;
@@ -740,23 +806,15 @@
     gpsSeq++;
     var now = Date.now();
     if (now > zoomGestureUntil) {
+      /* 4429: new gesture — cursor hit wins over GPS/Athens lastGoodAim */
       var fresh = globeHit(sx, sy, cam);
-      var base = saneLatLng(aim) ? aim : (saneLatLng(zoomAnchor) ? zoomAnchor : lastGoodAim);
-      if (saneLatLng(fresh) && saneLatLng(base)) {
-        var dLat = (fresh.lat - base.lat) * Math.PI / 180;
-        var dLng = (fresh.lng - base.lng) * Math.PI / 180;
-        var aa = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(base.lat*Math.PI/180)*Math.cos(fresh.lat*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);
-        var km = 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(aa)));
-        zoomAnchor = km > 25 ? base : fresh;
-      } else if (saneLatLng(fresh)) {
-        zoomAnchor = fresh;
-      } else {
-        zoomAnchor = base;
-      }
-      rememberAim(zoomAnchor);
+      if (saneLatLng(fresh)) zoomAnchor = rememberAim(fresh);
+      else if (saneLatLng(zoomAnchor)) rememberAim(zoomAnchor);
+      else if (saneLatLng(aim)) zoomAnchor = rememberAim(aim);
+      else zoomAnchor = rememberAim(lastGoodAim);
     }
     zoomGestureUntil = now + 900;
-    var anchor = saneLatLng(zoomAnchor) ? zoomAnchor : lastGoodAim;
+    var anchor = saneLatLng(zoomAnchor) ? zoomAnchor : (saneLatLng(aim) ? aim : lastGoodAim);
     rememberAim(anchor);
     intro = false;
 
@@ -764,12 +822,12 @@
       try {
         var z = map.getZoom() || 16;
         if (dir > 0) {
-          if (z <= 13) {
+          if (z <= handoffFloorZ) {
             closeCity();
             softFly(anchor, Math.max(CITY_ENTER_DIST + 0.04, 0.72));
             return;
           }
-          map.setZoom(Math.max(13, z - 1), { animate: true });
+          map.setZoom(Math.max(handoffFloorZ, z - 1), { animate: true });
         } else {
           var ll = null;
           try { ll = map.containerPointToLatLng ? map.containerPointToLatLng([sx, sy]) : null; } catch (e) {}
@@ -845,7 +903,7 @@
     try {
       if (!cityOn) { openCity(target); return; }
       ensureTiles();
-      if (map) map.setView([target.lat, target.lng], Math.max(14, map.getZoom() || 15), { animate: false });
+      if (map) map.setView([target.lat, target.lng], Math.max(handoffFloorZ + 1, map.getZoom() || handoffZoom(cam.dist)), { animate: false });
       setTimeout(ensureTiles, 120);
       setTimeout(ensureTiles, 400);
       say("City · " + target.lat.toFixed(2) + "," + target.lng.toFixed(2));
@@ -916,24 +974,26 @@
     el.classList.add("on");
     fly = null;
     intro = false;
+    var enterZ = handoffZoom(isFinite(cam.dist) ? cam.dist : CITY_ENTER_DIST);
     if (!map) {
       map = L.map(el, {
         zoomControl: false, attributionControl: false,
         minZoom: 3, maxZoom: 19, scrollWheelZoom: false /* globe owns wheel */
-      }).setView([pt.lat, pt.lng], 15);
+      }).setView([pt.lat, pt.lng], enterZ);
       ensureTiles();
       map.on("zoomend", function () {
         try {
           if (!map) return;
           var z = map.getZoom();
           tierI = tierFromDist(cam.dist, true);
-          if (z <= 12) {
+          if (z <= handoffFloorZ) {
             var c = map.getCenter();
-            var back = saneLatLng(c) ? { lat: c.lat, lng: c.lng } : aim;
+            var back = saneLatLng(aim) ? aim : (saneLatLng(c) ? { lat: c.lat, lng: c.lng } : lastGoodAim);
             closeCity();
-            softFly(back, Math.max(CITY_ENTER_DIST + 0.06, 0.78));
+            softFly(back, Math.max(CITY_ENTER_DIST + 0.04, 0.72));
           }
           ensureTiles();
+          if (!visibleContentOk()) healView();
         } catch (e) {}
       });
       map.on("moveend", function () {
@@ -982,9 +1042,14 @@
       }, { passive: false });
     } else {
       try { map.setMinZoom(3); } catch (e) {}
-      map.setView([pt.lat, pt.lng], Math.max(14, Math.min(17, map.getZoom() || 15)), { animate: true });
+      /* 4429: never snap existing map to z14+ on handoff — match globe scale */
+      var zNow = map.getZoom();
+      var zGo = (!isFinite(zNow) || zNow < enterZ || zNow > 12) ? enterZ : zNow;
+      map.setView([pt.lat, pt.lng], zGo, { animate: true });
       ensureTiles();
     }
+    armViewWatch();
+    if (canvas) { try { canvas.style.pointerEvents = "none"; } catch (e) {} }
     if (youMark) try { map.removeLayer(youMark); } catch (e) {}
     youMark = null;
     if (here && isFinite(here.lat)) {
@@ -1001,6 +1066,7 @@
     if (el) el.classList.remove("on");
     cityOn = false;
     intro = false;
+    if (canvas) { try { canvas.style.pointerEvents = "auto"; } catch (e) {} }
     if (tierI > 2) tierI = 2;
     var pt = saneLatLng(aim) ? aim : lastGoodAim;
     rememberAim(pt);
@@ -2847,10 +2913,39 @@
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
+
+  /* 4429: Esc closes YOU/PROFILE/LIST/sky regardless of focus (capture) */
+  if (!window.__SN_ESC4429) {
+    window.__SN_ESC4429 = true;
+    document.addEventListener("keydown", function (e) {
+      if (!e || e.key !== "Escape") return;
+      var closed = false;
+      try {
+        var me = document.getElementById("sn-me-sheet");
+        if (me && me.classList.contains("on")) { me.classList.remove("on"); closed = true; }
+      } catch (err) {}
+      try {
+        var sheet = document.getElementById("sheet");
+        if (sheet && sheet.classList.contains("on")) { if (typeof closeSheet === "function") closeSheet(); closed = true; }
+      } catch (err2) {}
+      try {
+        var sky = document.getElementById("sn-sky");
+        if (sky && sky.classList.contains("on")) { if (typeof closeSky === "function") closeSky(); closed = true; }
+      } catch (err3) {}
+      try {
+        var menuEl = document.getElementById("menu");
+        if (menuEl && !menuEl.hidden) { menuEl.hidden = true; menuEl.classList.remove("on"); closed = true; }
+      } catch (err4) {}
+      if (closed) { e.preventDefault(); e.stopPropagation(); }
+    }, true);
+  }
+
+    armViewWatch();
     window.__SN_APPJS = true;
     window.__SN_EARTH = true;
     window.__SN_4428 = true;
     window.__SN_4428b = true;
+    window.__SN_4429 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
