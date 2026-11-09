@@ -590,8 +590,10 @@
       return;
     }
     if (intro) {
-      if (cam.dist < 1.7 || cam.dist > 2.05) cam.dist = 1.85;
-      return;
+      /* 4428c: never clamp dist once aimed; allow face-hold below */
+      if (!aim && (cam.dist < 1.7 || cam.dist > 2.05)) cam.dist = 1.85;
+      if (!aim) return;
+      intro = false;
     }
     if (!drag && tierI >= 2 && aim && !cityOn) {
       var held2 = face(aim);
@@ -739,13 +741,24 @@
     var now = Date.now();
     if (now > zoomGestureUntil) {
       var fresh = globeHit(sx, sy, cam);
-      if (saneLatLng(fresh)) zoomAnchor = rememberAim(fresh);
-      else if (saneLatLng(aim)) zoomAnchor = aim;
-      else zoomAnchor = lastGoodAim;
+      var base = saneLatLng(aim) ? aim : (saneLatLng(zoomAnchor) ? zoomAnchor : lastGoodAim);
+      if (saneLatLng(fresh) && saneLatLng(base)) {
+        var dLat = (fresh.lat - base.lat) * Math.PI / 180;
+        var dLng = (fresh.lng - base.lng) * Math.PI / 180;
+        var aa = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(base.lat*Math.PI/180)*Math.cos(fresh.lat*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);
+        var km = 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(aa)));
+        zoomAnchor = km > 25 ? base : fresh;
+      } else if (saneLatLng(fresh)) {
+        zoomAnchor = fresh;
+      } else {
+        zoomAnchor = base;
+      }
+      rememberAim(zoomAnchor);
     }
-    zoomGestureUntil = now + 450;
+    zoomGestureUntil = now + 900;
     var anchor = saneLatLng(zoomAnchor) ? zoomAnchor : lastGoodAim;
     rememberAim(anchor);
+    intro = false;
 
     if (cityOn && map) {
       try {
@@ -801,6 +814,7 @@
   }
   function softFly(pt, dist) {
     if (!saneLatLng(pt)) pt = lastGoodAim;
+    intro = false;
     var f = face(pt);
     var goalDist = Math.max(DIST_MIN, Math.min(DIST_MAX, dist));
     fly = {
@@ -901,6 +915,7 @@
     cityOn = true;
     el.classList.add("on");
     fly = null;
+    intro = false;
     if (!map) {
       map = L.map(el, {
         zoomControl: false, attributionControl: false,
@@ -985,6 +1000,7 @@
     var el = $("city");
     if (el) el.classList.remove("on");
     cityOn = false;
+    intro = false;
     if (tierI > 2) tierI = 2;
     var pt = saneLatLng(aim) ? aim : lastGoodAim;
     rememberAim(pt);
