@@ -240,6 +240,7 @@
     if (!saneLatLng(pt)) return lastGoodAim;
     aim = { lat: pt.lat, lng: pt.lng };
     lastGoodAim = { lat: pt.lat, lng: pt.lng };
+    zoomAnchor = { lat: pt.lat, lng: pt.lng };
     return aim;
   }
   function tierFromDist(d, onCity) {
@@ -757,14 +758,20 @@
           }
           map.setZoom(Math.max(13, z - 1), { animate: true });
         } else {
-          var ll = map.containerPointToLatLng ? map.containerPointToLatLng([sx, sy]) : null;
-          var center = saneLatLng(ll) ? ll : anchor;
-          if (saneLatLng(center)) {
-            rememberAim(center);
-            map.setView([center.lat, center.lng], Math.min(19, z + 1), { animate: true });
-          } else {
-            map.setZoom(Math.min(19, z + 1), { animate: true });
+          var ll = null;
+          try { ll = map.containerPointToLatLng ? map.containerPointToLatLng([sx, sy]) : null; } catch (e) {}
+          var center = saneLatLng(ll) ? { lat: ll.lat, lng: ll.lng } : null;
+          /* 4428b: if container hit drifted >5 km from frozen anchor, keep anchor (handoff race) */
+          if (center && saneLatLng(anchor)) {
+            var dLat = (center.lat - anchor.lat) * Math.PI / 180;
+            var dLng = (center.lng - anchor.lng) * Math.PI / 180;
+            var aa = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(anchor.lat*Math.PI/180)*Math.cos(center.lat*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);
+            var km = 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(aa)));
+            if (km > 5) center = { lat: anchor.lat, lng: anchor.lng };
           }
+          if (!center) center = saneLatLng(anchor) ? anchor : lastGoodAim;
+          rememberAim(center);
+          map.setView([center.lat, center.lng], Math.min(19, z + 1), { animate: true });
         }
         ensureTiles();
         tierI = tierFromDist(cam.dist, true);
@@ -2827,6 +2834,7 @@
     window.__SN_APPJS = true;
     window.__SN_EARTH = true;
     window.__SN_4428 = true;
+    window.__SN_4428b = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
