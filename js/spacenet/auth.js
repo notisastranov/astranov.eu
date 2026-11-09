@@ -80,7 +80,7 @@
   }
   function google(extra) {
     loadCfg(function () {
-      var dest = location.origin + location.pathname + "?auth=google";
+      var dest = "https://astranov.eu/?auth=google";
       write("sn:auth-back", location.href.split("#")[0]);
       if (location.hostname !== "astranov.eu") setCook("sn_back", location.href.split("#")[0], 600);
       var ver = rnd(64);
@@ -240,7 +240,7 @@
       var ver = read("sn:pkce", "") || getCook("sn_pkce");
       var body = ver
         ? { grant_type: "pkce", auth_code: code, code_verifier: ver }
-        : { grant_type: "authorization_code", code: code, redirect_uri: location.origin + location.pathname + "?auth=google" };
+        : { grant_type: "authorization_code", code: code, redirect_uri: location.origin + "/?auth=google" };
       return fetch(SB + "/auth/v1/token?grant_type=" + encodeURIComponent(body.grant_type), {
         method: "POST",
         headers: { apikey: ANON, "Content-Type": "application/json" },
