@@ -586,6 +586,7 @@
   }
   function bootMap() {
     map = L.map("map", { zoomControl: true, attributionControl: false }).setView([RHODES.lat, RHODES.lng], 14);
+    window.__SN_MAP = map;
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
     map.on("click", function (e) {
       if (holdFired) { holdFired = false; return; }

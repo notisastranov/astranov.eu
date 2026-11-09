@@ -10,6 +10,7 @@ const handlers = {
   "space": require("../lib/http/space"),
   "version": require("../lib/http/version"),
   "videos": require("../lib/http/videos"),
+  "parcels": require("../lib/http/parcels"),
   "paypal": require("../lib/http/paypal"),
   "paypal/create-order": require("../lib/http/paypal/create-order"),
   "paypal/capture-order": require("../lib/http/paypal/capture-order"),
