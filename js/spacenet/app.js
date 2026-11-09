@@ -66,6 +66,7 @@
   var pointers = new Map();
   var pinch = null;
   var holdT = 0;
+  var HOLD_MS = 1500;
   var cityOn = false;
   var skyOn = false;
   var skyHits = [];
@@ -603,8 +604,9 @@
         if (!drag || drag.moved) return;
         var hit = globeHit(p.x, p.y, cam);
         if (hit) listAt(hit);
+        else listAt(pointUnder(p.x, p.y) || aim);
         drag = null;
-      }, 1000);
+      }, HOLD_MS);
     });
     canvas.addEventListener("pointermove", function (e) {
       var p = pos(e);
@@ -650,10 +652,18 @@
     }
     canvas.addEventListener("pointerup", up);
     canvas.addEventListener("pointercancel", up);
+    var wheelAcc = 0, wheelRaf = 0, wheelXY = null;
     canvas.addEventListener("wheel", function (e) {
       e.preventDefault(); intro = false;
-      var p = pos(e);
-      stepTier(e.deltaY > 0 ? 1 : -1, p.x, p.y);
+      wheelAcc += e.deltaY;
+      wheelXY = pos(e);
+      if (wheelRaf) return;
+      wheelRaf = requestAnimationFrame(function () {
+        wheelRaf = 0;
+        var dy = wheelAcc; wheelAcc = 0;
+        var p = wheelXY || { x: view && view.cx, y: view && view.cy };
+        try { stepTier(dy > 0 ? 1 : -1, p.x, p.y); } catch (err) { try { console.error("wheel", err); } catch (e2) {} }
+      });
     }, { passive: false });
   }
   function pointUnder(sx, sy) {
@@ -671,7 +681,7 @@
   }
   function stepTier(dir, sx, sy) {
     if (Date.now() < tierLock) return;
-    tierLock = Date.now() + 480;
+    tierLock = Date.now() + 520;
     gpsSeq++;
     var pt = pointUnder(sx, sy);
     if (pt) aim = pt;
@@ -840,18 +850,13 @@
     listPt = { lat: pt.lat, lng: pt.lng };
     listAlt = altitudeFromDist(cam.dist);
     if (vendor) { setDrop(pt); return; }
-    if (listAlt === "street") {
-      openSheet("LIST",
-        '<button type="button" class="sheet-go primary" data-act="list-kinds">List a vendor</button>' +
-        '<button type="button" class="sheet-go" data-act="list-drop">List my delivery location</button>' +
-        '<button type="button" class="sheet-go" data-act="list-base">List my delivery driver’s base</button>');
-      say(pt.lat.toFixed(4) + "," + pt.lng.toFixed(4));
-      return;
-    }
-    openSheet("POST",
-      '<input id="sn-post-name" placeholder="Title" />' +
-      '<button type="button" class="sheet-go primary" data-act="list-post">Post</button>');
-    say(pt.lat.toFixed(4) + "," + pt.lng.toFixed(4));
+    /* 4427: port 4421/4425 hold→LIST on globe/land/sea (HOLD_MS 1500). */
+    openSheet("LIST",
+      '<p class="note">Hold point · land or sea · ' + listAlt + '. Listing does not use GPS as the delivery address.</p>' +
+      '<button type="button" class="sheet-go" data-act="list-vendor">VENDOR</button>' +
+      '<button type="button" class="sheet-go" data-act="list-client">CLIENT</button>' +
+      '<button type="button" class="sheet-go" data-act="list-driver">DRIVER</button>');
+    say(pt.lat.toFixed(4) + "," + pt.lng.toFixed(4) + " · LIST");
   }
   function persistListing(row) {
     if (!row) return;
@@ -1639,6 +1644,23 @@
     place($("sn-me"), "bl");
     place($("gps"), "br");
     var isle = visRect($("island"));
+    (function placeLeftCluster() {
+      var y = isle ? isle.bottom + 8 : 40;
+      var x = pad;
+      ["sn-globe", "sn-power", "sn-burger"].forEach(function (id) {
+        var el = $(id);
+        if (!el) return;
+        var w = Math.max(40, el.offsetWidth || 48);
+        el.style.setProperty("position", "fixed", "important");
+        el.style.setProperty("top", Math.round(y) + "px", "important");
+        el.style.setProperty("left", Math.round(x) + "px", "important");
+        el.style.setProperty("right", "auto", "important");
+        el.style.setProperty("bottom", "auto", "important");
+        el.style.setProperty("z-index", "250", "important");
+        el.style.setProperty("pointer-events", "auto", "important");
+        x += w + 8;
+      });
+    })();
     var money = $("sn-money");
     var sup = $("sn-support");
     var y0 = isle ? isle.bottom + 8 : 10;
@@ -1814,6 +1836,55 @@
       support.__sn = true;
       support.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); openSupport(); });
     }
+    var burger = $("sn-burger"), menuEl = $("menu");
+    if (burger && !burger.__sn) {
+      burger.__sn = true;
+      function placeMenu() {
+        if (!menuEl || !burger) return;
+        var br = burger.getBoundingClientRect();
+        menuEl.style.left = Math.round(br.left) + "px";
+        menuEl.style.top = Math.round(br.bottom + 8) + "px";
+      }
+      function closeMenu() {
+        if (!menuEl) return;
+        menuEl.hidden = true; menuEl.classList.remove("on");
+        burger.setAttribute("aria-expanded", "false");
+      }
+      function openMenu() {
+        if (!menuEl) { say("Menu"); return; }
+        placeMenu();
+        menuEl.hidden = false; menuEl.classList.add("on");
+        burger.setAttribute("aria-expanded", "true");
+      }
+      burger.addEventListener("click", function (e) {
+        e.preventDefault(); e.stopPropagation();
+        if (menuEl && !menuEl.hidden) closeMenu(); else openMenu();
+      });
+      if (menuEl && !menuEl.__sn) {
+        menuEl.__sn = true;
+        menuEl.addEventListener("click", function (e) {
+          var b = e.target && e.target.closest ? e.target.closest("[data-menu]") : null;
+          if (!b) return;
+          e.preventDefault(); e.stopPropagation();
+          var act = b.getAttribute("data-menu");
+          closeMenu();
+          if (act === "profile" || act === "signin") {
+            var me = $("sn-me"); if (me) me.click();
+            else if (window.SNAuth && SNAuth.google) SNAuth.google();
+          } else if (act === "money") {
+            var m = $("sn-money"); if (m) m.click();
+          } else if (act === "support") {
+            var s = $("sn-support"); if (s) s.click();
+          }
+        });
+      }
+      document.addEventListener("click", function (e) {
+        if (!menuEl || menuEl.hidden) return;
+        if (e.target === burger || (burger.contains && burger.contains(e.target))) return;
+        if (menuEl.contains && menuEl.contains(e.target)) return;
+        closeMenu();
+      }, true);
+    }
     var tabsRail = $("sn-tabs");
     if (tabsRail && !tabsRail.__sn) {
       tabsRail.__sn = true;
@@ -1920,12 +1991,22 @@
         if (!item) { say("No product."); return; }
         say((item.name || "item") + " in the order. Set drop, then send.");
       }
-      if (act === "list-kinds") {
+      if (act === "list-vendor" || act === "list-kinds") {
         openSheet("PLACE",
           '<button type="button" class="sheet-go" data-act="kind" data-k="shop">Shop</button>' +
           '<button type="button" class="sheet-go" data-act="kind" data-k="villa">Villa</button>' +
           '<button type="button" class="sheet-go" data-act="kind" data-k="hotel">Hotel</button>' +
           '<button type="button" class="sheet-go" data-act="kind" data-k="car">Rent a car</button>');
+      }
+      if (act === "list-client") {
+        openSheet("CLIENT",
+          '<p class="note">Client drop at hold point.</p>' +
+          '<button type="button" class="sheet-go primary" data-act="list-drop">List my delivery location</button>');
+      }
+      if (act === "list-driver") {
+        openSheet("DRIVER",
+          '<p class="note">Driver base at hold point.</p>' +
+          '<button type="button" class="sheet-go primary" data-act="list-base">List my delivery driver’s base</button>');
       }
       if (act === "kind") {
         var k = t.getAttribute("data-k") || "shop";
@@ -2601,7 +2682,9 @@
         }).catch(function () { say("PayPal capture dark."); });
       history.replaceState({}, "", location.pathname);
     }
-    window.__SN_4426 = true;
+    window.__SN_APPJS = true;
+    window.__SN_EARTH = true;
+    window.__SN_4427 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },

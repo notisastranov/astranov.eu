@@ -16,11 +16,11 @@
         },
         {
           "key": "X-Astranov-Build",
-          "value": "4426"
+          "value": "4427"
         },
         {
           "key": "X-Astranov-Ship",
-          "value": "4426-preview"
+          "value": "4427-preview"
         }
       ]
     },
@@ -37,11 +37,11 @@
         },
         {
           "key": "X-Astranov-Build",
-          "value": "4426"
+          "value": "4427"
         },
         {
           "key": "X-Astranov-Ship",
-          "value": "4426-preview"
+          "value": "4427-preview"
         }
       ]
     },
@@ -201,7 +201,7 @@
           "value": "astranov.eu"
         }
       ],
-      "destination": "/room/index.html"
+      "destination": "/index.html"
     },
     {
       "source": "/index.html",
@@ -211,7 +211,7 @@
           "value": "astranov.eu"
         }
       ],
-      "destination": "/room/index.html"
+      "destination": "/index.html"
     },
     {
       "source": "/",
@@ -221,7 +221,7 @@
           "value": "www.astranov.eu"
         }
       ],
-      "destination": "/room/index.html"
+      "destination": "/index.html"
     },
     {
       "source": "/index.html",
@@ -231,7 +231,7 @@
           "value": "www.astranov.eu"
         }
       ],
-      "destination": "/room/index.html"
+      "destination": "/index.html"
     },
     {
       "source": "/api/ai/pricing",
