@@ -91,15 +91,25 @@
     return 180 - s * 360;
   }
   var TIERS = [
-    { id: "solar", dist: 5.4, name: "Solar system" },
-    { id: "global", dist: 1.85, name: "Global" },
-    { id: "national", dist: 0.72, name: "National" },
-    { id: "city", dist: 0.72, name: "City" }
+    { id: "solar", dist: 5.4, name: "Solar system", z: 0 },
+    { id: "global", dist: 1.85, name: "Global", z: 1 },
+    { id: "national", dist: 0.72, name: "National", z: 2 },
+    { id: "city", dist: 0.58, name: "City", z: 3 },
+    { id: "street", dist: 0.58, name: "Street", z: 4 }
   ];
   var tierI = 1;
   var tierLock = 0;
   var aim = null;
   var gpsSeq = 0;
+  var zoomAnchor = null; /* frozen lat/lng under cursor for a wheel gesture */
+  var zoomGestureUntil = 0;
+  var lastGoodAim = { lat: 37.9755, lng: 23.7348 };
+  var tileLayer = null;
+  var CITY_ENTER_DIST = 0.62;
+  var DIST_MIN = 0.55;
+  var DIST_MAX = 6.2;
+  var NOTCH_IN = 0.90;  /* ~10% closer per notch */
+  var NOTCH_OUT = 1.11;
   function altitudeFromDist(d) {
     if (cityOn) return "street";
     if (d < 1.15) return "national";
@@ -209,8 +219,10 @@
   }
   function globeHit(sx, sy, c) {
     var scale = view.scale;
+    if (!scale || !isFinite(scale) || scale < 1) return null;
     var nx = (sx - view.cx) / scale, ny = (view.cy - sy) / scale, r2 = nx * nx + ny * ny;
-    if (r2 > 1) return null;
+    /* 4428: refuse limb/horizon — bad hits drift (Rhodes→Marmaris / mid-Atlantic) */
+    if (r2 > 0.92) return null;
     var nz = Math.sqrt(Math.max(0, 1 - r2));
     var cp = Math.cos(c.pitch), sp = Math.sin(c.pitch);
     var y = ny * cp + nz * sp, z = -ny * sp + nz * cp, x = nx;
@@ -218,7 +230,42 @@
     var lng = ((Math.atan2(x, z) + c.yaw + earthSpin()) * 180) / Math.PI;
     while (lng > 180) lng -= 360;
     while (lng < -180) lng += 360;
+    if (!isFinite(lat) || !isFinite(lng) || Math.abs(lat) > 85) return null;
     return { lat: lat, lng: lng };
+  }
+  function saneLatLng(pt) {
+    return !!(pt && isFinite(pt.lat) && isFinite(pt.lng) && Math.abs(pt.lat) <= 85 && Math.abs(pt.lng) <= 180);
+  }
+  function rememberAim(pt) {
+    if (!saneLatLng(pt)) return lastGoodAim;
+    aim = { lat: pt.lat, lng: pt.lng };
+    lastGoodAim = { lat: pt.lat, lng: pt.lng };
+    return aim;
+  }
+  function tierFromDist(d, onCity) {
+    if (onCity) {
+      try {
+        var z = map && map.getZoom ? map.getZoom() : 16;
+        if (z >= 15) return 4;
+        return 3;
+      } catch (e) { return 3; }
+    }
+    if (d >= 3.2) return 0;
+    if (d >= 1.15) return 1;
+    if (d >= CITY_ENTER_DIST) return 2;
+    return 3;
+  }
+  function ensureTiles() {
+    if (!map || typeof L === "undefined") return;
+    try {
+      if (!tileLayer || !map.hasLayer(tileLayer)) {
+        tileLayer = L.tileLayer("https://tile.openstreetmap.de/{z}/{x}/{y}.png", {
+          maxZoom: 19, minZoom: 3, attribution: "© OSM"
+        });
+        tileLayer.addTo(map);
+      }
+      map.invalidateSize({ animate: false });
+    } catch (e) { try { console.error("tiles", e); } catch (e2) {} }
   }
   function wrapYaw(from, to) {
     var d = to - from;
@@ -652,9 +699,11 @@
     }
     canvas.addEventListener("pointerup", up);
     canvas.addEventListener("pointercancel", up);
-    var wheelAcc = 0, wheelRaf = 0, wheelXY = null;
+    var wheelAcc = 0, wheelRaf = 0, wheelXY = null, wheelNotches = 0;
     canvas.addEventListener("wheel", function (e) {
       e.preventDefault(); intro = false;
+      /* count notches from deltaY; typical mouse = 100/120 per notch */
+      var unit = e.deltaMode === 1 ? 1 : (Math.abs(e.deltaY) >= 40 ? 100 : 40);
       wheelAcc += e.deltaY;
       wheelXY = pos(e);
       if (wheelRaf) return;
@@ -662,14 +711,18 @@
         wheelRaf = 0;
         var dy = wheelAcc; wheelAcc = 0;
         var p = wheelXY || { x: view && view.cx, y: view && view.cy };
-        try { stepTier(dy > 0 ? 1 : -1, p.x, p.y); } catch (err) { try { console.error("wheel", err); } catch (e2) {} }
+        var notches = Math.max(1, Math.min(8, Math.round(Math.abs(dy) / unit) || 1));
+        var dir = dy > 0 ? 1 : -1;
+        try {
+          for (var n = 0; n < notches; n++) nudgeZoom(dir, p.x, p.y);
+        } catch (err) { try { console.error("wheel", err); } catch (e2) {} }
       });
     }, { passive: false });
   }
   function pointUnder(sx, sy) {
     var hit = (sx != null) ? globeHit(sx, sy, cam) : null;
     if (!hit && view) hit = globeHit(view.cx, view.cy, cam);
-    if (!hit) return aim;
+    if (!hit) return saneLatLng(aim) ? aim : lastGoodAim;
     return { lat: hit.lat, lng: hit.lng };
   }
   function face(pt) {
@@ -679,45 +732,103 @@
       pitch: Math.max(-1.15, Math.min(1.15, (pt.lat * Math.PI) / 180))
     };
   }
-  function stepTier(dir, sx, sy) {
-    if (Date.now() < tierLock) return;
-    tierLock = Date.now() + 520;
+  /* 4428: one notch ≈ one small smooth dist step; tiers crossed gradually; cursor frozen */
+  function nudgeZoom(dir, sx, sy) {
     gpsSeq++;
-    var pt = pointUnder(sx, sy);
-    if (pt) aim = pt;
-    if (cityOn) {
-      if (dir > 0) {
-        closeCity();
-        settleTier(2, aim);
-      } else if (map) {
-        try { map.setZoom(Math.min(19, (map.getZoom() || 16) + 1)); } catch (e) {}
+    var now = Date.now();
+    if (now > zoomGestureUntil) {
+      var fresh = globeHit(sx, sy, cam);
+      if (saneLatLng(fresh)) zoomAnchor = rememberAim(fresh);
+      else if (saneLatLng(aim)) zoomAnchor = aim;
+      else zoomAnchor = lastGoodAim;
+    }
+    zoomGestureUntil = now + 450;
+    var anchor = saneLatLng(zoomAnchor) ? zoomAnchor : lastGoodAim;
+    rememberAim(anchor);
+
+    if (cityOn && map) {
+      try {
+        var z = map.getZoom() || 16;
+        if (dir > 0) {
+          if (z <= 13) {
+            closeCity();
+            softFly(anchor, Math.max(CITY_ENTER_DIST + 0.04, 0.72));
+            return;
+          }
+          map.setZoom(Math.max(13, z - 1), { animate: true });
+        } else {
+          var ll = map.containerPointToLatLng ? map.containerPointToLatLng([sx, sy]) : null;
+          var center = saneLatLng(ll) ? ll : anchor;
+          if (saneLatLng(center)) {
+            rememberAim(center);
+            map.setView([center.lat, center.lng], Math.min(19, z + 1), { animate: true });
+          } else {
+            map.setZoom(Math.min(19, z + 1), { animate: true });
+          }
+        }
+        ensureTiles();
+        tierI = tierFromDist(cam.dist, true);
+        try {
+          window.__SN_WHEEL = { dir: dir, z: map.getZoom(), lat: (aim && aim.lat), lng: (aim && aim.lng), mode: "map" };
+        } catch (e) {}
+      } catch (e) {
+        healCity(anchor);
       }
       return;
     }
-    var next = tierI + (dir < 0 ? 1 : -1);
-    if (next < 0) next = 0;
-    if (next > 3) next = 3;
-    if (next === tierI) return;
-    if (!aim) { say("Zoom on the earth."); return; }
-    if (TIERS[next].id === "city") {
-      if (TIERS[tierI].id !== "national") return;
-      openCity(aim);
-      say("City · " + aim.lat.toFixed(2) + "," + aim.lng.toFixed(2));
+
+    var factor = dir > 0 ? NOTCH_OUT : NOTCH_IN;
+    var cur = isFinite(cam.dist) ? cam.dist : 1.85;
+    if (fly && isFinite(fly.goal && fly.goal.dist)) cur = fly.goal.dist;
+    var next = Math.max(DIST_MIN, Math.min(DIST_MAX, cur * factor));
+    softFly(anchor, next);
+
+    if (dir < 0 && next <= CITY_ENTER_DIST && saneLatLng(anchor)) {
+      openCity(anchor);
       return;
     }
-    settleTier(next, aim);
+    tierI = tierFromDist(next, false);
+    try {
+      window.__SN_WHEEL = { dir: dir, dist: next, lat: anchor.lat, lng: anchor.lng, tier: tierI, mode: "globe" };
+    } catch (e) {}
   }
-  function settleTier(i, pt) {
-    tierI = i;
-    var f = face(pt || aim);
+  function softFly(pt, dist) {
+    if (!saneLatLng(pt)) pt = lastGoodAim;
+    var f = face(pt);
+    var goalDist = Math.max(DIST_MIN, Math.min(DIST_MAX, dist));
     fly = {
       t0: performance.now(),
-      ms: 640,
+      ms: 280,
       start: { yaw: cam.yaw, pitch: cam.pitch, dist: cam.dist },
-      goal: { yaw: f.yaw, pitch: f.pitch, dist: TIERS[i].dist }
+      goal: { yaw: f.yaw, pitch: f.pitch, dist: goalDist }
     };
-    var where = (pt || aim);
-    say(TIERS[i].name + (where ? " · " + where.lat.toFixed(2) + "," + where.lng.toFixed(2) : ""));
+    vel.yaw = 0; vel.pitch = 0;
+    tierI = tierFromDist(goalDist, cityOn);
+    say(TIERS[Math.min(tierI, TIERS.length - 1)].name + " · " + pt.lat.toFixed(2) + "," + pt.lng.toFixed(2));
+  }
+  function stepTier(dir, sx, sy) {
+    /* GPS / pinch still call stepTier — map to a few soft notches, never skip */
+    var steps = 3;
+    for (var i = 0; i < steps; i++) nudgeZoom(dir, sx, sy);
+  }
+  function settleTier(i, pt) {
+    i = Math.max(0, Math.min(3, i | 0));
+    var target = saneLatLng(pt) ? pt : (saneLatLng(aim) ? aim : lastGoodAim);
+    rememberAim(target);
+    if (i >= 3) { openCity(target); return; }
+    softFly(target, TIERS[i].dist);
+  }
+  function healCity(pt) {
+    var target = saneLatLng(pt) ? pt : lastGoodAim;
+    rememberAim(target);
+    try {
+      if (!cityOn) { openCity(target); return; }
+      ensureTiles();
+      if (map) map.setView([target.lat, target.lng], Math.max(14, map.getZoom() || 15), { animate: false });
+      setTimeout(ensureTiles, 120);
+      setTimeout(ensureTiles, 400);
+      say("City · " + target.lat.toFixed(2) + "," + target.lng.toFixed(2));
+    } catch (e) { try { console.error("healCity", e); } catch (e2) {} }
   }
   function pinHere(pt) {
     here = { lat: pt.lat, lng: pt.lng };
@@ -775,22 +886,40 @@
     }, true);
   }
   function openCity(pt) {
-    if (!pt || !isFinite(pt.lat) || !isFinite(pt.lng)) return;
-    aim = { lat: pt.lat, lng: pt.lng };
+    if (!saneLatLng(pt)) pt = lastGoodAim;
+    rememberAim(pt);
     tierI = 3;
     var el = $("city");
-    if (!el || typeof L === "undefined" || !pt) return;
+    if (!el || typeof L === "undefined") return;
     cityOn = true;
     el.classList.add("on");
+    fly = null;
     if (!map) {
-      map = L.map(el, { zoomControl: false, attributionControl: false, minZoom: 12, maxZoom: 19, scrollWheelZoom: true }).setView([pt.lat, pt.lng], 16);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, minZoom: 12 }).addTo(map);
+      map = L.map(el, {
+        zoomControl: false, attributionControl: false,
+        minZoom: 3, maxZoom: 19, scrollWheelZoom: false /* globe owns wheel */
+      }).setView([pt.lat, pt.lng], 15);
+      ensureTiles();
       map.on("zoomend", function () {
         try {
-          if (map && map.getZoom() <= 12) {
+          if (!map) return;
+          var z = map.getZoom();
+          tierI = tierFromDist(cam.dist, true);
+          if (z <= 12) {
+            var c = map.getCenter();
+            var back = saneLatLng(c) ? { lat: c.lat, lng: c.lng } : aim;
             closeCity();
-            settleTier(2, aim);
+            softFly(back, Math.max(CITY_ENTER_DIST + 0.06, 0.78));
           }
+          ensureTiles();
+        } catch (e) {}
+      });
+      map.on("moveend", function () {
+        try {
+          if (!map || !cityOn) return;
+          var c = map.getCenter();
+          if (saneLatLng(c)) rememberAim({ lat: c.lat, lng: c.lng });
+          ensureTiles();
         } catch (e) {}
       });
       var lastTap = 0;
@@ -813,7 +942,7 @@
           if (!map || !holdPt) return;
           var ll = map.mouseEventToLatLng(holdPt);
           if (ll) listAt({ lat: ll.lat, lng: ll.lng });
-        }, 1000);
+        }, HOLD_MS);
       });
       function cancelHold() { if (hold) { clearTimeout(hold); hold = 0; } }
       el.addEventListener("pointerup", cancelHold);
@@ -821,9 +950,18 @@
       el.addEventListener("pointermove", function (e) {
         if (holdPt && Math.hypot(e.clientX - holdPt.clientX, e.clientY - holdPt.clientY) > 12) cancelHold();
       });
+      /* map wheel → same nudge path so bursts stay coherent */
+      el.addEventListener("wheel", function (e) {
+        e.preventDefault(); e.stopPropagation();
+        intro = false;
+        var r = el.getBoundingClientRect();
+        var sx = e.clientX - r.left, sy = e.clientY - r.top;
+        try { nudgeZoom(e.deltaY > 0 ? 1 : -1, sx, sy); } catch (err) {}
+      }, { passive: false });
     } else {
-      try { map.setMinZoom(12); } catch (e) {}
-      map.setView([pt.lat, pt.lng], Math.max(14, map.getZoom() || 16));
+      try { map.setMinZoom(3); } catch (e) {}
+      map.setView([pt.lat, pt.lng], Math.max(14, Math.min(17, map.getZoom() || 15)), { animate: true });
+      ensureTiles();
     }
     if (youMark) try { map.removeLayer(youMark); } catch (e) {}
     youMark = null;
@@ -831,19 +969,23 @@
       youMark = L.circleMarker([here.lat, here.lng], { radius: 8, color: "#4df0ff", fillColor: "#4df0ff", fillOpacity: 0.9, weight: 2 }).addTo(map);
     }
     paintShopsOnMap();
-    setTimeout(function () { if (map) map.invalidateSize(); }, 80);
+    ensureTiles();
+    setTimeout(ensureTiles, 80);
+    setTimeout(ensureTiles, 320);
+    say("City · " + pt.lat.toFixed(2) + "," + pt.lng.toFixed(2));
   }
   function closeCity() {
     var el = $("city");
     if (el) el.classList.remove("on");
     cityOn = false;
     if (tierI > 2) tierI = 2;
-    if (aim) {
-      var f = face(aim);
-      cam.yaw = f.yaw;
-      cam.pitch = f.pitch;
-    }
-    cam.dist = TIERS[2].dist;
+    var pt = saneLatLng(aim) ? aim : lastGoodAim;
+    rememberAim(pt);
+    var f = face(pt);
+    cam.yaw = f.yaw;
+    cam.pitch = f.pitch;
+    cam.dist = Math.max(CITY_ENTER_DIST + 0.06, TIERS[2].dist);
+    fly = null;
   }
   function listAt(pt) {
     if (!pt || !isFinite(pt.lat) || !isFinite(pt.lng)) return;
@@ -1001,7 +1143,7 @@
     }
     intro = false;
     desk.innerHTML =
-      '<div class="sheet-bar"><b class="sheet-ttl">SUPPORT</b><button type="button" class="sheet-x" data-act="support-close">HIDE</button></div>' +
+      '<div class="sheet-bar"><button type="button" class="sheet-apply" data-act="support-close" aria-label="Apply">APPLY</button><b class="sheet-ttl">SUPPORT</b><button type="button" class="sheet-x" data-act="support-close" aria-label="Close">✕</button></div>' +
       '<p class="note">Talk or type. This menu is the desk — not the workshop.</p>' +
       '<textarea id="sn-support-matter" placeholder="What broke / what you need"></textarea>' +
       '<button type="button" class="sheet-go" data-act="support-mic">MIC</button>' +
@@ -1161,7 +1303,7 @@
   function openSheet(title, html) {
     var sh = $("sn-sheet"), card = $("sn-sheet-card");
     if (!sh || !card) return;
-    card.innerHTML = '<div class="sheet-bar"><b class="sheet-ttl"></b><button type="button" class="sheet-x" data-act="close">HIDE</button></div><div id="sn-sheet-body"></div>';
+    card.innerHTML = '<div class="sheet-bar"><button type="button" class="sheet-apply" data-act="close" aria-label="Apply">APPLY</button><b class="sheet-ttl"></b><button type="button" class="sheet-x" data-act="close" aria-label="Close">✕</button></div><div id="sn-sheet-body"></div>';
     card.querySelector(".sheet-ttl").textContent = title;
     card.querySelector("#sn-sheet-body").innerHTML = html;
     sh.classList.add("on");
@@ -2684,7 +2826,7 @@
     }
     window.__SN_APPJS = true;
     window.__SN_EARTH = true;
-    window.__SN_4427 = true;
+    window.__SN_4428 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
