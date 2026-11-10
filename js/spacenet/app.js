@@ -253,16 +253,51 @@
   }
   function maxAimKm() {
     var d = isFinite(cam.dist) ? cam.dist : 1.85;
-    if (d <= CITY_ENTER_DIST + 0.05) return 350;
-    if (d <= 1.15) return 900;
-    if (d <= 2.5) return 2500;
-    return 6000;
+    if (d <= CITY_ENTER_DIST + 0.05) return 1200;
+    if (d <= 1.15) return 2500;
+    if (d <= 2.5) return 5000;
+    return 9000;
   }
-  /* cursor hit must sit on the disc AND near the globe's current facing center */
+  /* 4431: any sane on-disc hit is OK for zoom; hitOk only gates wild openCity jumps */
   function hitOk(hit, ref) {
     if (!saneLatLng(hit)) return false;
-    var base = saneLatLng(ref) ? ref : camLookAt();
-    return haversineKm(hit, base) <= maxAimKm();
+    return true;
+  }
+  function hitOkNear(hit, ref, km) {
+    if (!saneLatLng(hit)) return false;
+    if (!saneLatLng(ref)) return true;
+    return haversineKm(hit, ref) <= (km || maxAimKm());
+  }
+  var zoomPixel = null; /* canvas CSS px of cursor for zoom-about-point */
+  var lastHitReason = "";
+  function eventCanvasXY(e) {
+    if (!canvas || !e) return null;
+    var r = canvas.getBoundingClientRect();
+    if (!r.width || !r.height) return null;
+    var sx = e.clientX - r.left, sy = e.clientY - r.top;
+    return { x: sx, y: sy, clientX: e.clientX, clientY: e.clientY, rl: r.left, rt: r.top, rw: r.width, rh: r.height, dpr: window.devicePixelRatio || 1 };
+  }
+  function onDisc(sx, sy) {
+    if (!view || !view.scale || view.scale < 1) return false;
+    var nx = (sx - view.cx) / view.scale, ny = (view.cy - sy) / view.scale;
+    return (nx * nx + ny * ny) <= 0.98;
+  }
+  /* rotate so anchor projects under (sx,sy) — zoom-about-point */
+  function keepUnderCursor(anchor, sx, sy) {
+    if (!saneLatLng(anchor) || !view) return;
+    fitView();
+    var f = face(anchor);
+    cam.yaw = f.yaw;
+    cam.pitch = f.pitch;
+    for (var i = 0; i < 12; i++) {
+      var p = project(anchor.lat, anchor.lng, cam);
+      if (!p || !(p.z > 0.04)) break;
+      var dx = sx - p.x, dy = sy - p.y;
+      if (Math.hypot(dx, dy) < 1.2) break;
+      var s = Math.max(60, view.scale);
+      cam.yaw -= dx / s;
+      cam.pitch = Math.max(-1.15, Math.min(1.15, cam.pitch + dy / s));
+    }
   }
   function rememberAim(pt) {
     if (!saneLatLng(pt)) return lastGoodAim;
@@ -695,15 +730,14 @@
     if (fly) {
       var k = Math.min(1, (now - fly.t0) / fly.ms);
       var e = 1 - Math.pow(1 - k, 3);
-      cam.yaw = fly.start.yaw + (fly.goal.yaw - fly.start.yaw) * e;
-      cam.pitch = fly.start.pitch + (fly.goal.pitch - fly.start.pitch) * e;
       cam.dist = fly.start.dist + (fly.goal.dist - fly.start.dist) * e;
-      if (k >= 1) fly = null;
-      if (!drag && tierI >= 2 && aim && !cityOn) {
-        var held = face(aim);
-        cam.yaw = held.yaw;
-        cam.pitch = held.pitch;
+      if (fly.about && saneLatLng(fly.about)) {
+        keepUnderCursor({ lat: fly.about.lat, lng: fly.about.lng }, fly.about.sx, fly.about.sy);
+      } else {
+        cam.yaw = fly.start.yaw + (fly.goal.yaw - fly.start.yaw) * e;
+        cam.pitch = fly.start.pitch + (fly.goal.pitch - fly.start.pitch) * e;
       }
+      if (k >= 1) fly = null;
       return;
     }
     if (intro) {
@@ -713,9 +747,14 @@
       intro = false;
     }
     if (!drag && tierI >= 2 && aim && !cityOn) {
-      var held2 = face(aim);
-      cam.yaw = held2.yaw;
-      cam.pitch = held2.pitch;
+      /* 4431: during zoom gesture keep anchor under cursor pixel; else face-center hold */
+      if (Date.now() < zoomGestureUntil && zoomPixel && saneLatLng(aim)) {
+        keepUnderCursor(aim, zoomPixel.x, zoomPixel.y);
+      } else {
+        var held2 = face(aim);
+        cam.yaw = held2.yaw;
+        cam.pitch = held2.pitch;
+      }
       vel.yaw = 0; vel.pitch = 0;
       return;
     }
@@ -743,8 +782,9 @@
   }
   function nowMs() { return Date.now(); }
   function pos(e) {
-    var r = canvas.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top, w: r.width, h: r.height };
+    var p = eventCanvasXY(e);
+    if (!p) return { x: 0, y: 0, w: 0, h: 0 };
+    return { x: p.x, y: p.y, w: p.rw, h: p.rh, clientX: p.clientX, clientY: p.clientY };
   }
   function bindGlobe() {
     canvas.addEventListener("contextmenu", function (e) {
@@ -766,13 +806,19 @@
         if (holdT) { clearTimeout(holdT); holdT = 0; }
         return;
       }
-      drag = { x: p.x, y: p.y, yaw: cam.yaw, pitch: cam.pitch, moved: false, lastX: p.x, lastY: p.y, lastT: nowMs() };
+      drag = { x: p.x, y: p.y, yaw: cam.yaw, pitch: cam.pitch, moved: false, lastX: p.x, lastY: p.y, lastT: nowMs(), holdX: p.x, holdY: p.y };
+      /* 4431: true HOLD_MS from pointerdown; allow ~14px jitter without cancel */
+      if (holdT) { clearTimeout(holdT); holdT = 0; }
       holdT = setTimeout(function () {
         if (!drag || drag.moved) return;
-        var hit = globeHit(p.x, p.y, cam);
+        var hx = drag.holdX, hy = drag.holdY;
+        var hit = globeHit(hx, hy, cam);
         if (hit) listAt(hit);
-        else listAt(pointUnder(p.x, p.y) || aim);
+        else if (saneLatLng(zoomAnchor)) listAt(zoomAnchor);
+        else if (saneLatLng(aim)) listAt(aim);
+        else listAt(lastGoodAim);
         drag = null;
+        holdT = 0;
       }, HOLD_MS);
     });
     canvas.addEventListener("pointermove", function (e) {
@@ -791,9 +837,11 @@
       }
       if (!drag) return;
       var dx = p.x - drag.x, dy = p.y - drag.y;
-      if (Math.hypot(dx, dy) > 8) {
+      if (Math.hypot(dx, dy) > 14) {
         drag.moved = true; intro = false; gpsSeq++;
         if (holdT) { clearTimeout(holdT); holdT = 0; }
+      } else {
+        drag.holdX = p.x; drag.holdY = p.y; /* track micro-moves for hold point */
       }
       if (!drag.moved) return;
       var t = nowMs();
@@ -819,42 +867,58 @@
     }
     canvas.addEventListener("pointerup", up);
     canvas.addEventListener("pointercancel", up);
-    var wheelAcc = 0, wheelRaf = 0, wheelXY = null, wheelLastT = 0;
-    canvas.addEventListener("wheel", function (e) {
-      e.preventDefault(); intro = false;
-      /* 4430: log real OS deltas; Linux X11 often ±53 or ±100–120, deltaMode 0; several events/notch */
+    var wheelAcc = 0, wheelRaf = 0, wheelXY = null, wheelLastT = 0, wheelEv = null;
+    function onWheel(e) {
+      if (cityOn) return; /* map has its own handler */
+      var t = e.target;
+      if (t && t.closest && t.closest("#sn-sheet,#sn-me-sheet,#menu,#sn-drawer-panel,#in,textarea,input,select")) return;
+      e.preventDefault();
+      intro = false;
+      var xy = eventCanvasXY(e);
       try {
         if (!window.__SN_WHEEL_LOG) window.__SN_WHEEL_LOG = [];
-        window.__SN_WHEEL_LOG.push({ t: Date.now(), deltaY: e.deltaY, deltaMode: e.deltaMode, x: e.clientX, y: e.clientY });
-        if (window.__SN_WHEEL_LOG.length > 60) window.__SN_WHEEL_LOG.shift();
+        window.__SN_WHEEL_LOG.push({
+          t: Date.now(), deltaY: e.deltaY, deltaMode: e.deltaMode,
+          x: e.clientX, y: e.clientY,
+          target: (t && (t.id || t.tagName)) || "?",
+          sx: xy && xy.x, sy: xy && xy.y, dpr: (xy && xy.dpr) || 1
+        });
+        if (window.__SN_WHEEL_LOG.length > 80) window.__SN_WHEEL_LOG.shift();
       } catch (err0) {}
-      var dyIn = e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY; /* lines → px-ish */
+      var dyIn = e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY;
       wheelAcc += dyIn;
-      wheelXY = pos(e);
+      wheelXY = xy;
+      wheelEv = e;
       if (wheelRaf) return;
       wheelRaf = requestAnimationFrame(function () {
         wheelRaf = 0;
         var dy = wheelAcc; wheelAcc = 0;
-        var p = wheelXY || { x: view && view.cx, y: view && view.cy };
+        var p = wheelXY;
         var now = Date.now();
-        /* one physical notch → one nudge. Coalesced multi-events in one frame still count as 1 unless fling (|dy|≥240). */
         var notches = 1;
         if (Math.abs(dy) >= 240) notches = Math.min(3, Math.round(Math.abs(dy) / 120));
-        if (now - wheelLastT < 90) notches = 1; /* debounce burst of small deltas */
+        if (now - wheelLastT < 90) notches = 1;
         wheelLastT = now;
         var dir = dy > 0 ? 1 : -1;
-        if (!dy) return;
+        if (!dy || !p) return;
         try {
-          for (var n = 0; n < notches; n++) nudgeZoom(dir, p.x, p.y);
+          for (var n = 0; n < notches; n++) nudgeZoom(dir, p.x, p.y, wheelEv);
         } catch (err) { try { console.error("wheel", err); } catch (e2) {} }
       });
-    }, { passive: false });
+    }
+    /* 4431: window capture so ribbon/HUD overlays cannot steal wheel coords */
+    if (!window.__SN_WHEEL_WIN4431) {
+      window.__SN_WHEEL_WIN4431 = true;
+      window.addEventListener("wheel", onWheel, { passive: false, capture: true });
+    }
+    canvas.addEventListener("wheel", onWheel, { passive: false });
   }
   function pointUnder(sx, sy) {
     var hit = (sx != null) ? globeHit(sx, sy, cam) : null;
-    if (!hit && view) hit = globeHit(view.cx, view.cy, cam);
-    if (!hit) return saneLatLng(aim) ? aim : lastGoodAim;
-    return { lat: hit.lat, lng: hit.lng };
+    if (hit) return { lat: hit.lat, lng: hit.lng };
+    if (saneLatLng(zoomAnchor)) return { lat: zoomAnchor.lat, lng: zoomAnchor.lng };
+    if (saneLatLng(aim)) return { lat: aim.lat, lng: aim.lng };
+    return lastGoodAim;
   }
   function face(pt) {
     if (!pt) return { yaw: cam.yaw, pitch: cam.pitch };
@@ -863,24 +927,36 @@
       pitch: Math.max(-1.15, Math.min(1.15, (pt.lat * Math.PI) / 180))
     };
   }
-  /* 4428: one notch ≈ one small smooth dist step; tiers crossed gradually; cursor frozen */
-  function nudgeZoom(dir, sx, sy) {
+  /* 4428/4431: one notch ≈ one smooth dist step; zoom-about-cursor; never fall back to screen center */
+  function nudgeZoom(dir, sx, sy, ev) {
     gpsSeq++;
     var now = Date.now();
-    if (now > zoomGestureUntil) {
-      /* 4430: cursor hit only if near globe facing center; else keep cam look-at (never GPS junk / Barents) */
-      var look = camLookAt();
-      var fresh = (sx != null && sy != null) ? globeHit(sx, sy, cam) : null;
-      if (hitOk(fresh, look)) zoomAnchor = rememberAim(fresh);
-      else if (hitOk(zoomAnchor, look)) rememberAim(zoomAnchor);
-      else if (hitOk(aim, look)) zoomAnchor = rememberAim(aim);
-      else zoomAnchor = rememberAim(look);
+    lastHitReason = "";
+    var fresh = (sx != null && sy != null) ? globeHit(sx, sy, cam) : null;
+    if (fresh && onDisc(sx, sy)) {
+      lastHitReason = "disc-hit";
+      if (now > zoomGestureUntil) zoomAnchor = rememberAim(fresh);
+      else if (saneLatLng(zoomAnchor)) rememberAim(zoomAnchor);
+      else zoomAnchor = rememberAim(fresh);
+      zoomPixel = { x: sx, y: sy };
+    } else if (now > zoomGestureUntil) {
+      lastHitReason = fresh ? "off-disc" : "no-hit";
+      /* 4431: off disc → last good anchor, NEVER screen-center / camLookAt */
+      if (saneLatLng(zoomAnchor)) rememberAim(zoomAnchor);
+      else if (saneLatLng(aim)) zoomAnchor = rememberAim(aim);
+      else if (saneLatLng(lastGoodAim)) zoomAnchor = rememberAim(lastGoodAim);
+      else { lastHitReason = "no-anchor"; zoomAnchor = rememberAim(camLookAt()); }
+      if (sx != null) zoomPixel = { x: sx, y: sy };
+    } else {
+      lastHitReason = "gesture-freeze";
+      if (saneLatLng(zoomAnchor)) rememberAim(zoomAnchor);
+      if (sx != null) zoomPixel = { x: sx, y: sy };
     }
-    zoomGestureUntil = now + 1600; /* cover 0.7s remine notches */
-    var anchor = saneLatLng(zoomAnchor) ? zoomAnchor : camLookAt();
-    if (!hitOk(anchor, camLookAt())) anchor = rememberAim(camLookAt());
-    else rememberAim(anchor);
+    zoomGestureUntil = now + 1800;
+    var anchor = saneLatLng(zoomAnchor) ? zoomAnchor : (saneLatLng(aim) ? aim : lastGoodAim);
+    rememberAim(anchor);
     intro = false;
+    try { window.__SN_DEBUG_HIT = { reason: lastHitReason, sx: sx, sy: sy, anchor: anchor, fresh: fresh, look: camLookAt() }; } catch (e0) {}
 
     if (cityOn && map) {
       try {
@@ -921,9 +997,11 @@
 
     var factor = dir > 0 ? NOTCH_OUT : NOTCH_IN;
     var cur = isFinite(cam.dist) ? cam.dist : 1.85;
-    if (fly && isFinite(fly.goal && fly.goal.dist)) cur = fly.goal.dist;
+    if (fly && fly.goal && isFinite(fly.goal.dist)) cur = fly.goal.dist;
     var next = Math.max(DIST_MIN, Math.min(DIST_MAX, cur * factor));
-    softFly(anchor, next);
+    var px = (zoomPixel && isFinite(zoomPixel.x)) ? zoomPixel.x : sx;
+    var py = (zoomPixel && isFinite(zoomPixel.y)) ? zoomPixel.y : sy;
+    softZoomAbout(anchor, next, px, py);
 
     if (dir < 0 && next <= CITY_ENTER_DIST && saneLatLng(anchor)) {
       openCity(anchor);
@@ -931,8 +1009,27 @@
     }
     tierI = tierFromDist(next, false);
     try {
-      window.__SN_WHEEL = { dir: dir, dist: next, lat: anchor.lat, lng: anchor.lng, tier: tierI, mode: "globe" };
+      window.__SN_WHEEL = { dir: dir, dist: next, lat: anchor.lat, lng: anchor.lng, tier: tierI, mode: "globe", reason: lastHitReason, sx: px, sy: py };
     } catch (e) {}
+  }
+  function softZoomAbout(anchor, nextDist, sx, sy) {
+    if (!saneLatLng(anchor)) anchor = lastGoodAim;
+    intro = false;
+    var goalDist = Math.max(DIST_MIN, Math.min(DIST_MAX, nextDist));
+    fly = {
+      t0: performance.now(),
+      ms: 280,
+      start: { yaw: cam.yaw, pitch: cam.pitch, dist: cam.dist },
+      goal: { yaw: cam.yaw, pitch: cam.pitch, dist: goalDist },
+      about: { lat: anchor.lat, lng: anchor.lng, sx: sx, sy: sy }
+    };
+    vel.yaw = 0; vel.pitch = 0;
+    rememberAim(anchor);
+    keepUnderCursor(anchor, sx, sy);
+    fly.start.yaw = cam.yaw; fly.start.pitch = cam.pitch;
+    fly.goal.yaw = cam.yaw; fly.goal.pitch = cam.pitch;
+    tierI = tierFromDist(goalDist, cityOn);
+    say((TIERS[Math.min(tierI, TIERS.length - 1)] || {}).name + " · " + anchor.lat.toFixed(2) + "," + anchor.lng.toFixed(2));
   }
   function softFly(pt, dist) {
     if (!saneLatLng(pt)) pt = lastGoodAim;
@@ -1035,8 +1132,8 @@
     }, true);
   }
   function openCity(pt) {
-    var look = camLookAt();
-    if (!saneLatLng(pt) || !hitOk(pt, look)) pt = saneLatLng(look) ? look : lastGoodAim;
+    /* 4431: prefer cursor/anchor pt; only fall back to lastGoodAim — never screen-center Africa */
+    if (!saneLatLng(pt)) pt = saneLatLng(zoomAnchor) ? zoomAnchor : (saneLatLng(aim) ? aim : lastGoodAim);
     rememberAim(pt);
     tierI = 3;
     var el = $("city");
@@ -1095,13 +1192,16 @@
           if (!map || !holdPt) return;
           var ll = map.mouseEventToLatLng(holdPt);
           if (ll) listAt({ lat: ll.lat, lng: ll.lng });
+          hold = 0;
         }, HOLD_MS);
       });
       function cancelHold() { if (hold) { clearTimeout(hold); hold = 0; } }
       el.addEventListener("pointerup", cancelHold);
       el.addEventListener("pointercancel", cancelHold);
       el.addEventListener("pointermove", function (e) {
-        if (holdPt && Math.hypot(e.clientX - holdPt.clientX, e.clientY - holdPt.clientY) > 12) cancelHold();
+        if (!holdPt) return;
+        if (Math.hypot(e.clientX - holdPt.clientX, e.clientY - holdPt.clientY) > 14) cancelHold();
+        else holdPt = e; /* track micro-moves so LIST HUD matches ocean/land hold */
       });
       /* map wheel → same nudge path so bursts stay coherent */
       var mapWheelAcc = 0, mapWheelRaf = 0, mapWheelLast = 0, mapWheelXY = null;
@@ -1165,10 +1265,10 @@
     if (!pt || !isFinite(pt.lat) || !isFinite(pt.lng)) return;
     listPt = { lat: pt.lat, lng: pt.lng };
     listAlt = altitudeFromDist(cam.dist);
+    rememberAim(pt); /* 4431: every hold updates HUD coords to this point (land or ocean) */
     if (vendor) { setDrop(pt); return; }
-    /* 4427: port 4421/4425 hold→LIST on globe/land/sea (HOLD_MS 1500). */
     openSheet("LIST",
-      '<p class="note">Hold point · land or sea · ' + listAlt + '. Listing does not use GPS as the delivery address.</p>' +
+      '<p class="note">Hold point · land or sea · ' + listAlt + ' · ' + pt.lat.toFixed(4) + "," + pt.lng.toFixed(4) + '. Listing does not use GPS as the delivery address.</p>' +
       '<button type="button" class="sheet-go" data-act="list-vendor">VENDOR</button>' +
       '<button type="button" class="sheet-go" data-act="list-client">CLIENT</button>' +
       '<button type="button" class="sheet-go" data-act="list-driver">DRIVER · land or sea</button>');
@@ -1991,6 +2091,33 @@
         el.style.setProperty("pointer-events", "auto", "important");
         x += w + 8;
       });
+      /* 4431: MIC + 📎 below ribbon, fully visible, no overlap with cluster */
+      var y2 = y + 56;
+      var x2 = pad;
+      ["plus", "go", "sn-mic"].forEach(function (id) {
+        var el = $(id);
+        if (!el) return;
+        el.style.setProperty("position", "fixed", "important");
+        el.style.setProperty("top", Math.round(y2) + "px", "important");
+        el.style.setProperty("left", Math.round(x2) + "px", "important");
+        el.style.setProperty("right", "auto", "important");
+        el.style.setProperty("bottom", "auto", "important");
+        el.style.setProperty("z-index", "248", "important");
+        el.style.setProperty("pointer-events", "auto", "important");
+        el.style.setProperty("display", "inline-flex", "important");
+        el.style.setProperty("visibility", "visible", "important");
+        el.style.setProperty("opacity", "1", "important");
+        x2 += Math.max(48, el.offsetWidth || 56) + 8;
+      });
+      var above = $("sn-above");
+      if (above) {
+        above.style.setProperty("position", "fixed", "important");
+        above.style.setProperty("top", Math.round(y2) + "px", "important");
+        above.style.setProperty("left", pad + "px", "important");
+        above.style.setProperty("z-index", "247", "important");
+        above.style.setProperty("pointer-events", "none", "important");
+        above.style.setProperty("display", "block", "important");
+      }
     })();
     var money = $("sn-money");
     var sup = $("sn-support");
@@ -2187,9 +2314,12 @@
         menuEl.hidden = false; menuEl.classList.add("on");
         burger.setAttribute("aria-expanded", "true");
       }
+      var menuIgnoreUntil = 0;
       burger.addEventListener("click", function (e) {
         e.preventDefault(); e.stopPropagation();
-        if (menuEl && !menuEl.hidden) closeMenu(); else openMenu();
+        if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+        if (menuEl && !menuEl.hidden) closeMenu();
+        else { openMenu(); menuIgnoreUntil = Date.now() + 400; }
       });
       if (menuEl && !menuEl.__sn) {
         menuEl.__sn = true;
@@ -2211,6 +2341,7 @@
       }
       document.addEventListener("click", function (e) {
         if (!menuEl || menuEl.hidden) return;
+        if (Date.now() < menuIgnoreUntil) return; /* 4431: same-gesture open must not close */
         if (e.target === burger || (burger.contains && burger.contains(e.target))) return;
         if (menuEl.contains && menuEl.contains(e.target)) return;
         closeMenu();
@@ -3049,6 +3180,35 @@
     window.__SN_4429c = true;
     window.__SN_4430 = true;
     window.__SN_4430b = true;
+    window.__SN_4431 = true;
+    /* 4431: ?debug=1 overlay */
+    (function armDebug() {
+      try {
+        if (!/[?&]debug=1(?:&|$)/.test(location.search)) return;
+        if (document.getElementById("sn-debug-4431")) return;
+        var box = document.createElement("pre");
+        box.id = "sn-debug-4431";
+        box.style.cssText = "position:fixed;left:8px;bottom:calc(var(--drawer-h,36px) + 88px);z-index:400;max-width:46vw;max-height:36vh;overflow:auto;margin:0;padding:8px 10px;border-radius:10px;background:rgba(0,0,0,.82);color:#9fef9f;font:11px/1.35 ui-monospace,monospace;pointer-events:none;white-space:pre-wrap";
+        document.body.appendChild(box);
+        setInterval(function () {
+          var w = window.__SN_WHEEL || {};
+          var h = window.__SN_DEBUG_HIT || {};
+          var log = (window.__SN_WHEEL_LOG || []).slice(-1)[0] || {};
+          var r = canvas ? canvas.getBoundingClientRect() : {};
+          box.textContent = [
+            "dpr=" + (window.devicePixelRatio || 1) + " win=" + window.innerWidth + "x" + window.innerHeight,
+            "client=" + (log.x|0) + "," + (log.y|0) + " target=" + (log.target || "?") + " dY=" + log.deltaY + " mode=" + log.deltaMode,
+            "canvasRect=" + Math.round(r.left||0) + "," + Math.round(r.top||0) + " " + Math.round(r.width||0) + "x" + Math.round(r.height||0),
+            "sx,sy=" + (h.sx|0) + "," + (h.sy|0) + " reason=" + (h.reason || lastHitReason || ""),
+            "hit=" + (h.fresh ? (h.fresh.lat.toFixed(2)+","+h.fresh.lng.toFixed(2)) : "null"),
+            "anchor=" + (h.anchor ? (h.anchor.lat.toFixed(2)+","+h.anchor.lng.toFixed(2)) : "?"),
+            "look=" + (h.look ? (h.look.lat.toFixed(2)+","+h.look.lng.toFixed(2)) : "?"),
+            "tier=" + tierI + " dist=" + (cam.dist && cam.dist.toFixed(3)) + " city=" + !!cityOn,
+            "wheel=" + (w.mode||"") + " z=" + (w.z||"") + " " + (w.lat!=null ? (Number(w.lat).toFixed(2)+","+Number(w.lng).toFixed(2)) : "")
+          ].join("\n");
+        }, 200);
+      } catch (e) {}
+    })();
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
@@ -3066,7 +3226,7 @@
       facePlace: function (pt, dist) { if (saneLatLng(pt)) { rememberAim(pt); softFly(pt, dist != null ? dist : 0.85); } },
       getAim: function () { return aim; },
       camLookAt: camLookAt,
-      hitOk: hitOk
+      hitOk: hitOk, keepUnderCursor: keepUnderCursor, onDisc: onDisc, eventCanvasXY: eventCanvasXY
     };
     Object.defineProperty(window, "__SN_INTRO", { get: function () { return intro; } });
     requestAnimationFrame(loop);
