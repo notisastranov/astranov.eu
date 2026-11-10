@@ -4,13 +4,13 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4422"/>
+<meta name="astranov-build" content="4423"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
-<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4422"/>
+<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4423"/>
 <style>
 :root{
   --bg:#02040a; --fg:#e8fbff; --muted:#8ec8d8; --accent:#4df0ff;
@@ -19,7 +19,8 @@
   --drawer-h:10px;
 }
 html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:system-ui,sans-serif;overflow:hidden}
-#map{position:fixed;inset:0;background:var(--bg)}
+#map{position:fixed;inset:0;background:var(--bg);z-index:0}
+#g{position:fixed;inset:0;width:100%;height:100%;background:#02040a;z-index:1;touch-action:none}
 button,input{font-family:inherit}
 button{cursor:pointer}
 
@@ -75,6 +76,7 @@ textarea.field{min-height:88px}
 </style>
 </head>
 <body>
+<canvas id="g"></canvas>
 <div id="map"></div>
 <div id="sn-topchrome-drag" class="sn-trivial-law" aria-hidden="true"></div>
 <header id="top">
@@ -102,8 +104,8 @@ textarea.field{min-height:88px}
   <div id="sheet"></div>
 </div>
 <div id="toast" role="status"></div>
-<script src="/js/vendor/leaflet.js?v=4422"></script>
-<script src="/js/spacenet/app.js?v=4422"></script>
-<script src="/js/spacenet/auth.js?v=4422"></script>
+<script src="/js/vendor/leaflet.js?v=4423"></script>
+<script src="/js/spacenet/app.js?v=4423"></script>
+<script src="/js/spacenet/auth.js?v=4423"></script>
 </body>
 </html>
