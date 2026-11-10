@@ -2925,7 +2925,7 @@
         if (me && me.classList.contains("on")) { me.classList.remove("on"); closed = true; }
       } catch (err) {}
       try {
-        var sheet = document.getElementById("sheet");
+        var sheet = document.getElementById("sn-sheet");
         if (sheet && sheet.classList.contains("on")) { if (typeof closeSheet === "function") closeSheet(); closed = true; }
       } catch (err2) {}
       try {
@@ -2946,6 +2946,7 @@
     window.__SN_4428 = true;
     window.__SN_4428b = true;
     window.__SN_4429 = true;
+    window.__SN_4429c = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
