@@ -1,7 +1,7 @@
-/* SpaceNet SW 4433 — one entity. Tree lock. */
-var CACHE = "sn-shell-4433";
-var VER = "4433";
-var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4433", "/js/spacenet/auth.js?v=4433", "/js/vendor/leaflet.js?v=4433", "/js/vendor/leaflet.css?v=4433", "/icon-192.png", "/manifest.webmanifest"];
+/* SpaceNet SW 4434 — one entity. Tree lock. */
+var CACHE = "sn-shell-4434";
+var VER = "4434";
+var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4434", "/js/spacenet/auth.js?v=4434", "/js/vendor/leaflet.js?v=4434", "/js/vendor/leaflet.css?v=4434", "/icon-192.png", "/manifest.webmanifest"];
 function allowedScript(path) {
   if (path === "/js/spacenet/app.js" || path === "/js/spacenet/auth.js" || path === "/js/vendor/leaflet.js") return true;
   return false;
@@ -21,8 +21,8 @@ self.addEventListener("install", function (e) {
 self.addEventListener("activate", function (e) {
   e.waitUntil(
     caches.keys().then(function (keys) {
-      /* 4433: drop every prior shell cache (stale index/app from older visits on same origin) */
-      return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+      /* 4434: delete old shells only — keep this version's cache and the registration */
+      return Promise.all(keys.filter(function (k) { return k !== CACHE; }).map(function (k) { return caches.delete(k); }));
     }).then(function () {
       return caches.open(CACHE).then(function (c) {
         return c.addAll(SHELL.map(function (u) { return new Request(u, { cache: "reload" }); })).catch(function () {});
@@ -41,7 +41,7 @@ self.addEventListener("fetch", function (e) {
   if (url.origin !== location.origin) return;
   if (url.pathname === "/sw.js") { e.respondWith(fetch(e.request, { cache: "reload" })); return; }
   if (isOverlay(url.pathname)) {
-    e.respondWith(new Response("/* TREE LOCK 4433: overlay blocked */", { headers: { "Content-Type": "application/javascript" }, status: 200 }));
+    e.respondWith(new Response("/* TREE LOCK 4434: overlay blocked */", { headers: { "Content-Type": "application/javascript" }, status: 200 }));
     return;
   }
   if (e.request.mode === "navigate" || url.pathname === "/" || url.pathname === "/index.html") {

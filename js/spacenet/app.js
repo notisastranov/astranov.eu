@@ -105,12 +105,13 @@
   var zoomAnchor = null; /* frozen lat/lng under cursor for a wheel gesture */
   var zoomGestureUntil = 0;
   /* 4432: explicit wheel lock — never re-hit while active */
-  var wheelLock = null; /* { lat, lng, sx, sy, lastT } */
+  var wheelLock = null; /* 4434: { lat, lng, sx, sy, cx, cy, lastT } — sx/sy = map container or canvas CSS; cx/cy = client */
   var WHEEL_IDLE_MS = 1200; /* >0.7s remine notch gap; true idle ends gesture */
   var WHEEL_MOVE_PX = 4;
   var WHEEL_BREAK_PX = 12; /* end lock only on clear cursor move (absorb xdotool jitter) */
   var lastGoodAim = { lat: 37.9755, lng: 23.7348 };
   var tileLayer = null;
+  var backLayer = null; /* 4434: OSM z-2 backdrop so zoom steps never flash grey */
   var CITY_ENTER_DIST = 0.62;
   var DIST_MIN = 0.55;
   var DIST_MAX = 6.2;
@@ -365,6 +366,97 @@
     return aim;
   }
   function clearWheelLock() { wheelLock = null; }
+  function eventClientXY(ev, sx, sy) {
+    if (ev && isFinite(ev.clientX) && isFinite(ev.clientY)) return { x: ev.clientX, y: ev.clientY };
+    return { x: sx, y: sy };
+  }
+  function mapContainerPoint(ev, sx, sy) {
+    if (!map) return (sx != null) ? { x: sx, y: sy } : null;
+    try {
+      if (ev && ev.clientX != null && map.mouseEventToContainerPoint) {
+        var p = map.mouseEventToContainerPoint(ev);
+        if (p) return { x: p.x, y: p.y };
+      }
+    } catch (e) {}
+    if (wheelLock && isFinite(wheelLock.sx)) return { x: wheelLock.sx, y: wheelLock.sy };
+    if (sx != null) return { x: sx, y: sy };
+    return null;
+  }
+  function mapAnchorErr(anchor, cp) {
+    if (!map || !saneLatLng(anchor) || !cp) return null;
+    try {
+      var p = map.latLngToContainerPoint(L.latLng(anchor.lat, anchor.lng));
+      return Math.hypot(p.x - cp.x, p.y - cp.y);
+    } catch (e) { return null; }
+  }
+  function correctMapAnchor(anchor, cp) {
+    if (!map || !saneLatLng(anchor) || !cp) return null;
+    try {
+      var p = map.latLngToContainerPoint(L.latLng(anchor.lat, anchor.lng));
+      var dx = p.x - cp.x, dy = p.y - cp.y;
+      var err = Math.hypot(dx, dy);
+      if (err > 3) {
+        map.panBy([dx, dy], { animate: false });
+        p = map.latLngToContainerPoint(L.latLng(anchor.lat, anchor.lng));
+        err = Math.hypot(p.x - cp.x, p.y - cp.y);
+      }
+      return err;
+    } catch (e) { return null; }
+  }
+  function lockFrom(anchor, sx, sy, ev) {
+    if (!saneLatLng(anchor)) return;
+    var cl = eventClientXY(ev, sx, sy);
+    var cp = (cityOn && map) ? mapContainerPoint(ev, sx, sy) : { x: sx, y: sy };
+    wheelLock = {
+      lat: anchor.lat, lng: anchor.lng,
+      sx: (cp && isFinite(cp.x)) ? cp.x : sx,
+      sy: (cp && isFinite(cp.y)) ? cp.y : sy,
+      cx: cl && cl.x, cy: cl && cl.y,
+      lastT: Date.now()
+    };
+    zoomAnchor = { lat: anchor.lat, lng: anchor.lng };
+    zoomPixel = { x: wheelLock.sx, y: wheelLock.sy };
+    zoomGestureUntil = Date.now() + WHEEL_IDLE_MS;
+  }
+  function armTileKeep(layer) {
+    if (!layer || layer.__snKeep4434) return;
+    layer.__snKeep4434 = true;
+    var orig = layer._pruneTiles;
+    layer._pruneTiles = function () {
+      try {
+        if (!this._map) return;
+        var z = this._map.getZoom();
+        var have = 0;
+        for (var k in this._tiles) {
+          var t = this._tiles[k];
+          if (t && t.coords && t.coords.z === z && t.loaded) have++;
+        }
+        if (have < 8) return; /* 4434: keep previous zoom tiles until the new set is painted */
+      } catch (e) {}
+      if (typeof orig === "function") return orig.apply(this, arguments);
+    };
+  }
+  function ensureBackLayer() {
+    if (!map || typeof L === "undefined") return;
+    try {
+      if (!map.getPane("snBack")) {
+        map.createPane("snBack");
+        map.getPane("snBack").style.zIndex = 150;
+      }
+      if (!backLayer || !map.hasLayer(backLayer)) {
+        backLayer = L.tileLayer(TILE_URLS[tileUrlI % TILE_URLS.length], {
+          pane: "snBack",
+          maxZoom: 19, minZoom: 3, maxNativeZoom: 17,
+          tileSize: 1024, zoomOffset: -2,
+          keepBuffer: 8, updateWhenZooming: true, updateWhenIdle: false,
+          attribution: "", className: "sn-osm-back",
+          errorTileUrl: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+        });
+        backLayer.addTo(map);
+        armTileKeep(backLayer);
+      }
+    } catch (e) {}
+  }
   function tierFromDist(d, onCity) {
     if (onCity) {
       try {
@@ -435,17 +527,18 @@
       if (!tileLayer || !map.hasLayer(tileLayer)) {
         tileLayer = L.tileLayer(TILE_URLS[tileUrlI % TILE_URLS.length], {
           maxZoom: 19, minZoom: 3, maxNativeZoom: 19,
-          tileSize: 256, zoomOffset: 0, updateWhenZooming: false, keepBuffer: 2,
+          tileSize: 256, zoomOffset: 0, updateWhenZooming: true, updateWhenIdle: false, keepBuffer: 8,
           attribution: "© OSM", className: "sn-osm-std",
           errorTileUrl: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
         });
         tileErrN = 0;
         armTileLog(tileLayer);
+        armTileKeep(tileLayer);
         /* 4433: rotate source only after several errors, not on the first 404 */
         tileLayer.on("tileerror", function () {
           tileErrN++;
           /* 4433: never yank a painted layer mid-zoom; only rotate if the map is actually empty */
-          if (tileErrN < 10 || paintedTileCount() >= 4) return;
+          if (wheelLock || tileErrN < 10 || paintedTileCount() >= 4) return;
           tileErrN = 0;
           try {
             tileUrlI = (tileUrlI + 1) % TILE_URLS.length;
@@ -458,6 +551,8 @@
         });
         tileLayer.addTo(map);
       }
+      ensureBackLayer();
+      try { if (map.scrollWheelZoom) map.scrollWheelZoom.disable(); } catch (eSw) {}
       map.invalidateSize({ animate: false });
     } catch (e) { try { console.error("tiles", e); } catch (e2) {} }
   }
@@ -516,6 +611,7 @@
       var city = $("city");
       if (cityOn && map && city && city.classList.contains("on")) {
         if (!cityReady) return true; /* 4433: globe still painted underneath during preload — not a failure */
+        if (wheelLock) return true; /* 4434: mid-gesture tile swap is not a failure */
         if (paintedTileCount() < 1) return false;
         return true;
       }
@@ -539,6 +635,7 @@
         if (canvas) {
           try { canvas.style.pointerEvents = "none"; } catch (e) {}
         }
+        if (wheelLock) { try { if (map) map.invalidateSize({ animate: false }); } catch (eL) {} return; }
         try { if (tileLayer && map) { map.removeLayer(tileLayer); tileLayer = null; } } catch (e4) {}
         tileUrlI = (tileUrlI + 1) % TILE_URLS.length;
         ensureTiles();
@@ -909,6 +1006,7 @@
       vel.yaw = 0; vel.pitch = 0;
       return;
     }
+    if (cityOn) { vel.yaw = 0; vel.pitch = 0; return; }
     if (!drag && (Math.abs(vel.yaw) > 0.00012 || Math.abs(vel.pitch) > 0.00012)) {
       cam.yaw += vel.yaw;
       cam.pitch = Math.max(-1.15, Math.min(1.15, cam.pitch + vel.pitch));
@@ -926,6 +1024,10 @@
     stepCam(now, dt);
     tickNews(now);
     if (!cityOn || !cityReady) drawGlobe(now); /* 4433: never black — globe stays painted until tiles ready */
+    if (cityOn) {
+      var lineEl = $("line");
+      if (!lineEl || !String(lineEl.textContent || "").trim()) paintCityHud();
+    }
     if (skyOn) drawSky(now);
     paintMonitor(now);
     maybeLayout();
@@ -1021,23 +1123,18 @@
     var wheelAcc = 0, wheelRaf = 0, wheelXY = null, wheelLastT = 0, wheelEv = null;
     function onWheel(e) {
       var t = e.target;
-      if (cityOn) {
-        try {
-          if (!window.__SN_WHEEL_LOG) window.__SN_WHEEL_LOG = [];
-          window.__SN_WHEEL_LOG.push({
-            t: Date.now(), deltaY: e.deltaY, deltaMode: e.deltaMode,
-            x: e.clientX, y: e.clientY,
-            target: (t && (t.id || t.tagName)) || "city",
-            city: true
-          });
-          if (window.__SN_WHEEL_LOG.length > 80) window.__SN_WHEEL_LOG.shift();
-        } catch (errL) {}
-        return; /* map has its own handler */
-      }
       if (t && t.closest && t.closest("#sn-sheet,#sn-me-sheet,#menu,#sn-drawer-panel,#in,textarea,input,select")) return;
+      /* 4434: one window-capture handler for globe AND map; Leaflet scrollWheelZoom stays off */
       e.preventDefault();
+      e.stopPropagation();
       intro = false;
-      var xy = eventCanvasXY(e);
+      var xy;
+      if (cityOn && map) {
+        var cp = mapContainerPoint(e, null, null);
+        xy = cp ? { x: cp.x, y: cp.y, dpr: window.devicePixelRatio || 1 } : eventCanvasXY(e);
+      } else {
+        xy = eventCanvasXY(e);
+      }
       try {
         if (!window.__SN_WHEEL_LOG) window.__SN_WHEEL_LOG = [];
         window.__SN_WHEEL_LOG.push({
@@ -1094,20 +1191,29 @@
     gpsSeq++;
     var now = Date.now();
     lastHitReason = "";
-    var fresh = (sx != null && sy != null) ? globeHit(sx, sy, cam) : null;
-    var disc = (sx != null && sy != null) && onDisc(sx, sy);
+    /* 4434: never re-hit the globe once the city map is on — that is what walked Rhodes to Marmaris */
+    var fresh = (!cityOn && sx != null && sy != null) ? globeHit(sx, sy, cam) : null;
+    var disc = !cityOn && (sx != null && sy != null) && onDisc(sx, sy);
 
-    /* 4432: lock ends on idle only (cursor fixed remine @0.7s). Clear move starts a NEW lock after idle. */
+    /* 4434: idle 1200 ms / move 12 px in CLIENT space so canvas vs #city rect cannot drop the lock */
     if (wheelLock && now - wheelLock.lastT > WHEEL_IDLE_MS) clearWheelLock();
-    /* resurrect if lock object lost but gesture window + zoomAnchor still valid (same cursor) */
-    if (!wheelLock && saneLatLng(zoomAnchor) && now < zoomGestureUntil && zoomPixel && sx != null) {
-      if (Math.hypot(sx - zoomPixel.x, sy - zoomPixel.y) <= WHEEL_BREAK_PX) {
-        wheelLock = { lat: zoomAnchor.lat, lng: zoomAnchor.lng, sx: zoomPixel.x, sy: zoomPixel.y, lastT: now };
+    var cl = eventClientXY(ev, sx, sy);
+    if (!wheelLock && saneLatLng(zoomAnchor) && now < zoomGestureUntil) {
+      var samePx = true;
+      if (cl && isFinite(wheelLock && wheelLock.cx)) {
+        samePx = Math.hypot(cl.x - wheelLock.cx, cl.y - wheelLock.cy) <= WHEEL_BREAK_PX;
+      } else if (zoomPixel && sx != null) {
+        samePx = Math.hypot(sx - zoomPixel.x, sy - zoomPixel.y) <= WHEEL_BREAK_PX;
+      }
+      if (samePx) {
+        wheelLock = { lat: zoomAnchor.lat, lng: zoomAnchor.lng, sx: (zoomPixel && zoomPixel.x) || sx, sy: (zoomPixel && zoomPixel.y) || sy, cx: cl && cl.x, cy: cl && cl.y, lastT: now };
       }
     }
-    /* intentional cursor move > BREAK while locked → new gesture from fresh hit */
-    if (wheelLock && sx != null && Math.hypot(sx - wheelLock.sx, sy - wheelLock.sy) > WHEEL_BREAK_PX) {
-      clearWheelLock();
+    if (wheelLock && cl && isFinite(wheelLock.cx) && isFinite(wheelLock.cy)) {
+      if (Math.hypot(cl.x - wheelLock.cx, cl.y - wheelLock.cy) > WHEEL_BREAK_PX) clearWheelLock();
+    } else if (wheelLock && sx != null && Math.hypot(sx - wheelLock.sx, sy - wheelLock.sy) > WHEEL_BREAK_PX) {
+      /* fallback only when we have no client coords (should be rare) */
+      if (!cityOn) clearWheelLock();
     }
 
     var anchor = null;
@@ -1117,20 +1223,24 @@
       anchor = { lat: wheelLock.lat, lng: wheelLock.lng };
       px = wheelLock.sx; py = wheelLock.sy;
       wheelLock.lastT = now;
+      if (cl && isFinite(cl.x)) { wheelLock.cx = cl.x; wheelLock.cy = cl.y; }
       zoomGestureUntil = now + WHEEL_IDLE_MS;
       zoomAnchor = { lat: anchor.lat, lng: anchor.lng };
       zoomPixel = { x: px, y: py };
       aim = { lat: anchor.lat, lng: anchor.lng };
       lastGoodAim = { lat: anchor.lat, lng: anchor.lng };
+    } else if (cityOn && saneLatLng(zoomAnchor)) {
+      /* 4434: map-side fallthrough uses the carried globe anchor, never a disc hit */
+      lastHitReason = "map-anchor";
+      anchor = { lat: zoomAnchor.lat, lng: zoomAnchor.lng };
+      lockFrom(anchor, sx, sy, ev);
+      px = wheelLock.sx; py = wheelLock.sy;
     } else if (fresh && (disc || saneLatLng(fresh))) {
       lastHitReason = disc ? "disc-hit" : "hit-near-limb";
       anchor = { lat: fresh.lat, lng: fresh.lng };
       rememberAim(anchor);
-      zoomAnchor = { lat: anchor.lat, lng: anchor.lng };
-      px = sx; py = sy;
-      zoomPixel = { x: px, y: py };
-      wheelLock = { lat: anchor.lat, lng: anchor.lng, sx: px, sy: py, lastT: now };
-      zoomGestureUntil = now + WHEEL_IDLE_MS;
+      lockFrom(anchor, sx, sy, ev);
+      px = wheelLock.sx; py = wheelLock.sy;
     } else {
       lastHitReason = fresh ? "off-disc" : "no-hit";
       if (saneLatLng(zoomAnchor)) anchor = { lat: zoomAnchor.lat, lng: zoomAnchor.lng };
@@ -1139,10 +1249,8 @@
       else { lastHitReason = "no-anchor"; anchor = camLookAt(); }
       if (saneLatLng(anchor) && sx != null) {
         rememberAim(anchor);
-        zoomAnchor = { lat: anchor.lat, lng: anchor.lng };
-        px = sx; py = sy;
-        zoomPixel = { x: px, y: py };
-        wheelLock = { lat: anchor.lat, lng: anchor.lng, sx: px, sy: py, lastT: now };
+        lockFrom(anchor, sx, sy, ev);
+        px = wheelLock.sx; py = wheelLock.sy;
       }
     }
     zoomGestureUntil = now + WHEEL_IDLE_MS;
@@ -1150,34 +1258,30 @@
 
     if (cityOn && map) {
       try {
-        var z = map.getZoom() || 16;
-        if (dir > 0) {
-          if (z <= handoffFloorZ) {
-            closeCity();
-            softFly(anchor, Math.max(CITY_ENTER_DIST + 0.04, 0.72));
-            return;
-          }
-          if (saneLatLng(anchor) && map.setZoomAround) {
-            map.setZoomAround(L.latLng(anchor.lat, anchor.lng), Math.max(handoffFloorZ, z - 1), { animate: false });
-          } else {
-            map.setZoom(Math.max(handoffFloorZ, z - 1), { animate: false });
-          }
-        } else {
-          var zIn = Math.min(19, z + 1);
-          if (saneLatLng(anchor) && map.setZoomAround) {
-            map.setZoomAround(L.latLng(anchor.lat, anchor.lng), zIn, { animate: false });
-          } else {
-            map.setView([anchor.lat, anchor.lng], zIn, { animate: false });
-          }
+        try { if (map.scrollWheelZoom) map.scrollWheelZoom.disable(); } catch (eSw) {}
+        var z = Math.round(map.getZoom() || 16);
+        if (dir > 0 && z <= handoffFloorZ) {
+          closeCity();
+          softFly(anchor, Math.max(CITY_ENTER_DIST + 0.04, 0.72));
+          return;
         }
+        var z2 = dir > 0 ? Math.max(handoffFloorZ, z - 1) : Math.min(19, z + 1);
+        var cp = (wheelLock && isFinite(wheelLock.sx)) ? { x: wheelLock.sx, y: wheelLock.sy } : mapContainerPoint(ev, sx, sy);
+        if (z2 !== z && saneLatLng(anchor) && map.setZoomAround && cp) {
+          map.setZoomAround(L.point(cp.x, cp.y), z2, { animate: false });
+        } else if (z2 !== z) {
+          map.setZoom(z2, { animate: false });
+        }
+        var err = correctMapAnchor(anchor, cp);
         ensureTiles();
         tierI = tierFromDist(cam.dist, true);
-        /* 4432: HUD = live map center after handoff/zoom, not stale anchor */
+        paintCityHud();
         try {
           var mc = map.getCenter();
-          if (saneLatLng(mc)) say("City · " + mc.lat.toFixed(2) + "," + mc.lng.toFixed(2));
-          window.__SN_WHEEL = { dir: dir, z: map.getZoom(), lat: mc.lat, lng: mc.lng, mode: "map", anchor: anchor };
-          window.__SN_DEBUG_HIT = { reason: lastHitReason, sx: px, sy: py, anchor: anchor, fresh: fresh, look: { lat: mc.lat, lng: mc.lng }, err: 0, lock: !!wheelLock };
+          var under = null;
+          try { if (cp) under = map.containerPointToLatLng(L.point(cp.x, cp.y)); } catch (eU) {}
+          window.__SN_WHEEL = { dir: dir, z: map.getZoom(), lat: (under && under.lat) || (mc && mc.lat), lng: (under && under.lng) || (mc && mc.lng), mode: "map", anchor: anchor, err: err };
+          window.__SN_DEBUG_HIT = { reason: lastHitReason, sx: px, sy: py, anchor: anchor, fresh: fresh, look: under ? { lat: under.lat, lng: under.lng } : (mc ? { lat: mc.lat, lng: mc.lng } : null), err: err, lock: !!wheelLock };
         } catch (eW) {}
       } catch (e) {
         healCity(anchor);
@@ -1348,8 +1452,19 @@
   function paintCityHud() {
     if (!map || !cityOn) return;
     try {
-      var c = map.getCenter();
-      if (saneLatLng(c)) say("City · " + c.lat.toFixed(2) + "," + c.lng.toFixed(2));
+      var ll = null;
+      if (wheelLock && isFinite(wheelLock.lat)) ll = { lat: wheelLock.lat, lng: wheelLock.lng };
+      if (wheelLock && map.containerPointToLatLng && isFinite(wheelLock.sx)) {
+        try {
+          var under = map.containerPointToLatLng(L.point(wheelLock.sx, wheelLock.sy));
+          if (under) ll = { lat: under.lat, lng: under.lng };
+        } catch (eU) {}
+      }
+      if (!saneLatLng(ll)) {
+        var c = map.getCenter();
+        if (saneLatLng(c)) ll = { lat: c.lat, lng: c.lng };
+      }
+      if (saneLatLng(ll)) say("City · " + ll.lat.toFixed(2) + "," + ll.lng.toFixed(2));
     } catch (e) {}
   }
   function openCity(pt, cursorPx) {
@@ -1378,8 +1493,12 @@
         minZoom: 3, maxZoom: 19, scrollWheelZoom: false,
         zoomAnimation: false, fadeAnimation: false, markerZoomAnimation: false
       }).setView([pt.lat, pt.lng], enterZ, { animate: false });
+      try { if (map.scrollWheelZoom) map.scrollWheelZoom.disable(); } catch (eSw) {}
       placeAnchorAtCursor(pt, cursorPx);
+      if (cursorPx) correctMapAnchor(pt, { x: cursorPx.x, y: cursorPx.y });
+      lockFrom(pt, cursorPx && cursorPx.x, cursorPx && cursorPx.y, null);
       try { map.invalidateSize({ animate: false }); } catch (eInv) {}
+      if (cursorPx) correctMapAnchor(pt, { x: cursorPx.x, y: cursorPx.y });
       ensureTiles();
       map.on("zoomend", function () {
         try {
@@ -1437,35 +1556,25 @@
         if (Math.hypot(e.clientX - holdPt.clientX, e.clientY - holdPt.clientY) > 14) cancelHold();
         else holdPt = e; /* track micro-moves so LIST HUD matches ocean/land hold */
       });
-      /* map wheel → same nudge path so bursts stay coherent */
-      var mapWheelAcc = 0, mapWheelRaf = 0, mapWheelLast = 0, mapWheelXY = null;
-      el.addEventListener("wheel", function (e) {
-        e.preventDefault(); e.stopPropagation();
-        intro = false;
-        var r = el.getBoundingClientRect();
-        mapWheelXY = { x: e.clientX - r.left, y: e.clientY - r.top };
-        mapWheelAcc += (e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY);
-        if (mapWheelRaf) return;
-        mapWheelRaf = requestAnimationFrame(function () {
-          mapWheelRaf = 0;
-          var dy = mapWheelAcc; mapWheelAcc = 0;
-          var now2 = Date.now();
-          var n = 1;
-          if (Math.abs(dy) >= 240) n = Math.min(3, Math.round(Math.abs(dy) / 120));
-          if (now2 - mapWheelLast < 90) n = 1;
-          mapWheelLast = now2;
-          var dir = dy > 0 ? 1 : -1;
-          var p = mapWheelXY || { x: r.width / 2, y: r.height / 2 };
-          try { for (var i = 0; i < n; i++) nudgeZoom(dir, p.x, p.y); } catch (err) {}
-        });
-      }, { passive: false });
+      /* 4434: window-capture onWheel is the only zoom path. Eat any leftover map-el wheel
+         so Leaflet cannot double-apply even if scrollWheelZoom is toggled back on. */
+      if (!el.__snWheel4434) {
+        el.__snWheel4434 = true;
+        el.addEventListener("wheel", function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }, { passive: false });
+      }
     } else {
       try { map.setMinZoom(3); } catch (e) {}
       /* 4429/4432: match globe scale; place locked anchor under cursor */
       var zNow = map.getZoom();
       var zGo = (!isFinite(zNow) || zNow < enterZ || zNow > 12) ? enterZ : zNow;
       map.setView([pt.lat, pt.lng], zGo, { animate: false });
+      try { if (map.scrollWheelZoom) map.scrollWheelZoom.disable(); } catch (eSw2) {}
       placeAnchorAtCursor(pt, cursorPx);
+      if (cursorPx) correctMapAnchor(pt, { x: cursorPx.x, y: cursorPx.y });
+      lockFrom(pt, cursorPx && cursorPx.x, cursorPx && cursorPx.y, null);
       ensureTiles();
     }
     armViewWatch();
@@ -1482,7 +1591,10 @@
       var mc0 = map.getCenter();
       var z0 = map.getZoom();
       window.__SN_WHEEL = { dir: -1, z: z0, lat: mc0.lat, lng: mc0.lng, mode: "map", anchor: pt, tier: 3 };
-      window.__SN_DEBUG_HIT = { reason: lastHitReason || "handoff", sx: cursorPx && cursorPx.x, sy: cursorPx && cursorPx.y, anchor: pt, fresh: null, look: { lat: mc0.lat, lng: mc0.lng }, err: 0, lock: !!wheelLock };
+      var err0 = cursorPx ? correctMapAnchor(pt, { x: cursorPx.x, y: cursorPx.y }) : 0;
+      if (!wheelLock || !isFinite(wheelLock.lat)) lockFrom(pt, cursorPx && cursorPx.x, cursorPx && cursorPx.y, null);
+      else { wheelLock.lastT = Date.now(); wheelLock.lat = pt.lat; wheelLock.lng = pt.lng; }
+      window.__SN_DEBUG_HIT = { reason: lastHitReason || "handoff", sx: cursorPx && cursorPx.x, sy: cursorPx && cursorPx.y, anchor: pt, fresh: null, look: { lat: mc0.lat, lng: mc0.lng }, err: err0, lock: !!wheelLock };
     } catch (eSt) {}
     paintCityHud();
     waitCityTiles(function (ok, n) {
@@ -3451,6 +3563,7 @@
     window.__SN_4431d = true;
     window.__SN_4432 = true;
     window.__SN_4433 = true;
+    window.__SN_4434 = true;
     /* 4432: ?debug=1 overlay (tree lock respected — only when ?debug=1) */
     (function armDebug() {
       try {
@@ -3472,7 +3585,18 @@
           if (log.y) lastCY = log.y;
           var tgt = lastTarget || (cityOn ? "city" : "g") || "?";
           var r = canvas ? canvas.getBoundingClientRect() : {};
-          var errNow = (!cityOn && h.anchor && h.sx != null) ? projectErr(h.anchor, h.sx, h.sy) : (h.err != null ? h.err : null);
+          var errNow = null;
+          if (cityOn && map && h.anchor) {
+            errNow = (h.err != null) ? h.err : mapAnchorErr(h.anchor, { x: h.sx, y: h.sy });
+          } else if (!cityOn && h.anchor && h.sx != null) {
+            errNow = projectErr(h.anchor, h.sx, h.sy);
+          } else if (h.err != null) {
+            errNow = h.err;
+          }
+          if (cityOn) {
+            var line = document.getElementById("line");
+            if (!line || !String(line.textContent || "").trim()) paintCityHud();
+          }
           var look = h.look;
           if (cityOn && map) {
             try { var c = map.getCenter(); if (c) look = { lat: c.lat, lng: c.lng }; } catch (eL) {}
