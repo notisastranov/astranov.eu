@@ -274,7 +274,12 @@
     if (!canvas || !e) return null;
     var r = canvas.getBoundingClientRect();
     if (!r.width || !r.height) return null;
+    /* CSS px relative to canvas; if rect ≠ view (ribbon/chrome/dpr quirks), map into view space */
     var sx = e.clientX - r.left, sy = e.clientY - r.top;
+    if (view && view.w > 1 && view.h > 1 && (Math.abs(r.width - view.w) > 1 || Math.abs(r.height - view.h) > 1)) {
+      sx = sx * (view.w / r.width);
+      sy = sy * (view.h / r.height);
+    }
     return { x: sx, y: sy, clientX: e.clientX, clientY: e.clientY, rl: r.left, rt: r.top, rw: r.width, rh: r.height, dpr: window.devicePixelRatio || 1 };
   }
   function onDisc(sx, sy) {
@@ -908,12 +913,11 @@
         } catch (err) { try { console.error("wheel", err); } catch (e2) {} }
       });
     }
-    /* 4431: window capture so ribbon/HUD overlays cannot steal wheel coords */
+    /* 4431d: ONLY window capture — canvas+window both firing doubled deltaY (2 notches / Button4) */
     if (!window.__SN_WHEEL_WIN4431) {
       window.__SN_WHEEL_WIN4431 = true;
       window.addEventListener("wheel", onWheel, { passive: false, capture: true });
     }
-    canvas.addEventListener("wheel", onWheel, { passive: false });
   }
   function pointUnder(sx, sy) {
     var hit = (sx != null) ? globeHit(sx, sy, cam) : null;
@@ -2316,17 +2320,19 @@
         menuEl.hidden = false; menuEl.classList.add("on");
         burger.setAttribute("aria-expanded", "true");
       }
-      var menuIgnoreUntil = 0;
-      /* 4431c: open on pointerdown (capture) so document click-outside cannot eat the same gesture */
-      burger.addEventListener("pointerdown", function (e) {
-        if (e.button) return;
+      var menuOpenedAt = 0;
+      /* 4431d: toggle on click only; close on pointerdown OUTSIDE.
+         Avoids same-gesture open→close (document click / pointerup double-fire). */
+      burger.addEventListener("click", function (e) {
         e.preventDefault(); e.stopPropagation();
         if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
         if (menuEl && !menuEl.hidden) closeMenu();
-        else { openMenu(); menuIgnoreUntil = Date.now() + 500; }
+        else { openMenu(); menuOpenedAt = Date.now(); }
       }, true);
-      burger.addEventListener("click", function (e) {
-        e.preventDefault(); e.stopPropagation();
+      /* swallow pointerdown on burger so an outside-closer never sees it as "outside" mid-gesture */
+      burger.addEventListener("pointerdown", function (e) {
+        if (e.button) return;
+        e.stopPropagation();
         if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
       }, true);
       if (menuEl && !menuEl.__sn) {
@@ -2347,9 +2353,9 @@
           }
         });
       }
-      document.addEventListener("click", function (e) {
+      document.addEventListener("pointerdown", function (e) {
         if (!menuEl || menuEl.hidden) return;
-        if (Date.now() < menuIgnoreUntil) return; /* 4431: same-gesture open must not close */
+        if (Date.now() - menuOpenedAt < 450) return;
         if (e.target === burger || (burger.contains && burger.contains(e.target))) return;
         if (menuEl.contains && menuEl.contains(e.target)) return;
         closeMenu();
@@ -3191,6 +3197,7 @@
     window.__SN_4431 = true;
     window.__SN_4431b = true;
     window.__SN_4431c = true;
+    window.__SN_4431d = true;
     /* 4431: ?debug=1 overlay */
     (function armDebug() {
       try {
