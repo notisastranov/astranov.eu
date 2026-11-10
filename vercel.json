@@ -16,11 +16,11 @@
         },
         {
           "key": "X-Astranov-Build",
-          "value": "4435"
+          "value": "4436"
         },
         {
           "key": "X-Astranov-Ship",
-          "value": "4435-preview"
+          "value": "4436-preview"
         }
       ]
     },
@@ -37,11 +37,11 @@
         },
         {
           "key": "X-Astranov-Build",
-          "value": "4435"
+          "value": "4436"
         },
         {
           "key": "X-Astranov-Ship",
-          "value": "4435-preview"
+          "value": "4436-preview"
         }
       ]
     },
@@ -76,6 +76,19 @@
         {
           "key": "Service-Worker-Allowed",
           "value": "/"
+        }
+      ]
+    },
+    {
+      "source": "/api/version",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, no-cache, must-revalidate"
+        },
+        {
+          "key": "Pragma",
+          "value": "no-cache"
         }
       ]
     },

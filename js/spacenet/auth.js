@@ -449,8 +449,8 @@
       applyReturn().then(function () { paintMe(); });
     });
   }
-  if (!window.__SN_ESC_ME4435) {
-    window.__SN_ESC_ME4435 = true;
+  if (!window.__SN_ESC_ME4436) {
+    window.__SN_ESC_ME4436 = true;
     document.addEventListener("keydown", function (e) {
       if (!e || e.key !== "Escape") return;
       var sh = document.getElementById("sn-me-sheet");
@@ -461,7 +461,7 @@
       }
     }, true);
   }
-    window.__SN_AUTH_4435 = true;
+    window.__SN_AUTH_4436 = true;
   window.SNAuth = { google: google, mailIn: mailIn, mailUp: mailUp, password: password, setPassword: setPassword, remember: remember, session: session, youtube: youtube, yt: yt, x: x, out: out, savePhone: savePhone, user: user, token: token, boot: boot, paint: paintMe, open: openMe };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();

@@ -3547,10 +3547,10 @@
       history.replaceState({}, "", location.pathname);
     }
 
-  /* 4429: Esc closes YOU/PROFILE/LIST/sky regardless of focus (capture) */
-  if (!window.__SN_ESC4429) {
-    window.__SN_ESC4429 = true;
-    document.addEventListener("keydown", function (e) {
+  /* 4436: Esc closes YOU/LIST/sky/menu on a real keypress after a map click (window+document capture) */
+  if (!window.__SN_ESC4436) {
+    window.__SN_ESC4436 = true;
+    function onEsc(e) {
       if (!e || e.key !== "Escape") return;
       var closed = false;
       try {
@@ -3570,7 +3570,9 @@
         if (menuEl && !menuEl.hidden) { menuEl.hidden = true; menuEl.classList.remove("on"); closed = true; }
       } catch (err4) {}
       if (closed) { e.preventDefault(); e.stopPropagation(); }
-    }, true);
+    }
+    document.addEventListener("keydown", onEsc, true);
+    window.addEventListener("keydown", onEsc, true);
   }
 
     armViewWatch();
@@ -3590,6 +3592,7 @@
     window.__SN_4433 = true;
     window.__SN_4434 = true;
     window.__SN_4435 = true;
+    window.__SN_4436 = true;
     /* 4432: ?debug=1 overlay (tree lock respected — only when ?debug=1) */
     (function armDebug() {
       try {
