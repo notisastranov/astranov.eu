@@ -295,8 +295,10 @@
       var dx = sx - p.x, dy = sy - p.y;
       if (Math.hypot(dx, dy) < 1.2) break;
       var s = Math.max(60, view.scale);
+      /* 4431b: project y = cy - cyView*scale → higher pitch moves point UP (smaller y).
+         If point is below target (p.y > sy), dy<0; need higher pitch → subtract dy. */
       cam.yaw -= dx / s;
-      cam.pitch = Math.max(-1.15, Math.min(1.15, cam.pitch + dy / s));
+      cam.pitch = Math.max(-1.15, Math.min(1.15, cam.pitch - dy / s));
     }
   }
   function rememberAim(pt) {
@@ -933,11 +935,11 @@
     var now = Date.now();
     lastHitReason = "";
     var fresh = (sx != null && sy != null) ? globeHit(sx, sy, cam) : null;
-    if (fresh && onDisc(sx, sy)) {
-      lastHitReason = "disc-hit";
-      if (now > zoomGestureUntil) zoomAnchor = rememberAim(fresh);
-      else if (saneLatLng(zoomAnchor)) rememberAim(zoomAnchor);
-      else zoomAnchor = rememberAim(fresh);
+    var disc = (sx != null && sy != null) && onDisc(sx, sy);
+    if (fresh && (disc || saneLatLng(fresh))) {
+      lastHitReason = disc ? "disc-hit" : "hit-near-limb";
+      if (now > zoomGestureUntil || !saneLatLng(zoomAnchor)) zoomAnchor = rememberAim(fresh);
+      else rememberAim(zoomAnchor); /* freeze mid-gesture */
       zoomPixel = { x: sx, y: sy };
     } else if (now > zoomGestureUntil) {
       lastHitReason = fresh ? "off-disc" : "no-hit";
@@ -3181,6 +3183,7 @@
     window.__SN_4430 = true;
     window.__SN_4430b = true;
     window.__SN_4431 = true;
+    window.__SN_4431b = true;
     /* 4431: ?debug=1 overlay */
     (function armDebug() {
       try {
