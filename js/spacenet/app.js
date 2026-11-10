@@ -2317,12 +2317,18 @@
         burger.setAttribute("aria-expanded", "true");
       }
       var menuIgnoreUntil = 0;
-      burger.addEventListener("click", function (e) {
+      /* 4431c: open on pointerdown (capture) so document click-outside cannot eat the same gesture */
+      burger.addEventListener("pointerdown", function (e) {
+        if (e.button) return;
         e.preventDefault(); e.stopPropagation();
         if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
         if (menuEl && !menuEl.hidden) closeMenu();
-        else { openMenu(); menuIgnoreUntil = Date.now() + 400; }
-      });
+        else { openMenu(); menuIgnoreUntil = Date.now() + 500; }
+      }, true);
+      burger.addEventListener("click", function (e) {
+        e.preventDefault(); e.stopPropagation();
+        if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+      }, true);
       if (menuEl && !menuEl.__sn) {
         menuEl.__sn = true;
         menuEl.addEventListener("click", function (e) {
@@ -3184,6 +3190,7 @@
     window.__SN_4430b = true;
     window.__SN_4431 = true;
     window.__SN_4431b = true;
+    window.__SN_4431c = true;
     /* 4431: ?debug=1 overlay */
     (function armDebug() {
       try {
