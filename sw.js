@@ -1,8 +1,8 @@
-/* SpaceNet SW 4438 — one entity. Tree lock. */
-var CACHE = "sn-shell-4438";
-var VER = "4438";
-/* 4438: do not include /index.html in the fetch list — Vercel 308s it to /. */
-var SHELL = ["/", "/js/spacenet/app.js?v=4438", "/js/spacenet/auth.js?v=4438", "/js/vendor/leaflet.js?v=4438", "/js/vendor/leaflet.css?v=4438", "/icon-192.png", "/manifest.webmanifest"];
+/* SpaceNet SW 4439 — one entity. Tree lock. */
+var CACHE = "sn-shell-4439";
+var VER = "4439";
+/* 4439: do not include /index.html in the fetch list — Vercel 308s it to /. */
+var SHELL = ["/", "/js/spacenet/app.js?v=4439", "/js/spacenet/auth.js?v=4439", "/js/vendor/leaflet.js?v=4439", "/js/vendor/leaflet.css?v=4439", "/icon-192.png", "/manifest.webmanifest"];
 function allowedScript(path) {
   if (path === "/js/spacenet/app.js" || path === "/js/spacenet/auth.js" || path === "/js/vendor/leaflet.js") return true;
   return false;
@@ -68,16 +68,16 @@ self.addEventListener("fetch", function (e) {
   var url = new URL(e.request.url);
   if (url.origin !== location.origin) return;
 
-  /* 4438: sw.js, /api/version, /VERSION — never cached */
+  /* 4439: sw.js, /api/version, /VERSION — never cached */
   if (neverCache(url)) {
     e.respondWith(fetch(e.request, { cache: "no-store" }));
     return;
   }
   if (isOverlay(url.pathname)) {
-    e.respondWith(new Response("/* TREE LOCK 4438: overlay blocked */", { headers: { "Content-Type": "application/javascript" }, status: 200 }));
+    e.respondWith(new Response("/* TREE LOCK 4439: overlay blocked */", { headers: { "Content-Type": "application/javascript" }, status: 200 }));
     return;
   }
-  /* 4438: navigations + HTML shell are network-first; cache only when offline.
+  /* 4439: navigations + HTML shell are network-first; cache only when offline.
      Fetch a fresh URL (not the navigation Request) so a failed navigate-mode
      fetch cannot silently fall back to a stale sn-shell. */
   if (isHtmlShell(url, e.request)) {

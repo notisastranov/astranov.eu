@@ -450,8 +450,8 @@
       applyReturn().then(function () { paintMe(); });
     });
   }
-  if (!window.__SN_ESC_ME4438) {
-    window.__SN_ESC_ME4438 = true;
+  if (!window.__SN_ESC_ME4439) {
+    window.__SN_ESC_ME4439 = true;
     document.addEventListener("keydown", function (e) {
       if (!e || !(e.key === "Escape" || e.key === "Esc" || e.code === "Escape" || e.keyCode === 27)) return;
       var sh = document.getElementById("sn-me-sheet");
@@ -462,7 +462,7 @@
       }
     }, true);
   }
-    window.__SN_AUTH_4438 = true;
+    window.__SN_AUTH_4439 = true;
   window.SNAuth = { google: google, mailIn: mailIn, mailUp: mailUp, password: password, setPassword: setPassword, remember: remember, session: session, youtube: youtube, yt: yt, x: x, out: out, savePhone: savePhone, user: user, token: token, boot: boot, paint: paintMe, open: openMe };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();

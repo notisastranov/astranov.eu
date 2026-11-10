@@ -2,8 +2,8 @@
    Matches Escape / Esc / keyCode 27 / code Escape, regardless of focus target (body, #city, inputs, buttons).
    Never touched by the wheel-lock code. Closes LIST, YOU, ☰ menu and sky in one press. */
 (function () {
-  if (window.__SN_ESC_EARLY4438) return;
-  window.__SN_ESC_EARLY4438 = true;
+  if (window.__SN_ESC_EARLY4439) return;
+  window.__SN_ESC_EARLY4439 = true;
   function isEsc(e) {
     if (!e) return false;
     return e.key === "Escape" || e.key === "Esc" || e.code === "Escape" || e.keyCode === 27 || e.which === 27;
@@ -138,6 +138,7 @@
   var pinch = null;
   var holdT = 0;
   var HOLD_MS = 1500;
+  var HOLD_GRACE_MS = 250; /* 4439: a release at >= HOLD_MS-250 still counts as a hold (timer lag on a busy globe frame) */
   var cityOn = false;
   var cityReady = false; /* 4433: tiles painted; globe stays up until true */
   var skyOn = false;
@@ -180,7 +181,7 @@
   var WHEEL_IDLE_MS = 1200; /* >0.7s remine notch gap; true idle ends gesture */
   var WHEEL_MOVE_PX = 4;
   var WHEEL_LOCK_MAX_MS = 600000; /* 4437: a still cursor keeps the n1 anchor across pauses (10 min safety cap) */
-  var WHEEL_BREAK_PX = 12; /* end lock only on clear cursor move (absorb xdotool jitter) */
+  var WHEEL_BREAK_PX = 32; /* 4439: 12→32 — computer-use re-aims the same target ~20 px apart between actions; a real re-aim is larger */ /* end lock only on clear cursor move (absorb xdotool jitter) */
   var lastGoodAim = { lat: 37.9755, lng: 23.7348 };
   var tileLayer = null;
   var backLayer = null; /* 4434: OSM z-2 backdrop so zoom steps never flash grey */
@@ -437,15 +438,17 @@
     if (!wheelLock) zoomAnchor = { lat: pt.lat, lng: pt.lng };
     return aim;
   }
-  function lockLog(kind, a, why) {
+  function lockLog(kind, a, why, mx, my) {
     try {
       var L0 = window.__SN_LOCKLOG || (window.__SN_LOCKLOG = []);
-      L0.push({ t: Date.now(), kind: kind, lat: a && a.lat, lng: a && a.lng, why: why || "" });
+      var ent = { t: Date.now(), kind: kind, lat: a && a.lat, lng: a && a.lng, why: why || "", cx: a && a.cx, cy: a && a.cy };
+      if (mx != null && isFinite(mx)) { ent.toX = mx; ent.toY = my; if (a && isFinite(a.cx)) ent.dist = Math.round(Math.hypot(mx - a.cx, my - a.cy)); }
+      L0.push(ent);
       if (L0.length > 60) L0.shift();
     } catch (e) {}
   }
-  function clearWheelLock(why) {
-    if (wheelLock) lockLog("clear", wheelLock, why || "api");
+  function clearWheelLock(why, mx, my) {
+    if (wheelLock) lockLog("clear", wheelLock, why || "api", mx, my);
     wheelLock = null;
   }
   function eventClientXY(ev, sx, sy) {
@@ -490,7 +493,7 @@
     /* 4437: openCity re-locks with ev=null and canvas px — keep the real client point of the gesture */
     var keepCl = (!ev && wheelLock && isFinite(wheelLock.cx) && isFinite(wheelLock.cy)) ? { x: wheelLock.cx, y: wheelLock.cy } : null;
     var cl = keepCl || eventClientXY(ev, sx, sy);
-    if (!wheelLock || wheelLock.lat !== anchor.lat || wheelLock.lng !== anchor.lng) lockLog("lock", anchor, lastHitReason || "");
+    if (!wheelLock || wheelLock.lat !== anchor.lat || wheelLock.lng !== anchor.lng) lockLog("lock", { lat: anchor.lat, lng: anchor.lng, cx: cl && cl.x, cy: cl && cl.y }, lastHitReason || "");
     var cp = (cityOn && map) ? mapContainerPoint(ev, sx, sy) : { x: sx, y: sy };
     wheelLock = {
       lat: anchor.lat, lng: anchor.lng,
@@ -1152,17 +1155,12 @@
         if (holdT) { clearTimeout(holdT); holdT = 0; }
         return;
       }
-      drag = { x: p.x, y: p.y, yaw: cam.yaw, pitch: cam.pitch, moved: false, lastX: p.x, lastY: p.y, lastT: nowMs(), holdX: p.x, holdY: p.y };
+      drag = { x: p.x, y: p.y, yaw: cam.yaw, pitch: cam.pitch, moved: false, lastX: p.x, lastY: p.y, lastT: nowMs(), holdX: p.x, holdY: p.y, t0: e.timeStamp };
       /* 4431: true HOLD_MS from pointerdown; allow ~14px jitter without cancel */
       if (holdT) { clearTimeout(holdT); holdT = 0; }
       holdT = setTimeout(function () {
         if (!drag || drag.moved) return;
-        var hx = drag.holdX, hy = drag.holdY;
-        var hit = globeHit(hx, hy, cam);
-        if (hit) listAt(hit);
-        else if (saneLatLng(zoomAnchor)) listAt(zoomAnchor);
-        else if (saneLatLng(aim)) listAt(aim);
-        else listAt(lastGoodAim);
+        globeHold(drag);
         drag = null;
         holdT = 0;
       }, HOLD_MS);
@@ -1199,12 +1197,27 @@
       cam.yaw = drag.yaw - dx * 0.005;
       cam.pitch = Math.max(-1.15, Math.min(1.15, drag.pitch + dy * 0.004));
     });
+    function globeHold(d) {
+      var hx = d.holdX, hy = d.holdY;
+      var hit = globeHit(hx, hy, cam);
+      if (hit) listAt(hit);
+      else if (saneLatLng(zoomAnchor)) listAt(zoomAnchor);
+      else if (saneLatLng(aim)) listAt(aim);
+      else listAt(lastGoodAim);
+    }
     function up(e) {
       pointers.delete(e.pointerId);
       if (pointers.size < 2) pinch = null;
+      var pendingHold = !!holdT;
       if (holdT) { clearTimeout(holdT); holdT = 0; }
       var d = drag; drag = null;
       if (!d || d.moved) return;
+      /* 4439: the hold timer can lag behind a 1.5 s release on a heavy globe frame — the release decides */
+      if (pendingHold && e.type === "pointerup" && isFinite(d.t0) && (e.timeStamp - d.t0) >= HOLD_MS - HOLD_GRACE_MS) {
+        vel.yaw = 0; vel.pitch = 0;
+        globeHold(d);
+        return;
+      }
       vel.yaw = 0; vel.pitch = 0;
       var pUp = pos(e);
       if (!globeHit(pUp.x, pUp.y, cam)) {
@@ -1270,7 +1283,7 @@
       window.__SN_LOCKMOVE4437 = true;
       var onLockMove = function (e) {
         if (!wheelLock || !isFinite(wheelLock.cx) || !isFinite(e.clientX)) return;
-        if (Math.hypot(e.clientX - wheelLock.cx, e.clientY - wheelLock.cy) > WHEEL_BREAK_PX) clearWheelLock("pointermove");
+        if (Math.hypot(e.clientX - wheelLock.cx, e.clientY - wheelLock.cy) > WHEEL_BREAK_PX) clearWheelLock("pointermove", e.clientX, e.clientY);
       };
       window.addEventListener("pointermove", onLockMove, { passive: true, capture: true });
       window.addEventListener("mousemove", onLockMove, { passive: true, capture: true });
@@ -1316,7 +1329,7 @@
       }
     }
     if (wheelLock && cl && isFinite(wheelLock.cx) && isFinite(wheelLock.cy)) {
-      if (Math.hypot(cl.x - wheelLock.cx, cl.y - wheelLock.cy) > WHEEL_BREAK_PX) clearWheelLock("move");
+      if (Math.hypot(cl.x - wheelLock.cx, cl.y - wheelLock.cy) > WHEEL_BREAK_PX) clearWheelLock("move", cl.x, cl.y);
     } else if (wheelLock && sx != null && Math.hypot(sx - wheelLock.sx, sy - wheelLock.sy) > WHEEL_BREAK_PX) {
       /* fallback only when we have no client coords (should be rare) */
       if (!cityOn) clearWheelLock("move-sx");
@@ -1651,9 +1664,11 @@
         var ll = map.mouseEventToLatLng(e);
         if (ll) listAt({ lat: ll.lat, lng: ll.lng });
       });
+      var holdT0 = 0;
       el.addEventListener("pointerdown", function (e) {
         if (e.button) return;
         holdPt = e;
+        holdT0 = e.timeStamp;
         hold = setTimeout(function () {
           if (!map || !holdPt) return;
           var ll = map.mouseEventToLatLng(holdPt);
@@ -1662,7 +1677,15 @@
         }, HOLD_MS);
       });
       function cancelHold() { if (hold) { clearTimeout(hold); hold = 0; } }
-      el.addEventListener("pointerup", cancelHold);
+      el.addEventListener("pointerup", function (e) {
+        /* 4439: same release rule as the globe — a ~1.5 s still press is a hold even if the timer lagged */
+        if (hold && holdPt && map && (e.timeStamp - holdT0) >= HOLD_MS - HOLD_GRACE_MS) {
+          clearTimeout(hold); hold = 0;
+          try { var llu = map.mouseEventToLatLng(holdPt); if (llu) listAt({ lat: llu.lat, lng: llu.lng }); } catch (eU) {}
+          return;
+        }
+        cancelHold();
+      });
       el.addEventListener("pointercancel", cancelHold);
       el.addEventListener("pointermove", function (e) {
         if (!holdPt) return;
@@ -3678,8 +3701,8 @@
     }
 
   /* 4436: Esc closes YOU/LIST/sky/menu on a real keypress after a map click (window+document capture) */
-  if (!window.__SN_ESC4438) {
-    window.__SN_ESC4438 = true;
+  if (!window.__SN_ESC4439) {
+    window.__SN_ESC4439 = true;
     function onEsc(e) {
       if (!e || !(e.key === "Escape" || e.key === "Esc" || e.code === "Escape" || e.keyCode === 27)) return;
       var closed = false;
@@ -3725,6 +3748,7 @@
     window.__SN_4436 = true;
     window.__SN_4437 = true;
     window.__SN_4438 = true;
+    window.__SN_4439 = true;
     /* 4432: ?debug=1 overlay (tree lock respected — only when ?debug=1) */
     (function armDebug() {
       try {
@@ -3772,7 +3796,15 @@
             "anchor=" + (h.anchor ? (h.anchor.lat.toFixed(2)+","+h.anchor.lng.toFixed(2)) : "?") + " errPx=" + (errNow != null ? Number(errNow).toFixed(1) : "?"),
             "look=" + (look ? (Number(look.lat).toFixed(2)+","+Number(look.lng).toFixed(2)) : "?"),
             "tier=" + String(tierI) + " " + tName + " dist=" + (cam.dist && cam.dist.toFixed(3)) + " city=" + !!cityOn + " ready=" + !!cityReady,
-            "wheel=" + (w.mode||"") + " z=" + (w.z||"") + " " + (w.lat!=null ? (Number(w.lat).toFixed(2)+","+Number(w.lng).toFixed(2)) : "") + " painted=" + paintedTileCount()
+            "wheel=" + (w.mode||"") + " z=" + (w.z||"") + " " + (w.lat!=null ? (Number(w.lat).toFixed(2)+","+Number(w.lng).toFixed(2)) : "") + " painted=" + paintedTileCount(),
+            (function () {
+              /* 4439: lock audit — count + last clear reason/coords so a screenshot proves why a lock re-picked */
+              var LL = window.__SN_LOCKLOG || [], nL = 0, nC = 0, lc = null, ll = null;
+              for (var i = 0; i < LL.length; i++) { if (LL[i].kind === "lock") { nL++; ll = LL[i]; } else if (LL[i].kind === "clear") { nC++; lc = LL[i]; } }
+              return "locks=" + nL + " clears=" + nC + " break=" + WHEEL_BREAK_PX + "px" +
+                (ll ? " lockAt=" + (ll.cx|0) + "," + (ll.cy|0) : "") +
+                (lc ? " lastClear=" + lc.why + (lc.toX != null ? " to=" + (lc.toX|0) + "," + (lc.toY|0) + " d=" + lc.dist : "") : "");
+            })()
           ].join("\n");
         }, 200);
       } catch (e) {}
