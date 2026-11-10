@@ -1906,6 +1906,7 @@
     };
   }
   function liftChrome() {
+    placeSheet();
     var h = 0;
     ["sn-sheet", "sn-tasks"].forEach(function (id) {
       var el = $(id);
@@ -1943,6 +1944,27 @@
       });
     } catch (e) {}
   }
+  function placeSheet() {
+    /* 4435: sit the sheet above --drawer-h AND the floating search bar (#dock/#panel) */
+    var dock = $("dock") || $("panel");
+    var gap = 8;
+    var bottom = 44;
+    try {
+      if (dock) {
+        var r = dock.getBoundingClientRect();
+        if (r && r.height) bottom = Math.max(8, Math.round(window.innerHeight - r.top) + gap);
+      }
+    } catch (e) {}
+    try { document.documentElement.style.setProperty("--sheet-bottom", bottom + "px"); } catch (e2) {}
+    ["sn-sheet-card"].concat([document.querySelector("#sn-tasks .card")]).forEach(function (el) {
+      var card = (typeof el === "string") ? $(el) : el;
+      if (!card) return;
+      card.style.setProperty("bottom", bottom + "px", "important");
+      card.style.setProperty("max-height", "42vh", "important");
+      card.style.setProperty("height", "auto", "important");
+      card.style.setProperty("overflow", "auto", "important");
+    });
+  }
   function openSheet(title, html) {
     var sh = $("sn-sheet"), card = $("sn-sheet-card");
     if (!sh || !card) return;
@@ -1950,8 +1972,10 @@
     card.querySelector(".sheet-ttl").textContent = title;
     card.querySelector("#sn-sheet-body").innerHTML = html;
     sh.classList.add("on");
+    placeSheet();
     materialize(true);
     liftChrome();
+    placeSheet();
   }
   function closeSheet() { var sh = $("sn-sheet"); if (sh) sh.classList.remove("on"); materialize(needFilter()); liftChrome(); }
   function paintShopsOnMap() {
@@ -2406,6 +2430,7 @@
     }
   }
   function layoutChrome() {
+    placeSheet();
     var W = window.innerWidth, H = window.innerHeight, pad = 10;
     var blockers = ["island", "panel"].map(function (id) { return visRect($(id)); }).filter(Boolean);
     function place(el, corner) {
@@ -3564,6 +3589,7 @@
     window.__SN_4432 = true;
     window.__SN_4433 = true;
     window.__SN_4434 = true;
+    window.__SN_4435 = true;
     /* 4432: ?debug=1 overlay (tree lock respected — only when ?debug=1) */
     (function armDebug() {
       try {
