@@ -103,6 +103,11 @@
   var gpsSeq = 0;
   var zoomAnchor = null; /* frozen lat/lng under cursor for a wheel gesture */
   var zoomGestureUntil = 0;
+  /* 4432: explicit wheel lock — never re-hit while active */
+  var wheelLock = null; /* { lat, lng, sx, sy, lastT } */
+  var WHEEL_IDLE_MS = 1200; /* >0.7s remine notch gap; true idle ends gesture */
+  var WHEEL_MOVE_PX = 4;
+  var WHEEL_BREAK_PX = 12; /* end lock only on clear cursor move (absorb xdotool jitter) */
   var lastGoodAim = { lat: 37.9755, lng: 23.7348 };
   var tileLayer = null;
   var CITY_ENTER_DIST = 0.62;
@@ -287,32 +292,78 @@
     var nx = (sx - view.cx) / view.scale, ny = (view.cy - sy) / view.scale;
     return (nx * nx + ny * ny) <= 0.98;
   }
-  /* rotate so anchor projects under (sx,sy) — zoom-about-point */
+  /* 4432: analytical yaw/pitch so locked anchor projects exactly under (sx,sy). */
   function keepUnderCursor(anchor, sx, sy) {
-    if (!saneLatLng(anchor) || !view) return;
+    if (!saneLatLng(anchor) || !view || sx == null || sy == null) return false;
     fitView();
-    var f = face(anchor);
-    cam.yaw = f.yaw;
-    cam.pitch = f.pitch;
-    for (var i = 0; i < 12; i++) {
+    var scale = view.scale;
+    if (!scale || scale < 1) return false;
+    var nx = (sx - view.cx) / scale;
+    var ny = (view.cy - sy) / scale;
+    var r2 = nx * nx + ny * ny;
+    if (r2 > 0.95) return false;
+    var nz = Math.sqrt(Math.max(0, 1 - r2));
+    var φ = (anchor.lat * Math.PI) / 180;
+    var sinφ = Math.sin(φ), cosφ = Math.cos(φ);
+    /* a*sin(p)+b*cos(p)=sinφ with a=nz (view z), b=ny (view cy) after pitch */
+    var a = nz, b = ny, c = sinφ;
+    var R = Math.hypot(a, b);
+    if (R < 1e-9 || Math.abs(c) > R + 1e-6) return false;
+    var phi = Math.atan2(b, a);
+    var psi = Math.asin(Math.max(-1, Math.min(1, c / Math.max(R, 1e-9))));
+    var pitches = [psi - phi, Math.PI - psi - phi, -Math.PI - psi - phi];
+    var saved = { yaw: cam.yaw, pitch: cam.pitch };
+    var best = null, bestErr = 1e9;
+    var lng0 = (anchor.lng * Math.PI) / 180;
+    var spin = earthSpin();
+    for (var i = 0; i < pitches.length; i++) {
+      var pitch = pitches[i];
+      while (pitch > Math.PI) pitch -= 2 * Math.PI;
+      while (pitch < -Math.PI) pitch += 2 * Math.PI;
+      if (pitch < -1.2 || pitch > 1.2) continue;
+      var cp = Math.cos(pitch), sp = Math.sin(pitch);
+      /* inverse pitch: world y,z from view cy,cz */
+      var y = ny * cp + nz * sp;
+      var z = -ny * sp + nz * cp;
+      if (Math.abs(y - sinφ) > 0.06) continue;
+      if (Math.abs(cosφ) < 1e-6) continue;
+      var sinλ = nx / cosφ;
+      var cosλ = z / cosφ;
+      var norm = Math.hypot(sinλ, cosλ);
+      if (norm < 1e-9) continue;
+      sinλ /= norm; cosλ /= norm;
+      var λ = Math.atan2(sinλ, cosλ);
+      var yaw = lng0 - spin - λ;
+      var trial = { yaw: yaw, pitch: Math.max(-1.15, Math.min(1.15, pitch)) };
+      cam.yaw = trial.yaw; cam.pitch = trial.pitch;
       var p = project(anchor.lat, anchor.lng, cam);
-      if (!p || !(p.z > 0.04)) break;
-      var dx = sx - p.x, dy = sy - p.y;
-      if (Math.hypot(dx, dy) < 1.2) break;
-      var s = Math.max(60, view.scale);
-      /* 4431b: project y = cy - cyView*scale → higher pitch moves point UP (smaller y).
-         If point is below target (p.y > sy), dy<0; need higher pitch → subtract dy. */
-      cam.yaw -= dx / s;
-      cam.pitch = Math.max(-1.15, Math.min(1.15, cam.pitch - dy / s));
+      if (!p || !(p.z > 0.04)) continue;
+      var err = Math.hypot(sx - p.x, sy - p.y);
+      if (err < bestErr) { bestErr = err; best = trial; }
     }
+    if (!best || bestErr > 3) {
+      cam.yaw = saved.yaw; cam.pitch = saved.pitch;
+      return false;
+    }
+    cam.yaw = best.yaw; cam.pitch = best.pitch;
+    return true;
   }
+  function projectErr(anchor, sx, sy) {
+    if (!saneLatLng(anchor) || sx == null) return null;
+    var p = project(anchor.lat, anchor.lng, cam);
+    if (!p) return null;
+    return Math.hypot(sx - p.x, sy - p.y);
+  }
+
   function rememberAim(pt) {
     if (!saneLatLng(pt)) return lastGoodAim;
     aim = { lat: pt.lat, lng: pt.lng };
     lastGoodAim = { lat: pt.lat, lng: pt.lng };
-    zoomAnchor = { lat: pt.lat, lng: pt.lng };
+    /* 4432: while a wheel lock is active, aim may update for HUD but zoomAnchor stays locked */
+    if (!wheelLock) zoomAnchor = { lat: pt.lat, lng: pt.lng };
     return aim;
   }
+  function clearWheelLock() { wheelLock = null; }
   function tierFromDist(d, onCity) {
     if (onCity) {
       try {
@@ -754,9 +805,11 @@
       intro = false;
     }
     if (!drag && tierI >= 2 && aim && !cityOn) {
-      /* 4431: during zoom gesture keep anchor under cursor pixel; else face-center hold */
-      if (Date.now() < zoomGestureUntil && zoomPixel && saneLatLng(aim)) {
-        keepUnderCursor(aim, zoomPixel.x, zoomPixel.y);
+      /* 4432: prefer zoom-about whenever we have a cursor pixel — face-center walks off-center hits */
+      if (wheelLock && isFinite(wheelLock.lat)) {
+        keepUnderCursor({ lat: wheelLock.lat, lng: wheelLock.lng }, wheelLock.sx, wheelLock.sy);
+      } else if (zoomPixel && saneLatLng(zoomAnchor || aim)) {
+        keepUnderCursor(zoomAnchor || aim, zoomPixel.x, zoomPixel.y);
       } else {
         var held2 = face(aim);
         cam.yaw = held2.yaw;
@@ -933,36 +986,64 @@
       pitch: Math.max(-1.15, Math.min(1.15, (pt.lat * Math.PI) / 180))
     };
   }
-  /* 4428/4431: one notch ≈ one smooth dist step; zoom-about-cursor; never fall back to screen center */
+  /* 4432: lock anchor on first notch; never re-hit while gesture active; zoom-about locked pixel */
   function nudgeZoom(dir, sx, sy, ev) {
     gpsSeq++;
     var now = Date.now();
     lastHitReason = "";
     var fresh = (sx != null && sy != null) ? globeHit(sx, sy, cam) : null;
     var disc = (sx != null && sy != null) && onDisc(sx, sy);
-    if (fresh && (disc || saneLatLng(fresh))) {
-      lastHitReason = disc ? "disc-hit" : "hit-near-limb";
-      if (now > zoomGestureUntil || !saneLatLng(zoomAnchor)) zoomAnchor = rememberAim(fresh);
-      else rememberAim(zoomAnchor); /* freeze mid-gesture */
-      zoomPixel = { x: sx, y: sy };
-    } else if (now > zoomGestureUntil) {
-      lastHitReason = fresh ? "off-disc" : "no-hit";
-      /* 4431: off disc → last good anchor, NEVER screen-center / camLookAt */
-      if (saneLatLng(zoomAnchor)) rememberAim(zoomAnchor);
-      else if (saneLatLng(aim)) zoomAnchor = rememberAim(aim);
-      else if (saneLatLng(lastGoodAim)) zoomAnchor = rememberAim(lastGoodAim);
-      else { lastHitReason = "no-anchor"; zoomAnchor = rememberAim(camLookAt()); }
-      if (sx != null) zoomPixel = { x: sx, y: sy };
-    } else {
-      lastHitReason = "gesture-freeze";
-      if (saneLatLng(zoomAnchor)) rememberAim(zoomAnchor);
-      if (sx != null) zoomPixel = { x: sx, y: sy };
+
+    /* 4432: lock ends on idle only (cursor fixed remine @0.7s). Clear move starts a NEW lock after idle. */
+    if (wheelLock && now - wheelLock.lastT > WHEEL_IDLE_MS) clearWheelLock();
+    /* resurrect if lock object lost but gesture window + zoomAnchor still valid (same cursor) */
+    if (!wheelLock && saneLatLng(zoomAnchor) && now < zoomGestureUntil && zoomPixel && sx != null) {
+      if (Math.hypot(sx - zoomPixel.x, sy - zoomPixel.y) <= WHEEL_BREAK_PX) {
+        wheelLock = { lat: zoomAnchor.lat, lng: zoomAnchor.lng, sx: zoomPixel.x, sy: zoomPixel.y, lastT: now };
+      }
     }
-    zoomGestureUntil = now + 1800;
-    var anchor = saneLatLng(zoomAnchor) ? zoomAnchor : (saneLatLng(aim) ? aim : lastGoodAim);
-    rememberAim(anchor);
+    /* intentional cursor move > BREAK while locked → new gesture from fresh hit */
+    if (wheelLock && sx != null && Math.hypot(sx - wheelLock.sx, sy - wheelLock.sy) > WHEEL_BREAK_PX) {
+      clearWheelLock();
+    }
+
+    var anchor = null;
+    var px = sx, py = sy;
+    if (wheelLock && isFinite(wheelLock.lat)) {
+      lastHitReason = "lock";
+      anchor = { lat: wheelLock.lat, lng: wheelLock.lng };
+      px = wheelLock.sx; py = wheelLock.sy;
+      wheelLock.lastT = now;
+      zoomGestureUntil = now + WHEEL_IDLE_MS;
+      zoomAnchor = { lat: anchor.lat, lng: anchor.lng };
+      zoomPixel = { x: px, y: py };
+      aim = { lat: anchor.lat, lng: anchor.lng };
+      lastGoodAim = { lat: anchor.lat, lng: anchor.lng };
+    } else if (fresh && (disc || saneLatLng(fresh))) {
+      lastHitReason = disc ? "disc-hit" : "hit-near-limb";
+      anchor = { lat: fresh.lat, lng: fresh.lng };
+      rememberAim(anchor);
+      zoomAnchor = { lat: anchor.lat, lng: anchor.lng };
+      px = sx; py = sy;
+      zoomPixel = { x: px, y: py };
+      wheelLock = { lat: anchor.lat, lng: anchor.lng, sx: px, sy: py, lastT: now };
+      zoomGestureUntil = now + WHEEL_IDLE_MS;
+    } else {
+      lastHitReason = fresh ? "off-disc" : "no-hit";
+      if (saneLatLng(zoomAnchor)) anchor = { lat: zoomAnchor.lat, lng: zoomAnchor.lng };
+      else if (saneLatLng(aim)) anchor = { lat: aim.lat, lng: aim.lng };
+      else if (saneLatLng(lastGoodAim)) anchor = { lat: lastGoodAim.lat, lng: lastGoodAim.lng };
+      else { lastHitReason = "no-anchor"; anchor = camLookAt(); }
+      if (saneLatLng(anchor) && sx != null) {
+        rememberAim(anchor);
+        zoomAnchor = { lat: anchor.lat, lng: anchor.lng };
+        px = sx; py = sy;
+        zoomPixel = { x: px, y: py };
+        wheelLock = { lat: anchor.lat, lng: anchor.lng, sx: px, sy: py, lastT: now };
+      }
+    }
+    zoomGestureUntil = now + WHEEL_IDLE_MS;
     intro = false;
-    try { window.__SN_DEBUG_HIT = { reason: lastHitReason, sx: sx, sy: sy, anchor: anchor, fresh: fresh, look: camLookAt() }; } catch (e0) {}
 
     if (cityOn && map) {
       try {
@@ -973,28 +1054,28 @@
             softFly(anchor, Math.max(CITY_ENTER_DIST + 0.04, 0.72));
             return;
           }
-          map.setZoom(Math.max(handoffFloorZ, z - 1), { animate: true });
-        } else {
-          var ll = null;
-          try { ll = map.containerPointToLatLng ? map.containerPointToLatLng([sx, sy]) : null; } catch (e) {}
-          var center = saneLatLng(ll) ? { lat: ll.lat, lng: ll.lng } : null;
-          /* 4428b: if container hit drifted >5 km from frozen anchor, keep anchor (handoff race) */
-          if (center && saneLatLng(anchor)) {
-            var dLat = (center.lat - anchor.lat) * Math.PI / 180;
-            var dLng = (center.lng - anchor.lng) * Math.PI / 180;
-            var aa = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(anchor.lat*Math.PI/180)*Math.cos(center.lat*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);
-            var km = 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(aa)));
-            if (km > 5) center = { lat: anchor.lat, lng: anchor.lng };
+          if (saneLatLng(anchor) && map.setZoomAround) {
+            map.setZoomAround(L.latLng(anchor.lat, anchor.lng), Math.max(handoffFloorZ, z - 1), { animate: true });
+          } else {
+            map.setZoom(Math.max(handoffFloorZ, z - 1), { animate: true });
           }
-          if (!center) center = saneLatLng(anchor) ? anchor : lastGoodAim;
-          rememberAim(center);
-          map.setView([center.lat, center.lng], Math.min(19, z + 1), { animate: true });
+        } else {
+          var zIn = Math.min(19, z + 1);
+          if (saneLatLng(anchor) && map.setZoomAround) {
+            map.setZoomAround(L.latLng(anchor.lat, anchor.lng), zIn, { animate: true });
+          } else {
+            map.setView([anchor.lat, anchor.lng], zIn, { animate: true });
+          }
         }
         ensureTiles();
         tierI = tierFromDist(cam.dist, true);
+        /* 4432: HUD = live map center after handoff/zoom, not stale anchor */
         try {
-          window.__SN_WHEEL = { dir: dir, z: map.getZoom(), lat: (aim && aim.lat), lng: (aim && aim.lng), mode: "map" };
-        } catch (e) {}
+          var mc = map.getCenter();
+          if (saneLatLng(mc)) say("City · " + mc.lat.toFixed(2) + "," + mc.lng.toFixed(2));
+          window.__SN_WHEEL = { dir: dir, z: map.getZoom(), lat: mc.lat, lng: mc.lng, mode: "map", anchor: anchor };
+          window.__SN_DEBUG_HIT = { reason: lastHitReason, sx: px, sy: py, anchor: anchor, fresh: fresh, look: { lat: mc.lat, lng: mc.lng }, err: 0, lock: !!wheelLock };
+        } catch (eW) {}
       } catch (e) {
         healCity(anchor);
       }
@@ -1005,35 +1086,48 @@
     var cur = isFinite(cam.dist) ? cam.dist : 1.85;
     if (fly && fly.goal && isFinite(fly.goal.dist)) cur = fly.goal.dist;
     var next = Math.max(DIST_MIN, Math.min(DIST_MAX, cur * factor));
-    var px = (zoomPixel && isFinite(zoomPixel.x)) ? zoomPixel.x : sx;
-    var py = (zoomPixel && isFinite(zoomPixel.y)) ? zoomPixel.y : sy;
     softZoomAbout(anchor, next, px, py);
 
     if (dir < 0 && next <= CITY_ENTER_DIST && saneLatLng(anchor)) {
-      openCity(anchor);
+      openCity(anchor, { x: px, y: py });
       return;
     }
     tierI = tierFromDist(next, false);
     try {
-      window.__SN_WHEEL = { dir: dir, dist: next, lat: anchor.lat, lng: anchor.lng, tier: tierI, mode: "globe", reason: lastHitReason, sx: px, sy: py };
+      var err = projectErr(anchor, px, py);
+      window.__SN_WHEEL = { dir: dir, dist: next, lat: anchor.lat, lng: anchor.lng, tier: tierI, mode: "globe", reason: lastHitReason, sx: px, sy: py, err: err };
+      window.__SN_DEBUG_HIT = { reason: lastHitReason, sx: px, sy: py, anchor: anchor, fresh: fresh, look: camLookAt(), err: err, lock: !!wheelLock };
     } catch (e) {}
   }
   function softZoomAbout(anchor, nextDist, sx, sy) {
     if (!saneLatLng(anchor)) anchor = lastGoodAim;
     intro = false;
     var goalDist = Math.max(DIST_MIN, Math.min(DIST_MAX, nextDist));
+    /* change dist first, then solve rotation so locked anchor stays under cursor */
+    var prevDist = cam.dist;
+    cam.dist = goalDist;
+    fitView();
+    var solved = keepUnderCursor(anchor, sx, sy);
+    if (!solved) {
+      /* unsolvable at new dist — revert look, still accept dist step only if previous solve was ok */
+      cam.dist = prevDist;
+      fitView();
+      keepUnderCursor(anchor, sx, sy);
+      cam.dist = goalDist;
+      fitView();
+      solved = keepUnderCursor(anchor, sx, sy);
+    }
     fly = {
       t0: performance.now(),
-      ms: 280,
-      start: { yaw: cam.yaw, pitch: cam.pitch, dist: cam.dist },
+      ms: 220,
+      start: { yaw: cam.yaw, pitch: cam.pitch, dist: prevDist },
       goal: { yaw: cam.yaw, pitch: cam.pitch, dist: goalDist },
-      about: { lat: anchor.lat, lng: anchor.lng, sx: sx, sy: sy }
+      about: solved ? { lat: anchor.lat, lng: anchor.lng, sx: sx, sy: sy } : null
     };
+    cam.dist = prevDist; /* stepCam will interpolate dist; about keeps anchor under cursor each frame */
     vel.yaw = 0; vel.pitch = 0;
-    rememberAim(anchor);
-    keepUnderCursor(anchor, sx, sy);
-    fly.start.yaw = cam.yaw; fly.start.pitch = cam.pitch;
-    fly.goal.yaw = cam.yaw; fly.goal.pitch = cam.pitch;
+    if (!wheelLock) rememberAim(anchor);
+    else { aim = { lat: anchor.lat, lng: anchor.lng }; lastGoodAim = { lat: anchor.lat, lng: anchor.lng }; }
     tierI = tierFromDist(goalDist, cityOn);
     say((TIERS[Math.min(tierI, TIERS.length - 1)] || {}).name + " · " + anchor.lat.toFixed(2) + "," + anchor.lng.toFixed(2));
   }
@@ -1137,10 +1231,31 @@
       locate(function (pt) { land(pt, false); });
     }, true);
   }
-  function openCity(pt) {
-    /* 4431: prefer cursor/anchor pt; only fall back to lastGoodAim — never screen-center Africa */
-    if (!saneLatLng(pt)) pt = saneLatLng(zoomAnchor) ? zoomAnchor : (saneLatLng(aim) ? aim : lastGoodAim);
+  function placeAnchorAtCursor(pt, cursorPx) {
+    /* 4432: after setView(pt)=center, pan so pt sits under cursor pixel (never look/screen-center) */
+    if (!map || !saneLatLng(pt) || !cursorPx) return;
+    try {
+      var centerPt = map.latLngToContainerPoint(map.getCenter());
+      var cur = L.point(cursorPx.x, cursorPx.y);
+      /* panBy moves the map; world points shift opposite to pan */
+      map.panBy([centerPt.x - cur.x, centerPt.y - cur.y], { animate: false });
+    } catch (e) {}
+  }
+  function paintCityHud() {
+    if (!map || !cityOn) return;
+    try {
+      var c = map.getCenter();
+      if (saneLatLng(c)) say("City · " + c.lat.toFixed(2) + "," + c.lng.toFixed(2));
+    } catch (e) {}
+  }
+  function openCity(pt, cursorPx) {
+    /* 4432: hand off locked anchor at cursor pixel — never look / screen center */
+    if (!saneLatLng(pt)) pt = (wheelLock && isFinite(wheelLock.lat)) ? { lat: wheelLock.lat, lng: wheelLock.lng }
+      : (saneLatLng(zoomAnchor) ? zoomAnchor : (saneLatLng(aim) ? aim : lastGoodAim));
+    if (!cursorPx && wheelLock) cursorPx = { x: wheelLock.sx, y: wheelLock.sy };
+    if (!cursorPx && zoomPixel) cursorPx = { x: zoomPixel.x, y: zoomPixel.y };
     rememberAim(pt);
+    zoomAnchor = { lat: pt.lat, lng: pt.lng };
     tierI = 3;
     var el = $("city");
     if (!el || typeof L === "undefined") return;
@@ -1153,7 +1268,8 @@
       map = L.map(el, {
         zoomControl: false, attributionControl: false,
         minZoom: 3, maxZoom: 19, scrollWheelZoom: false /* globe owns wheel */
-      }).setView([pt.lat, pt.lng], enterZ);
+      }).setView([pt.lat, pt.lng], enterZ, { animate: false });
+      placeAnchorAtCursor(pt, cursorPx);
       ensureTiles();
       map.on("zoomend", function () {
         try {
@@ -1174,7 +1290,9 @@
         try {
           if (!map || !cityOn) return;
           var c = map.getCenter();
-          if (saneLatLng(c)) rememberAim({ lat: c.lat, lng: c.lng });
+          /* 4432: HUD follows live center; do not steal wheelLock anchor mid-gesture */
+          if (saneLatLng(c) && !wheelLock) rememberAim({ lat: c.lat, lng: c.lng });
+          paintCityHud();
           ensureTiles();
         } catch (e) {}
       });
@@ -1233,10 +1351,11 @@
       }, { passive: false });
     } else {
       try { map.setMinZoom(3); } catch (e) {}
-      /* 4429: never snap existing map to z14+ on handoff — match globe scale */
+      /* 4429/4432: match globe scale; place locked anchor under cursor */
       var zNow = map.getZoom();
       var zGo = (!isFinite(zNow) || zNow < enterZ || zNow > 12) ? enterZ : zNow;
-      map.setView([pt.lat, pt.lng], zGo, { animate: true });
+      map.setView([pt.lat, pt.lng], zGo, { animate: false });
+      placeAnchorAtCursor(pt, cursorPx);
       ensureTiles();
     }
     armViewWatch();
@@ -1250,9 +1369,11 @@
     ensureTiles();
     setTimeout(ensureTiles, 80);
     setTimeout(ensureTiles, 320);
-    say("City · " + pt.lat.toFixed(2) + "," + pt.lng.toFixed(2));
+    paintCityHud();
+    setTimeout(paintCityHud, 120);
   }
   function closeCity() {
+    clearWheelLock();
     var el = $("city");
     if (el) el.classList.remove("on");
     cityOn = false;
@@ -3198,7 +3319,8 @@
     window.__SN_4431b = true;
     window.__SN_4431c = true;
     window.__SN_4431d = true;
-    /* 4431: ?debug=1 overlay */
+    window.__SN_4432 = true;
+    /* 4432: ?debug=1 overlay (tree lock respected — only when ?debug=1) */
     (function armDebug() {
       try {
         if (!/[?&]debug=1(?:&|$)/.test(location.search)) return;
@@ -3212,13 +3334,14 @@
           var h = window.__SN_DEBUG_HIT || {};
           var log = (window.__SN_WHEEL_LOG || []).slice(-1)[0] || {};
           var r = canvas ? canvas.getBoundingClientRect() : {};
+          var errNow = (h.anchor && h.sx != null) ? projectErr(h.anchor, h.sx, h.sy) : h.err;
           box.textContent = [
             "dpr=" + (window.devicePixelRatio || 1) + " win=" + window.innerWidth + "x" + window.innerHeight,
             "client=" + (log.x|0) + "," + (log.y|0) + " target=" + (log.target || "?") + " dY=" + log.deltaY + " mode=" + log.deltaMode,
             "canvasRect=" + Math.round(r.left||0) + "," + Math.round(r.top||0) + " " + Math.round(r.width||0) + "x" + Math.round(r.height||0),
-            "sx,sy=" + (h.sx|0) + "," + (h.sy|0) + " reason=" + (h.reason || lastHitReason || ""),
+            "sx,sy=" + (h.sx|0) + "," + (h.sy|0) + " reason=" + (h.reason || lastHitReason || "") + " lock=" + (!!wheelLock),
             "hit=" + (h.fresh ? (h.fresh.lat.toFixed(2)+","+h.fresh.lng.toFixed(2)) : "null"),
-            "anchor=" + (h.anchor ? (h.anchor.lat.toFixed(2)+","+h.anchor.lng.toFixed(2)) : "?"),
+            "anchor=" + (h.anchor ? (h.anchor.lat.toFixed(2)+","+h.anchor.lng.toFixed(2)) : "?") + " errPx=" + (errNow != null ? Number(errNow).toFixed(1) : "?"),
             "look=" + (h.look ? (h.look.lat.toFixed(2)+","+h.look.lng.toFixed(2)) : "?"),
             "tier=" + tierI + " dist=" + (cam.dist && cam.dist.toFixed(3)) + " city=" + !!cityOn,
             "wheel=" + (w.mode||"") + " z=" + (w.z||"") + " " + (w.lat!=null ? (Number(w.lat).toFixed(2)+","+Number(w.lng).toFixed(2)) : "")
@@ -3240,7 +3363,8 @@
       paintPower: function () { var p = $("sn-power"); if (p) p.hidden = false; },
       projectTest: function (lat, lng) { return project(lat, lng, cam); },
       softFly: softFly,
-      facePlace: function (pt, dist) { if (saneLatLng(pt)) { rememberAim(pt); softFly(pt, dist != null ? dist : 0.85); } },
+      facePlace: function (pt, dist) { if (saneLatLng(pt)) { clearWheelLock(); rememberAim(pt); softFly(pt, dist != null ? dist : 0.85); } },
+      clearWheelLock: clearWheelLock, projectErr: projectErr,
       getAim: function () { return aim; },
       camLookAt: camLookAt,
       hitOk: hitOk, keepUnderCursor: keepUnderCursor, onDisc: onDisc, eventCanvasXY: eventCanvasXY
