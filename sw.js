@@ -1,7 +1,7 @@
-/* SpaceNet SW 4429 — one entity. Tree lock. */
-var CACHE = "sn-shell-4429";
-var VER = "4429";
-var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4429", "/js/spacenet/auth.js?v=4429", "/js/vendor/leaflet.js?v=4429", "/js/vendor/leaflet.css?v=4429", "/icon-192.png", "/manifest.webmanifest"];
+/* SpaceNet SW 4430 — one entity. Tree lock. */
+var CACHE = "sn-shell-4430";
+var VER = "4430";
+var SHELL = ["/", "/index.html", "/js/spacenet/app.js?v=4430", "/js/spacenet/auth.js?v=4430", "/js/vendor/leaflet.js?v=4430", "/js/vendor/leaflet.css?v=4430", "/icon-192.png", "/manifest.webmanifest"];
 function allowedScript(path) {
   if (path === "/js/spacenet/app.js" || path === "/js/spacenet/auth.js" || path === "/js/vendor/leaflet.js") return true;
   return false;
@@ -21,10 +21,14 @@ self.addEventListener("install", function (e) {
 self.addEventListener("activate", function (e) {
   e.waitUntil(
     caches.keys().then(function (keys) {
-      return Promise.all(keys.filter(function (k) { return k !== CACHE; }).map(function (k) { return caches.delete(k); }));
+      /* 4430: drop every prior shell cache (stale index/app from older visits on same origin) */
+      return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+    }).then(function () {
+      return caches.open(CACHE).then(function (c) {
+        return c.addAll(SHELL.map(function (u) { return new Request(u, { cache: "reload" }); })).catch(function () {});
+      });
     }).then(function () { return self.clients.claim(); }).then(function () {
       return self.clients.matchAll({ type: "window" }).then(function (clients) {
-        /* never navigate a running page (mid-run &t= reload): tell it the version, the page decides */
         clients.forEach(function (c) {
           try { c.postMessage({ type: "sn-sw", ver: VER }); } catch (err) {}
         });
@@ -35,8 +39,9 @@ self.addEventListener("activate", function (e) {
 self.addEventListener("fetch", function (e) {
   var url = new URL(e.request.url);
   if (url.origin !== location.origin) return;
+  if (url.pathname === "/sw.js") { e.respondWith(fetch(e.request, { cache: "reload" })); return; }
   if (isOverlay(url.pathname)) {
-    e.respondWith(new Response("/* TREE LOCK 4429: overlay blocked */", { headers: { "Content-Type": "application/javascript" }, status: 200 }));
+    e.respondWith(new Response("/* TREE LOCK 4430: overlay blocked */", { headers: { "Content-Type": "application/javascript" }, status: 200 }));
     return;
   }
   if (e.request.mode === "navigate" || url.pathname === "/" || url.pathname === "/index.html") {

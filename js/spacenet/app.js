@@ -236,6 +236,34 @@
   function saneLatLng(pt) {
     return !!(pt && isFinite(pt.lat) && isFinite(pt.lng) && Math.abs(pt.lat) <= 85 && Math.abs(pt.lng) <= 180);
   }
+  function haversineKm(a, b) {
+    if (!saneLatLng(a) || !saneLatLng(b)) return 1e9;
+    var dLat = (b.lat - a.lat) * Math.PI / 180, dLng = (b.lng - a.lng) * Math.PI / 180;
+    var aa = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);
+    return 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(aa)));
+  }
+  /* 4430: facing lat/lng from cam (softFly sets pitch≈lat, yaw≈lng−spin) */
+  function camLookAt() {
+    var lat = (cam.pitch * 180) / Math.PI;
+    var lng = ((cam.yaw + earthSpin()) * 180) / Math.PI;
+    while (lng > 180) lng -= 360;
+    while (lng < -180) lng += 360;
+    if (!isFinite(lat) || !isFinite(lng) || Math.abs(lat) > 85) return saneLatLng(aim) ? aim : lastGoodAim;
+    return { lat: lat, lng: lng };
+  }
+  function maxAimKm() {
+    var d = isFinite(cam.dist) ? cam.dist : 1.85;
+    if (d <= CITY_ENTER_DIST + 0.05) return 350;
+    if (d <= 1.15) return 900;
+    if (d <= 2.5) return 2500;
+    return 6000;
+  }
+  /* cursor hit must sit on the disc AND near the globe's current facing center */
+  function hitOk(hit, ref) {
+    if (!saneLatLng(hit)) return false;
+    var base = saneLatLng(ref) ? ref : camLookAt();
+    return haversineKm(hit, base) <= maxAimKm();
+  }
   function rememberAim(pt) {
     if (!saneLatLng(pt)) return lastGoodAim;
     aim = { lat: pt.lat, lng: pt.lng };
@@ -256,12 +284,29 @@
     if (d >= CITY_ENTER_DIST) return 2;
     return 3;
   }
+  var tileUrlI = 0;
+  var TILE_URLS = [
+    "https://tile.openstreetmap.de/{z}/{x}/{y}.png",
+    "https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",
+    "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+  ];
   function ensureTiles() {
     if (!map || typeof L === "undefined") return;
     try {
       if (!tileLayer || !map.hasLayer(tileLayer)) {
-        tileLayer = L.tileLayer("https://tile.openstreetmap.de/{z}/{x}/{y}.png", {
-          maxZoom: 19, minZoom: 3, attribution: "© OSM"
+        tileLayer = L.tileLayer(TILE_URLS[tileUrlI % TILE_URLS.length], {
+          maxZoom: 19, minZoom: 3, attribution: "© OSM",
+          errorTileUrl: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+        });
+        tileLayer.on("tileerror", function () {
+          try {
+            tileUrlI = (tileUrlI + 1) % TILE_URLS.length;
+            if (map && tileLayer) {
+              map.removeLayer(tileLayer);
+              tileLayer = null;
+              ensureTiles();
+            }
+          } catch (e3) {}
         });
         tileLayer.addTo(map);
       }
@@ -281,11 +326,13 @@
     try {
       var city = $("city");
       if (cityOn && map && city && city.classList.contains("on")) {
-        var tiles = city.querySelectorAll("img.leaflet-tile, .leaflet-tile").length;
+        var imgs = city.querySelectorAll("img.leaflet-tile");
+        var painted = 0;
+        for (var ti = 0; ti < imgs.length; ti++) if (imgs[ti].naturalWidth > 8) painted++;
         var op = parseFloat(getComputedStyle(city).opacity || "1");
         var disp = getComputedStyle(city).display;
         if (disp === "none" || op < 0.05) return false;
-        if (tiles < 1) return false;
+        if (painted < 1) return false;
         return true;
       }
       var g = canvas || $("g");
@@ -308,9 +355,13 @@
         if (canvas) {
           try { canvas.style.pointerEvents = "none"; } catch (e) {}
         }
+        try { if (tileLayer && map) { map.removeLayer(tileLayer); tileLayer = null; } } catch (e4) {}
+        tileUrlI = (tileUrlI + 1) % TILE_URLS.length;
         ensureTiles();
         if (map && saneLatLng(aim)) {
-          map.setView([aim.lat, aim.lng], Math.max(handoffFloorZ + 1, map.getZoom() || handoffZoom(cam.dist)), { animate: false });
+          var zHeal = map.getZoom() || handoffZoom(cam.dist);
+          if (zHeal > 14) zHeal = Math.max(handoffFloorZ + 1, handoffZoom(cam.dist)); /* grey street → pull back */
+          map.setView([aim.lat, aim.lng], Math.max(handoffFloorZ + 1, zHeal), { animate: false });
         }
         ensureTiles();
         say((TIERS[Math.min(tierI, TIERS.length - 1)] || {}).name + " · " + (aim ? aim.lat.toFixed(2) + "," + aim.lng.toFixed(2) : ""));
@@ -768,20 +819,31 @@
     }
     canvas.addEventListener("pointerup", up);
     canvas.addEventListener("pointercancel", up);
-    var wheelAcc = 0, wheelRaf = 0, wheelXY = null, wheelNotches = 0;
+    var wheelAcc = 0, wheelRaf = 0, wheelXY = null, wheelLastT = 0;
     canvas.addEventListener("wheel", function (e) {
       e.preventDefault(); intro = false;
-      /* count notches from deltaY; typical mouse = 100/120 per notch */
-      var unit = e.deltaMode === 1 ? 1 : (Math.abs(e.deltaY) >= 40 ? 100 : 40);
-      wheelAcc += e.deltaY;
+      /* 4430: log real OS deltas; Linux X11 often ±53 or ±100–120, deltaMode 0; several events/notch */
+      try {
+        if (!window.__SN_WHEEL_LOG) window.__SN_WHEEL_LOG = [];
+        window.__SN_WHEEL_LOG.push({ t: Date.now(), deltaY: e.deltaY, deltaMode: e.deltaMode, x: e.clientX, y: e.clientY });
+        if (window.__SN_WHEEL_LOG.length > 60) window.__SN_WHEEL_LOG.shift();
+      } catch (err0) {}
+      var dyIn = e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY; /* lines → px-ish */
+      wheelAcc += dyIn;
       wheelXY = pos(e);
       if (wheelRaf) return;
       wheelRaf = requestAnimationFrame(function () {
         wheelRaf = 0;
         var dy = wheelAcc; wheelAcc = 0;
         var p = wheelXY || { x: view && view.cx, y: view && view.cy };
-        var notches = Math.max(1, Math.min(8, Math.round(Math.abs(dy) / unit) || 1));
+        var now = Date.now();
+        /* one physical notch → one nudge. Coalesced multi-events in one frame still count as 1 unless fling (|dy|≥240). */
+        var notches = 1;
+        if (Math.abs(dy) >= 240) notches = Math.min(3, Math.round(Math.abs(dy) / 120));
+        if (now - wheelLastT < 90) notches = 1; /* debounce burst of small deltas */
+        wheelLastT = now;
         var dir = dy > 0 ? 1 : -1;
+        if (!dy) return;
         try {
           for (var n = 0; n < notches; n++) nudgeZoom(dir, p.x, p.y);
         } catch (err) { try { console.error("wheel", err); } catch (e2) {} }
@@ -806,16 +868,18 @@
     gpsSeq++;
     var now = Date.now();
     if (now > zoomGestureUntil) {
-      /* 4429: new gesture — cursor hit wins over GPS/Athens lastGoodAim */
-      var fresh = globeHit(sx, sy, cam);
-      if (saneLatLng(fresh)) zoomAnchor = rememberAim(fresh);
-      else if (saneLatLng(zoomAnchor)) rememberAim(zoomAnchor);
-      else if (saneLatLng(aim)) zoomAnchor = rememberAim(aim);
-      else zoomAnchor = rememberAim(lastGoodAim);
+      /* 4430: cursor hit only if near globe facing center; else keep cam look-at (never GPS junk / Barents) */
+      var look = camLookAt();
+      var fresh = (sx != null && sy != null) ? globeHit(sx, sy, cam) : null;
+      if (hitOk(fresh, look)) zoomAnchor = rememberAim(fresh);
+      else if (hitOk(zoomAnchor, look)) rememberAim(zoomAnchor);
+      else if (hitOk(aim, look)) zoomAnchor = rememberAim(aim);
+      else zoomAnchor = rememberAim(look);
     }
-    zoomGestureUntil = now + 900;
-    var anchor = saneLatLng(zoomAnchor) ? zoomAnchor : (saneLatLng(aim) ? aim : lastGoodAim);
-    rememberAim(anchor);
+    zoomGestureUntil = now + 1600; /* cover 0.7s remine notches */
+    var anchor = saneLatLng(zoomAnchor) ? zoomAnchor : camLookAt();
+    if (!hitOk(anchor, camLookAt())) anchor = rememberAim(camLookAt());
+    else rememberAim(anchor);
     intro = false;
 
     if (cityOn && map) {
@@ -965,7 +1029,8 @@
     }, true);
   }
   function openCity(pt) {
-    if (!saneLatLng(pt)) pt = lastGoodAim;
+    var look = camLookAt();
+    if (!saneLatLng(pt) || !hitOk(pt, look)) pt = saneLatLng(look) ? look : lastGoodAim;
     rememberAim(pt);
     tierI = 3;
     var el = $("city");
@@ -1033,12 +1098,26 @@
         if (holdPt && Math.hypot(e.clientX - holdPt.clientX, e.clientY - holdPt.clientY) > 12) cancelHold();
       });
       /* map wheel → same nudge path so bursts stay coherent */
+      var mapWheelAcc = 0, mapWheelRaf = 0, mapWheelLast = 0, mapWheelXY = null;
       el.addEventListener("wheel", function (e) {
         e.preventDefault(); e.stopPropagation();
         intro = false;
         var r = el.getBoundingClientRect();
-        var sx = e.clientX - r.left, sy = e.clientY - r.top;
-        try { nudgeZoom(e.deltaY > 0 ? 1 : -1, sx, sy); } catch (err) {}
+        mapWheelXY = { x: e.clientX - r.left, y: e.clientY - r.top };
+        mapWheelAcc += (e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY);
+        if (mapWheelRaf) return;
+        mapWheelRaf = requestAnimationFrame(function () {
+          mapWheelRaf = 0;
+          var dy = mapWheelAcc; mapWheelAcc = 0;
+          var now2 = Date.now();
+          var n = 1;
+          if (Math.abs(dy) >= 240) n = Math.min(3, Math.round(Math.abs(dy) / 120));
+          if (now2 - mapWheelLast < 90) n = 1;
+          mapWheelLast = now2;
+          var dir = dy > 0 ? 1 : -1;
+          var p = mapWheelXY || { x: r.width / 2, y: r.height / 2 };
+          try { for (var i = 0; i < n; i++) nudgeZoom(dir, p.x, p.y); } catch (err) {}
+        });
       }, { passive: false });
     } else {
       try { map.setMinZoom(3); } catch (e) {}
@@ -1086,7 +1165,7 @@
       '<p class="note">Hold point · land or sea · ' + listAlt + '. Listing does not use GPS as the delivery address.</p>' +
       '<button type="button" class="sheet-go" data-act="list-vendor">VENDOR</button>' +
       '<button type="button" class="sheet-go" data-act="list-client">CLIENT</button>' +
-      '<button type="button" class="sheet-go" data-act="list-driver">DRIVER</button>');
+      '<button type="button" class="sheet-go" data-act="list-driver">DRIVER · land or sea</button>');
     say(pt.lat.toFixed(4) + "," + pt.lng.toFixed(4) + " · LIST");
   }
   function persistListing(row) {
@@ -2947,6 +3026,7 @@
     window.__SN_4428b = true;
     window.__SN_4429 = true;
     window.__SN_4429c = true;
+    window.__SN_4430 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
@@ -2959,7 +3039,10 @@
       quoteDelivery: quoteDelivery,
       paintMoney: paintMoney, avcGet: avcGet,
       paintPower: function () { var p = $("sn-power"); if (p) p.hidden = false; },
-      projectTest: function (lat, lng) { return project(lat, lng, cam); }
+      projectTest: function (lat, lng) { return project(lat, lng, cam); },
+      getAim: function () { return aim; },
+      camLookAt: camLookAt,
+      hitOk: hitOk
     };
     Object.defineProperty(window, "__SN_INTRO", { get: function () { return intro; } });
     requestAnimationFrame(loop);
