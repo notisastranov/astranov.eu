@@ -1,3 +1,74 @@
+/* 4438: Esc is armed FIRST, before any app init, on window capture (keydown + keyup fallback).
+   Matches Escape / Esc / keyCode 27 / code Escape, regardless of focus target (body, #city, inputs, buttons).
+   Never touched by the wheel-lock code. Closes LIST, YOU, ☰ menu and sky in one press. */
+(function () {
+  if (window.__SN_ESC_EARLY4438) return;
+  window.__SN_ESC_EARLY4438 = true;
+  function isEsc(e) {
+    if (!e) return false;
+    return e.key === "Escape" || e.key === "Esc" || e.code === "Escape" || e.keyCode === 27 || e.which === 27;
+  }
+  function domClose() {
+    var closed = false;
+    try {
+      var me = document.getElementById("sn-me-sheet");
+      if (me && me.classList.contains("on")) { me.classList.remove("on"); closed = true; }
+    } catch (e1) {}
+    try {
+      var sh = document.getElementById("sn-sheet");
+      if (sh && sh.classList.contains("on")) {
+        if (typeof window.__SN_closeSheet === "function") window.__SN_closeSheet(); else sh.classList.remove("on");
+        closed = true;
+      }
+    } catch (e2) {}
+    try {
+      var sky = document.getElementById("sn-sky");
+      if (sky && (sky.classList.contains("on") || (!sky.hidden && sky.offsetParent))) {
+        if (typeof window.__SN_closeSky === "function") window.__SN_closeSky(); else sky.classList.remove("on");
+        closed = true;
+      }
+    } catch (e3) {}
+    try {
+      var m = document.getElementById("menu");
+      if (m && !m.hidden) {
+        m.hidden = true; m.classList.remove("on");
+        var bg = document.getElementById("sn-burger"); if (bg) bg.setAttribute("aria-expanded", "false");
+        closed = true;
+      }
+    } catch (e4) {}
+    return closed;
+  }
+  var lastDownT = 0;
+  function onDown(e) {
+    if (!isEsc(e)) return;
+    lastDownT = Date.now();
+    var closed = domClose();
+    try { window.__SN_ESC_LOG = (window.__SN_ESC_LOG || []).concat([{ t: lastDownT, type: "keydown", closed: closed, target: (e.target && (e.target.id || e.target.tagName)) || "" }]).slice(-20); } catch (eL) {}
+    if (closed) { e.preventDefault(); e.stopPropagation(); }
+  }
+  function onUp(e) {
+    if (!isEsc(e)) return;
+    if (Date.now() - lastDownT < 1500) return; /* keydown already handled this press */
+    var closed = domClose();
+    try { window.__SN_ESC_LOG = (window.__SN_ESC_LOG || []).concat([{ t: Date.now(), type: "keyup", closed: closed }]).slice(-20); } catch (eL) {}
+    if (closed) { e.preventDefault(); e.stopPropagation(); }
+  }
+  window.addEventListener("keydown", onDown, true);
+  window.addEventListener("keyup", onUp, true);
+  window.__SN_escClose = domClose;
+  /* keep keyboard focus in this document when a sheet opens (no-op while typing in an input) */
+  window.__SN_keepKeyFocus = function (el) {
+    try {
+      if (!document.hasFocus || !document.hasFocus()) { try { window.focus(); } catch (eW) {} }
+      var a = document.activeElement;
+      var typing = a && (a.tagName === "INPUT" || a.tagName === "TEXTAREA" || a.tagName === "SELECT" || a.isContentEditable);
+      if (typing || !el) return;
+      if (!el.hasAttribute("tabindex")) el.setAttribute("tabindex", "-1");
+      el.style.outline = "none";
+      el.focus({ preventScroll: true });
+    } catch (e) {}
+  };
+})();
 /* SpaceNet 4426 — real sky for any latitude and longitude. Not a demo clock. */
 (function () {
   "use strict";
@@ -2018,8 +2089,10 @@
     materialize(true);
     liftChrome();
     placeSheet();
+    if (window.__SN_keepKeyFocus) window.__SN_keepKeyFocus(card);
   }
   function closeSheet() { var sh = $("sn-sheet"); if (sh) sh.classList.remove("on"); materialize(needFilter()); liftChrome(); }
+  window.__SN_closeSheet = closeSheet;
   function paintShopsOnMap() {
     if (!map || typeof L === "undefined") return;
     shopMarks.forEach(function (m) { try { map.removeLayer(m); } catch (e) {} });
@@ -3237,6 +3310,7 @@
       if (p && p.catch) p.catch(function () {});
     }).catch(function () { say("Camera blocked. Stars still follow the phone."); });
   }
+  window.__SN_closeSky = function () { closeSky(); };
   function closeSky() {
     skyOn = false;
     var box = $("sn-sky");
@@ -3253,9 +3327,23 @@
     if (skyHere) return true;
     if (skyAsked || !navigator.geolocation) return false;
     skyAsked = true;
-    navigator.geolocation.getCurrentPosition(function (pos) {
-      skyHere = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-    }, function () {}, { enableHighAccuracy: false, timeout: 8000, maximumAge: 120000 });
+    /* 4438: the sky never PROMPTS for location. A boot-time getCurrentPosition opened Chrome's location
+       permission bubble, which takes keyboard focus — Esc then dismissed the bubble and never reached the page.
+       Use a saved GPS pin, or ask the browser only when permission is already granted. GPS tap still asks. */
+    try {
+      var saved = JSON.parse(localStorage.getItem("sn:here") || "null");
+      if (saved && isFinite(saved.lat) && isFinite(saved.lng)) { skyHere = { lat: +saved.lat, lng: +saved.lng }; return true; }
+    } catch (eS) {}
+    try {
+      if (navigator.permissions && navigator.permissions.query) {
+        navigator.permissions.query({ name: "geolocation" }).then(function (st) {
+          if (!st || st.state !== "granted") return;
+          navigator.geolocation.getCurrentPosition(function (pos) {
+            skyHere = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          }, function () {}, { enableHighAccuracy: false, timeout: 8000, maximumAge: 120000 });
+        }).catch(function () {});
+      }
+    } catch (eP) {}
     return false;
   }
   function drawConstellations(now) {
@@ -3590,10 +3678,10 @@
     }
 
   /* 4436: Esc closes YOU/LIST/sky/menu on a real keypress after a map click (window+document capture) */
-  if (!window.__SN_ESC4437) {
-    window.__SN_ESC4437 = true;
+  if (!window.__SN_ESC4438) {
+    window.__SN_ESC4438 = true;
     function onEsc(e) {
-      if (!e || e.key !== "Escape") return;
+      if (!e || !(e.key === "Escape" || e.key === "Esc" || e.code === "Escape" || e.keyCode === 27)) return;
       var closed = false;
       try {
         var me = document.getElementById("sn-me-sheet");
@@ -3636,6 +3724,7 @@
     window.__SN_4435 = true;
     window.__SN_4436 = true;
     window.__SN_4437 = true;
+    window.__SN_4438 = true;
     /* 4432: ?debug=1 overlay (tree lock respected — only when ?debug=1) */
     (function armDebug() {
       try {

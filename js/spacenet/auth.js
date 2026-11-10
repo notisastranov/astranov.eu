@@ -428,6 +428,7 @@
     }
     fillBody();
     sh.classList.add("on");
+    try { if (window.__SN_keepKeyFocus) window.__SN_keepKeyFocus(sh.querySelector(".card")); } catch (eF) {}
   }
   function boot() {
     css();
@@ -449,10 +450,10 @@
       applyReturn().then(function () { paintMe(); });
     });
   }
-  if (!window.__SN_ESC_ME4437) {
-    window.__SN_ESC_ME4437 = true;
+  if (!window.__SN_ESC_ME4438) {
+    window.__SN_ESC_ME4438 = true;
     document.addEventListener("keydown", function (e) {
-      if (!e || e.key !== "Escape") return;
+      if (!e || !(e.key === "Escape" || e.key === "Esc" || e.code === "Escape" || e.keyCode === 27)) return;
       var sh = document.getElementById("sn-me-sheet");
       if (sh && sh.classList.contains("on")) {
         sh.classList.remove("on");
@@ -461,7 +462,7 @@
       }
     }, true);
   }
-    window.__SN_AUTH_4437 = true;
+    window.__SN_AUTH_4438 = true;
   window.SNAuth = { google: google, mailIn: mailIn, mailUp: mailUp, password: password, setPassword: setPassword, remember: remember, session: session, youtube: youtube, yt: yt, x: x, out: out, savePhone: savePhone, user: user, token: token, boot: boot, paint: paintMe, open: openMe };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
