@@ -1007,13 +1007,19 @@
   }
   function land(pt, open) {
     intro = false;
+    if (!saneLatLng(pt)) return;
     here = { lat: pt.lat, lng: pt.lng };
     window.__SN_HERE = here;
     try { localStorage.setItem("sn:here", JSON.stringify(here)); } catch (e) {}
+    pullListings();
+    /* 4430b: never yank the camera mid-zoom or when user already aimed elsewhere */
+    if (Date.now() < zoomGestureUntil) {
+      say("GPS saved · zoom holds your cursor aim");
+      return;
+    }
     tierI = 2; flyTo(here, TIERS[2].dist);
     say("GPS " + here.lat.toFixed(4) + "," + here.lng.toFixed(4) + " · tap to recalibrate");
-    pullListings();
-    if (map && cityOn) { try { map.setView([here.lat, here.lng], Math.max(15, map.getZoom() || 17)); } catch (e) {} }
+    if (map && cityOn) { try { map.setView([here.lat, here.lng], Math.max(handoffFloorZ + 1, map.getZoom() || handoffZoom(cam.dist))); } catch (e) {} }
   }
   function endIntro() {
     if (!intro) return;
@@ -1494,8 +1500,12 @@
   }
   function showFound() {
     if (!shops.length) { say("No real pin for that hunt. Try another name near GPS."); return; }
-    var seat = here || shops[0];
-    if (seat) openCity(seat);
+    /* 4430b: hunt result wins over GPS here (Rhodes hunt must not open Athens) */
+    var seat = shops[0] || here;
+    if (seat) {
+      rememberAim(seat);
+      softFly(seat, Math.max(CITY_ENTER_DIST + 0.12, 0.78));
+    }
     paintShopsOnMap();
     var html = shops.map(function (s, i) {
       var ch = (s.name.match(/[A-Za-zΑ-Ωα-ω]/) || ["·"])[0].toUpperCase();
@@ -1555,14 +1565,21 @@
     if (!q) return;
     materialize(true);
     say("Finding " + q + "…");
-    var go = function () {
-      Promise.all([huntApi(q), huntNominatim(q), huntOverpass(q)]).then(function (packs) {
-        shops = uniqPlaces(packs[0].concat(packs[1], packs[2]));
-        showFound();
+    gpsSeq++; /* 4430b: cancel in-flight GPS land so it cannot steal the hunt aim */
+    Promise.all([huntApi(q), huntNominatim(q), huntOverpass(q)]).then(function (packs) {
+      shops = uniqPlaces(packs[0].concat(packs[1], packs[2]));
+      showFound();
+    });
+    /* background GPS for listings only — do not fly the globe */
+    if (!here) {
+      locate(function (pt) {
+        if (!saneLatLng(pt)) return;
+        here = { lat: pt.lat, lng: pt.lng };
+        window.__SN_HERE = here;
+        try { localStorage.setItem("sn:here", JSON.stringify(here)); } catch (e) {}
+        pullListings();
       });
-    };
-    if (!here) locate(function (pt) { land(pt, false); go(); });
-    else go();
+    }
   }
   function pullListings() {
     if (!here) return;
@@ -1793,7 +1810,11 @@
         shops = uniqPlaces(j.places.map(function (p) {
           return { name: p.name, lat: Number(p.lat), lng: Number(p.lng), phone: p.phone || "", raw: p.raw || "", src: "grok" };
         }).filter(function (p) { return isFinite(p.lat) && isFinite(p.lng); }));
-        if (shops.length) { openCity(shops[0]); paintShopsOnMap(); showHunt(); return; }
+        if (shops.length) {
+          rememberAim(shops[0]);
+          softFly(shops[0], Math.max(CITY_ENTER_DIST + 0.12, 0.78));
+          paintShopsOnMap(); showHunt(); return;
+        }
       }
       hunt(j.q || q);
       return;
@@ -3027,6 +3048,7 @@
     window.__SN_4429 = true;
     window.__SN_4429c = true;
     window.__SN_4430 = true;
+    window.__SN_4430b = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
@@ -3040,6 +3062,8 @@
       paintMoney: paintMoney, avcGet: avcGet,
       paintPower: function () { var p = $("sn-power"); if (p) p.hidden = false; },
       projectTest: function (lat, lng) { return project(lat, lng, cam); },
+      softFly: softFly,
+      facePlace: function (pt, dist) { if (saneLatLng(pt)) { rememberAim(pt); softFly(pt, dist != null ? dist : 0.85); } },
       getAim: function () { return aim; },
       camLookAt: camLookAt,
       hitOk: hitOk
