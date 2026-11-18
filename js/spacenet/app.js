@@ -1005,7 +1005,7 @@
     var priceHtml = isFinite(feeN)
       ? '<div class="price">' + Math.round(feeN).toLocaleString("en-GB") + " <small>AV€</small></div>"
       : '<div class="price">— <small>AV€</small></div>';
-    var note = String((job && (job.note || job.item || job.detail)) || "Delivery / task offer. Expand for route before accept.").replace(/[<>]/g, "");
+    var note = String((job && (job.note || job.item || job.detail)) || "Delivery offer · route on the map.").replace(/[<>]/g, "");
     var meta = [];
     if (job && job.vendor && job.vendor.name) meta.push(String(job.vendor.name).replace(/[<>]/g, ""));
     if (job && isFinite(Number(job.km))) meta.push(Number(job.km).toFixed(1) + " km");
@@ -1015,10 +1015,24 @@
       '<p class="note">' + note + (meta.length ? " · " + meta.join(" · ") : "") + "</p>" +
       '<button type="button" class="sheet-go primary" data-act="hide">KEEP</button></div>';
     upsertTab({ id: id, kind: "offer", title: String(title).slice(0, 16).toUpperCase(), html: html, min: false });
-    openSheet(title, html);
     paintOffersDrawer();
-    setDrawerHeight(Math.max(drawerH, Math.min(maxDrawerH(), Math.round(window.innerHeight * 0.42))));
+    openOfferDrawer();
+    var from = job && (job.vendor || job.from);
+    var to = job && (job.drop || job.to);
+    if (from && to && isFinite(Number(from.lat)) && isFinite(Number(to.lat))) {
+      if (!cityOn && typeof openCity === "function") openCity(here || from);
+      drawRoute(from, to);
+    } else {
+      fitOfferRoute();
+    }
   }
+  function openOfferDrawer() {
+    setDrawerHeight(offerDrawerH());
+  }
+  function offerDrawerH() {
+    return Math.max(collapsedDrawerH(), Math.min(maxDrawerH(), Math.round(window.innerHeight * (2 / 3))));
+  }
+  function collapsedDrawerH() { return 70; }
 
   function setSupport(on) {
     supportOn = !!on;
@@ -1171,26 +1185,38 @@
     if (routeLayer && map) fitOfferRoute();
   }
   function fitOfferRoute() {
-    if (!map || !routeLayer) return;
-    var top = 80, bot = 80, side = 24;
-    var isle = visRect($("island"));
-    var dock = visRect($("panel"));
-    var sheet = visRect($("sn-sheet-card"));
-    var tasks = $("sn-tasks") && $("sn-tasks").classList.contains("on") ? visRect($("sn-tasks").querySelector(".card")) : null;
-    if (isle) top = Math.max(top, Math.round(isle.bottom + 12));
-    var bottomBlock = 12;
-    if (dock) bottomBlock = Math.max(bottomBlock, window.innerHeight - dock.top + 12);
-    if (sheet) bottomBlock = Math.max(bottomBlock, window.innerHeight - sheet.top + 12);
-    if (tasks) bottomBlock = Math.max(bottomBlock, window.innerHeight - tasks.top + 12);
-    bot = Math.max(80, bottomBlock);
+    if (!map || typeof L === "undefined") return;
+    var topEl = visRect($("top"));
+    var drawer = visRect($("drawer"));
+    var radar = visRect($("sn-radar"));
+    var top = 56, bot = 80, side = 20;
+    if (topEl) top = Math.max(top, Math.round(topEl.bottom + 10));
+    if (radar) top = Math.max(top, Math.round(radar.bottom + 8));
+    if (drawer) bot = Math.max(bot, Math.round(window.innerHeight - drawer.top + 12));
+    else bot = Math.max(bot, Math.round(drawerH || 70) + 16);
+    var pts = [];
     try {
-      map.fitBounds(routeLayer.getBounds(), {
+      if (routeLayer && routeLayer.getLatLngs) {
+        var ll = routeLayer.getLatLngs();
+        (Array.isArray(ll[0]) ? ll : [ll]).forEach(function (ring) {
+          (ring || []).forEach(function (p) { if (p && isFinite(p.lat)) pts.push([p.lat, p.lng]); });
+        });
+      }
+    } catch (e) {}
+    if (here && isFinite(here.lat) && isFinite(here.lng)) pts.push([here.lat, here.lng]);
+    if (vendor && isFinite(vendor.lat)) pts.push([vendor.lat, vendor.lng]);
+    if (drop && isFinite(drop.lat)) pts.push([drop.lat, drop.lng]);
+    if (pts.length < 1) return;
+    try {
+      var bounds = L.latLngBounds(pts);
+      map.fitBounds(bounds, {
         paddingTopLeft: [side, top],
         paddingBottomRight: [side, bot],
         maxZoom: 16,
-        animate: false
+        animate: true
       });
-    } catch (e) {}
+      if (typeof map.invalidateSize === "function") map.invalidateSize({ animate: false });
+    } catch (e2) {}
   }
   function openSheet(title, html) {
     var sh = $("sn-sheet"), card = $("sn-sheet-card");
@@ -1741,7 +1767,7 @@
   function setDrawerHeight(h) {
     var d = $("drawer");
     if (!d) return;
-    var minH = 70;
+    var minH = collapsedDrawerH();
     var maxH = maxDrawerH();
     drawerH = Math.max(minH, Math.min(maxH, Math.round(h)));
     d.style.height = drawerH + "px";
@@ -1749,8 +1775,9 @@
     d.classList.toggle("open", drawerH > minH + 8);
     layoutChrome();
     if (map && typeof map.invalidateSize === "function") {
-      try { map.invalidateSize(); } catch (e) {}
+      try { map.invalidateSize({ animate: false }); } catch (e) {}
     }
+    if (routeLayer) fitOfferRoute();
   }
   function paintOffersDrawer() {
     var sheet = $("sheet");
@@ -1771,11 +1798,17 @@
     }
     sheet.innerHTML = offers.map(function (t) { return t.html || ""; }).join("");
   }
+  function snapDrawer() {
+    var minH = collapsedDrawerH();
+    var maxH = maxDrawerH();
+    var mid = minH + (maxH - minH) * 0.5;
+    setDrawerHeight(drawerH >= mid ? maxH : minH);
+  }
   function bindDrawer() {
     var d = $("drawer"), handle = $("handle");
     if (!d || !handle || handle.__snDrawer) return;
     handle.__snDrawer = true;
-    setDrawerHeight(70);
+    setDrawerHeight(collapsedDrawerH());
     paintOffersDrawer();
     function eventY(e) {
       if (e.clientY != null) return e.clientY;
@@ -1804,10 +1837,13 @@
     function onUp(e) {
       if (!drawerDrag) return;
       if (e) e.preventDefault();
-      var mid = 70 + (maxDrawerH() - 70) * 0.28;
-      var openH = Math.min(maxDrawerH(), Math.round(window.innerHeight * 0.45));
-      if (!drawerDrag.moved) setDrawerHeight(drawerH > mid ? 70 : openH);
-      else setDrawerHeight(drawerH > mid ? Math.max(openH, drawerH) : 70);
+      /* After gesture: snap fully open (≤2/3) or fully collapsed — no sticky mid. */
+      if (!drawerDrag.moved) {
+        var mid = collapsedDrawerH() + (maxDrawerH() - collapsedDrawerH()) * 0.5;
+        setDrawerHeight(drawerH > mid ? collapsedDrawerH() : maxDrawerH());
+      } else {
+        snapDrawer();
+      }
       drawerDrag = null;
     }
     ["pointerdown", "mousedown", "touchstart"].forEach(function (ev) { handle.addEventListener(ev, onDown, { passive: false }); });
@@ -2156,7 +2192,7 @@
       if (!act) return;
       var id = t.getAttribute("data-id");
       var i = Number(t.getAttribute("data-i"));
-      if (act === "hide") closeJobs();
+      if (act === "hide") { closeJobs(); setDrawerHeight(collapsedDrawerH()); paintOffersDrawer(); }
       if (act === "close") { closePower(); closeSheet(); closeJobs(); }
       if (act === "reload") location.reload();
       if (act === "terms") location.href = "/terms.html";
@@ -2883,7 +2919,9 @@
       quoteDelivery: quoteDelivery,
       paintMoney: paintMoney, avcGet: avcGet,
       paintPower: function () { var p = $("sn-power"); if (p) p.hidden = false; },
-      projectTest: function (lat, lng) { return project(lat, lng, cam); }
+      projectTest: function (lat, lng) { return project(lat, lng, cam); },
+      throwOffer: throwOffer, fitOfferRoute: fitOfferRoute, openOfferDrawer: openOfferDrawer,
+      drawRoute: drawRoute
     };
     Object.defineProperty(window, "__SN_INTRO", { get: function () { return intro; } });
     requestAnimationFrame(loop);
