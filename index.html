@@ -63,10 +63,10 @@ button{cursor:pointer}
 /* Search + handsfree under top row — full width; radar sits below */
 #search{
   position:fixed;z-index:48;top:calc(var(--safe-t) + var(--top-row) + 6px);
-  left:var(--safe-l);right:var(--safe-r);display:flex;gap:8px;
+  left:var(--safe-l);right:var(--safe-r);display:flex;gap:8px;min-width:0;
 }
 #q{
-  flex:1;height:var(--search-h);border-radius:12px;border:1px solid rgba(77,240,255,.45);
+  flex:1;min-width:0;height:var(--search-h);border-radius:12px;border:1px solid rgba(77,240,255,.45);
   background:rgba(4,14,28,.94);color:var(--fg);padding:0 12px;font-size:16px;outline:none;
 }
 #mic{

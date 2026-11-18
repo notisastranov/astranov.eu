@@ -1469,7 +1469,18 @@
   function openJobs() {
     materialize(true);
     var sh = $("sn-tasks"); if (!sh) return;
+    var card = sh.querySelector(".card");
     var list = $("sn-tasks-list");
+    if (card) {
+      var bar = card.querySelector(".sheet-bar");
+      if (!bar) {
+        bar = document.createElement("div");
+        bar.className = "sheet-bar";
+        bar.innerHTML = '<b class="sheet-ttl">JOBS</b><button type="button" class="sheet-x" data-act="hide">HIDE</button>';
+        if (list && list.parentNode === card) card.insertBefore(bar, list);
+        else card.insertBefore(bar, card.firstChild);
+      }
+    }
     if (list) {
       if (!jobs.length) list.innerHTML = '<p class="note">No posted jobs. Hunt a real pin, TO MY GPS, then SEND.</p>';
       else list.innerHTML = jobs.map(function (j) {
@@ -2112,6 +2123,17 @@
     if (jobsBtn) jobsBtn.addEventListener("click", openJobs);
     if (findBtn) findBtn.addEventListener("click", openFind);
     if (nodeBtn) nodeBtn.addEventListener("click", openNode);
+    if (!window.__snEscSheets) {
+      window.__snEscSheets = true;
+      window.addEventListener("keydown", function (e) {
+        var key = e.key || e.code;
+        if (key !== "Escape" && key !== "Esc" && e.keyCode !== 27) return;
+        var tasks = $("sn-tasks"), sheet = $("sn-sheet"), me = $("sn-me-sheet");
+        if (tasks && tasks.classList.contains("on")) { e.preventDefault(); closeJobs(); return; }
+        if (sheet && sheet.classList.contains("on")) { e.preventDefault(); closeSheet(); return; }
+        if (me && me.classList.contains("on")) { e.preventDefault(); me.classList.remove("on"); return; }
+      }, true);
+    }
     document.addEventListener("click", function (e) {
       var t = e.target && e.target.closest ? e.target.closest("[data-act]") : e.target;
       var act = t && t.getAttribute && t.getAttribute("data-act");
@@ -2119,7 +2141,7 @@
       var id = t.getAttribute("data-id");
       var i = Number(t.getAttribute("data-i"));
       if (act === "hide") closeJobs();
-      if (act === "close") { closePower(); closeSheet(); }
+      if (act === "close") { closePower(); closeSheet(); closeJobs(); }
       if (act === "reload") location.reload();
       if (act === "terms") location.href = "/terms.html";
       if (act === "apply-vendor" || act === "apply-driver") say("Apply after LOGIN. Notis activates.");
