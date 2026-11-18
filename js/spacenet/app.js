@@ -109,24 +109,16 @@
   function $(id) { return document.getElementById(id); }
   var sayHold = 0;
   function say(s) {
+    /* Status text is silent on chrome — Notis forbids floating instruction banners. */
     var msg = String(s == null ? "" : s);
     ["line", "toast"].forEach(function (id) {
       var el = $(id);
       if (!el) return;
       el.textContent = msg;
-      if (msg) el.classList.add("on");
-      else el.classList.remove("on");
+      el.classList.remove("on");
+      el.hidden = true;
     });
     sayHold = Date.now();
-    if (sayHold && msg) {
-      clearTimeout(say.__t);
-      say.__t = setTimeout(function () {
-        ["line", "toast"].forEach(function (id) {
-          var el = $(id);
-          if (el) el.classList.remove("on");
-        });
-      }, 4200);
-    }
   }
   function ownerMail() {
     try {
@@ -1661,22 +1653,38 @@
   }
   function layoutChrome() {
     var W = window.innerWidth, H = window.innerHeight, pad = 10;
-    /* Top chrome (burger / logo / money / search / radar) is CSS-owned.
-       Only keep floating sheets + bottom controls clear of the drawer. */
+    /* Push chrome apart: measure blockers, never stack. */
     var me = $("sn-me"), gps = $("gps");
-    var lift = Math.max(44, Number(String(getComputedStyle(document.documentElement).getPropertyValue("--drawer-h")).replace("px", "")) || drawerH || 44);
+    var lift = Math.max(28, Number(String(getComputedStyle(document.documentElement).getPropertyValue("--drawer-h")).replace("px", "")) || drawerH || 28);
     document.documentElement.style.setProperty("--drawer-h", lift + "px");
     if (me) {
       me.style.setProperty("left", "var(--safe-l)", "important");
       me.style.setProperty("right", "auto", "important");
       me.style.setProperty("top", "auto", "important");
-      me.style.setProperty("bottom", "calc(var(--safe-b) + var(--drawer-h) + 12px)", "important");
+      me.style.setProperty("bottom", "calc(var(--safe-b) + var(--drawer-h) + var(--gap, 8px))", "important");
     }
     if (gps) {
       gps.style.setProperty("right", "var(--safe-r)", "important");
       gps.style.setProperty("left", "auto", "important");
       gps.style.setProperty("top", "auto", "important");
-      gps.style.setProperty("bottom", "calc(var(--safe-b) + var(--drawer-h) + 12px)", "important");
+      gps.style.setProperty("bottom", "calc(var(--safe-b) + var(--drawer-h) + var(--gap, 8px))", "important");
+    }
+    var search = $("search"), radar = $("sn-radar"), money = $("sn-money");
+    if (radar) {
+      var gap = 40;
+      var top = 120;
+      if (search) {
+        var sr = search.getBoundingClientRect();
+        if (sr && sr.bottom) top = Math.round(sr.bottom + gap);
+      }
+      if (money) {
+        var mr = money.getBoundingClientRect();
+        if (mr && mr.bottom) top = Math.max(top, Math.round(mr.bottom + gap));
+      }
+      radar.style.setProperty("top", top + "px", "important");
+      radar.style.setProperty("right", "var(--safe-r)", "important");
+      radar.style.setProperty("left", "auto", "important");
+      radar.style.setProperty("bottom", "auto", "important");
     }
     var desk = $("sn-support-sheet");
     var sup = $("sn-support");
@@ -1718,14 +1726,14 @@
     layoutKey = key;
     layoutChrome();
   }
-  var drawerH = 44;
+  var drawerH = 28;
   var drawerDrag = null;
   var cityRadarLayers = [];
   function maxDrawerH() { return Math.floor(window.innerHeight * (2 / 3)); }
   function setDrawerHeight(h) {
     var d = $("drawer");
     if (!d) return;
-    var minH = 44;
+    var minH = 28;
     var maxH = maxDrawerH();
     drawerH = Math.max(minH, Math.min(maxH, Math.round(h)));
     d.style.height = drawerH + "px";
@@ -1750,7 +1758,7 @@
       return;
     }
     if (!offers.length) {
-      sheet.innerHTML = '<p class="note">No live offers. Hold POWER 3s to go live, or hunt a pin.</p>';
+      sheet.innerHTML = '';
       return;
     }
     sheet.innerHTML = offers.map(function (t) { return t.html || ""; }).join("");
@@ -1759,7 +1767,7 @@
     var d = $("drawer"), handle = $("handle");
     if (!d || !handle || handle.__snDrawer) return;
     handle.__snDrawer = true;
-    setDrawerHeight(44);
+    setDrawerHeight(28);
     paintOffersDrawer();
     function eventY(e) {
       if (e.clientY != null) return e.clientY;
@@ -1788,10 +1796,10 @@
     function onUp(e) {
       if (!drawerDrag) return;
       if (e) e.preventDefault();
-      var mid = 44 + (maxDrawerH() - 44) * 0.28;
+      var mid = 28 + (maxDrawerH() - 28) * 0.28;
       var openH = Math.min(maxDrawerH(), Math.round(window.innerHeight * 0.45));
-      if (!drawerDrag.moved) setDrawerHeight(drawerH > mid ? 44 : openH);
-      else setDrawerHeight(drawerH > mid ? Math.max(openH, drawerH) : 44);
+      if (!drawerDrag.moved) setDrawerHeight(drawerH > mid ? 28 : openH);
+      else setDrawerHeight(drawerH > mid ? Math.max(openH, drawerH) : 28);
       drawerDrag = null;
     }
     ["pointerdown", "mousedown", "touchstart"].forEach(function (ev) { handle.addEventListener(ev, onDown, { passive: false }); });
