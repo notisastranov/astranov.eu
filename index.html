@@ -4,13 +4,13 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4424"/>
+<meta name="astranov-build" content="4425"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
-<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4424"/>
+<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4425"/>
 <style>
 :root{
   --bg:#02040a; --fg:#e8fbff; --muted:#8ec8d8; --accent:#4df0ff;
@@ -64,6 +64,48 @@ button{cursor:pointer}
 #sn-money .lbl{display:none!important}
 #sn-money .tgt{font:inherit;letter-spacing:inherit;line-height:1;display:block}
 
+/* Power under burger · Support under money — no overlap */
+#sn-power{
+  position:fixed;z-index:51;left:var(--safe-l);top:calc(var(--safe-t) + var(--top-row) + var(--gap));
+  width:var(--ctrl);height:var(--ctrl);border-radius:10px;padding:0;
+  border:1px solid #ff3b3b;background:#c41414;color:#fff;font:800 9px/1 system-ui;letter-spacing:.04em;
+  box-shadow:0 0 8px rgba(255,60,60,.35);
+}
+#sn-power.on{
+  border-color:#4df0ff;background:#1a3cff;color:#e8fbff;
+  box-shadow:0 0 12px rgba(77,240,255,.55);animation:sn-pulse 1.4s ease-in-out infinite;
+}
+#sn-power.off{border-color:#ff3b3b;background:#c41414;color:#fff;box-shadow:0 0 8px rgba(255,60,60,.35);animation:none}
+#sn-support{
+  position:fixed;z-index:51;right:var(--safe-r);top:calc(var(--safe-t) + var(--top-row) + var(--gap));
+  width:var(--ctrl);height:var(--ctrl);border-radius:10px;padding:0;
+  border:1px solid rgba(255,120,120,.75);background:rgba(22,4,6,.94);color:#ffb4b4;
+  font:700 14px/1 system-ui;display:flex;align-items:center;justify-content:center;gap:0;
+  box-shadow:0 0 6px rgba(255,80,80,.22);
+}
+#sn-support .em{font-size:11px;line-height:1;margin-left:1px}
+#sn-cd{
+  position:fixed;inset:0;z-index:90;display:none;align-items:center;justify-content:center;
+  pointer-events:none;background:rgba(2,6,14,.55);
+}
+#sn-cd.on{display:flex}
+#sn-cd .n{
+  font:800 clamp(72px,22vw,160px)/1 system-ui;color:#4df0ff;letter-spacing:-.06em;
+  text-shadow:0 0 24px rgba(77,240,255,.95),0 0 48px rgba(26,60,255,.7),0 0 80px rgba(26,60,255,.45);
+}
+.offer-actions{display:flex;gap:10px;margin:12px 0 0;align-items:stretch}
+.offer-actions .decline,.offer-actions .accept{
+  flex:1;height:44px;border-radius:10px;font:800 13px/1 system-ui;letter-spacing:.08em;border:1px solid;
+}
+.offer-actions .decline{background:rgba(120,10,10,.92);color:#ffb4b4;border-color:#ff3b3b}
+.offer-actions .accept{background:#1a3cff;color:#e8fbff;border-color:#4df0ff;box-shadow:0 0 12px rgba(77,240,255,.4)}
+.hop{margin:10px 0;padding:10px;border-radius:12px;border:1px solid rgba(126,233,255,.28);background:rgba(4,16,28,.9);text-align:left}
+.hop b{display:block;font:800 12px system-ui;letter-spacing:.1em;color:#7ee9ff;margin:0 0 8px}
+.hop .pair{display:flex;gap:8px}
+.hop .pair button{flex:1;height:40px;border-radius:8px;border:1px solid rgba(126,233,255,.3);background:rgba(4,14,28,.95);color:#d7f6ff;font:800 11px system-ui}
+.hop .pair button.on{background:#1a3cff;border-color:#4df0ff;color:#fff}
+.hop.done{border-color:rgba(126,255,154,.45)}
+
 /* Search + mic live in the drawer header — not top chrome */
 #search{
   position:relative;z-index:1;flex:none;display:flex;gap:6px;min-width:0;
@@ -82,7 +124,7 @@ button{cursor:pointer}
 /* Radar — under top row only; stays clear of money and drawer */
 #sn-radar{
   position:fixed;z-index:46;
-  top:calc(var(--safe-t) + var(--top-row) + var(--radar-gap));
+  top:calc(var(--safe-t) + var(--top-row) + var(--gap) + var(--ctrl) + var(--radar-gap));
   right:var(--safe-r);
   width:var(--radar);height:var(--radar);border-radius:50%;pointer-events:none;overflow:hidden;
   border:1px solid rgba(77,240,255,.4);
@@ -123,8 +165,6 @@ button{cursor:pointer}
   border-radius:8px;border:1px solid rgba(126,233,255,.22);background:rgba(4,16,28,.9);
   color:#e8fbff;font:700 11px/1 system-ui;letter-spacing:.05em;text-align:left;
 }
-#sn-power.on{color:#041018;background:#4df0ff;border-color:#4df0ff;animation:sn-pulse 1.4s ease-in-out infinite}
-#sn-power.off{color:#fff;background:#c41414;border-color:#ff3b3b;box-shadow:none;animation:none}
 #gps.armed{border-color:#fff;color:#041018;background:#4df0ff}
 @keyframes sn-pulse{0%,100%{box-shadow:0 0 0 0 rgba(77,240,255,.4)}50%{box-shadow:0 0 0 5px rgba(77,240,255,0)}}
 
@@ -222,10 +262,10 @@ button{cursor:pointer}
 .go.bad{color:#ffb4b4;border-color:rgba(255,90,90,.7)}
 .go.ok{color:#041018;background:#7dff9a;border-color:#7dff9a}
 .price{
-  margin:12px 0 6px;font:800 52px/1 system-ui;color:#1a3cff;letter-spacing:-.04em;text-align:center;
-  text-shadow:0 0 14px rgba(26,60,255,.75),0 0 28px rgba(26,60,255,.4);
+  margin:12px 0 6px;font:800 56px/1 system-ui;color:#4df0ff;letter-spacing:-.04em;text-align:center;
+  text-shadow:0 0 10px #4df0ff,0 0 22px rgba(77,240,255,.95),0 0 42px rgba(26,60,255,.7),0 0 70px rgba(26,60,255,.4);
 }
-.price small{font-size:14px;margin-left:6px;letter-spacing:.1em;color:#7eb0ff;vertical-align:super}
+.price small{font-size:14px;margin-left:6px;letter-spacing:.1em;color:#b8f7ff;vertical-align:super;text-shadow:0 0 8px rgba(77,240,255,.8)}
 .offer-card{padding:6px 0 14px;border-bottom:1px solid rgba(77,240,255,.14);margin:0 0 10px;text-align:center}
 .offer-card h3{text-align:center;letter-spacing:.12em;color:#7ee9ff}
 .offer-card .note{text-align:center;max-width:32em;margin-left:auto;margin-right:auto}
@@ -271,11 +311,13 @@ textarea.field,#sn-support-matter{min-height:88px}
   <button type="button" id="sn-money" class="on" aria-label="Wallet"><span class="tgt">AV€</span></button>
 </header>
 
+<button type="button" id="sn-power" class="off" aria-label="Offer receive power" title="Hold 3s to arm/disarm">⏻</button>
+<button type="button" id="sn-support" aria-label="Support">🎧<span class="em" aria-hidden="true">🧑</span></button>
+
 <div id="sn-radar" aria-hidden="true"><div id="sn-radar-sweep"></div><div id="sn-radar-blips"></div></div>
+<div id="sn-cd" aria-hidden="true"><span class="n">13</span></div>
 
 <nav id="menu" hidden>
-  <button type="button" id="sn-power" class="on">POWER ON</button>
-  <button type="button" id="sn-support" aria-label="Support">SUPPORT 🎧</button>
   <button type="button" id="sn-support-menu">SUPPORT DESK</button>
   <button type="button" id="sn-view">VIEW</button>
   <button type="button" id="sn-compass">COMPASS</button>
@@ -301,8 +343,8 @@ textarea.field,#sn-support-matter{min-height:88px}
 <div id="toast" role="status"></div>
 <div id="line" role="status"></div>
 
-<script src="/js/vendor/leaflet.js?v=4424"></script>
-<script src="/js/spacenet/app.js?v=4424"></script>
-<script src="/js/spacenet/auth.js?v=4424"></script>
+<script src="/js/vendor/leaflet.js?v=4425"></script>
+<script src="/js/spacenet/app.js?v=4425"></script>
+<script src="/js/spacenet/auth.js?v=4425"></script>
 </body>
 </html>
