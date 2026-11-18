@@ -4,48 +4,210 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4423"/>
+<meta name="astranov-build" content="4424"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
-<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4423"/>
+<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4424"/>
 <style>
 :root{
   --bg:#02040a; --fg:#e8fbff; --muted:#8ec8d8; --accent:#4df0ff;
   --safe-t:max(8px, env(safe-area-inset-top));
   --safe-b:max(8px, env(safe-area-inset-bottom));
-  --drawer-h:10px;
+  --safe-l:max(12px, env(safe-area-inset-left));
+  --safe-r:max(12px, env(safe-area-inset-right));
+  --drawer-h:44px;
+  --sheet-h:0px;
+  --top-row:48px;
+  --search-h:44px;
 }
 html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:system-ui,sans-serif;overflow:hidden}
-#map{position:fixed;inset:0;background:var(--bg);z-index:0}
+#map,#city{position:fixed;inset:0;background:var(--bg);z-index:0}
+#city{display:none;z-index:2}
+#city.on{display:block}
 #g{position:fixed;inset:0;width:100%;height:100%;background:#02040a;z-index:1;touch-action:none}
 button,input{font-family:inherit}
 button{cursor:pointer}
 
-#top{position:fixed;z-index:40;top:0;left:0;right:0;height:calc(var(--safe-t) + 10px);display:flex;align-items:flex-end;justify-content:space-between;padding:0 12px 6px;pointer-events:none}
-#logo{pointer-events:auto;border:0;background:transparent;color:#4df0ff;font:800 18px/1 system-ui;letter-spacing:.22em;padding:8px 4px}
-#sn-support{pointer-events:auto;width:44px;height:44px;border-radius:999px;border:1.5px solid rgba(255,90,90,.9);background:rgba(22,4,6,.96);color:#ffb4b4;font-size:20px;box-shadow:0 0 12px rgba(255,40,40,.35)}
+/* Top row: burger · ASTRANOV.EU · money */
+#top{
+  position:fixed;z-index:50;top:0;left:0;right:0;
+  height:calc(var(--safe-t) + var(--top-row));
+  display:grid;grid-template-columns:48px 1fr 56px;align-items:flex-end;gap:8px;
+  padding:0 var(--safe-r) 4px var(--safe-l);pointer-events:none;box-sizing:border-box;
+}
+#top > *{pointer-events:auto}
+#sn-burger{
+  width:48px;height:48px;border-radius:14px;border:1.5px solid rgba(77,240,255,.85);
+  background:rgba(4,16,28,.96);color:#4df0ff;font:800 22px/1 system-ui;
+  box-shadow:0 0 12px rgba(77,240,255,.28);padding:0;
+}
+#sn-burger[aria-expanded="true"]{background:#1a3cff;color:#fff;border-color:#1a3cff}
+#logo{
+  justify-self:center;border:0;background:transparent;color:#4df0ff;
+  font:800 16px/1 system-ui;letter-spacing:.18em;padding:10px 4px;white-space:nowrap;
+  text-shadow:0 0 14px rgba(77,240,255,.45);
+}
+#sn-money{
+  width:56px;height:48px;border-radius:14px;border:1.5px solid rgba(77,240,255,.85);
+  background:rgba(4,16,28,.96);color:#4df0ff;display:inline-flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:2px;padding:0;
+  box-shadow:0 0 12px rgba(77,240,255,.28);
+}
+#sn-money .lbl{font:800 9px/1 system-ui;letter-spacing:.12em;opacity:.85}
+#sn-money .tgt{font:800 11px/1 ui-monospace,system-ui;letter-spacing:0}
 
-#search{position:fixed;z-index:40;top:calc(var(--safe-t) + 52px);left:12px;right:12px;display:flex;gap:8px}
-#q{flex:1;height:44px;border-radius:12px;border:1px solid rgba(77,240,255,.45);background:rgba(4,14,28,.94);color:var(--fg);padding:0 12px;font-size:16px;outline:none}
-#mic{width:44px;height:44px;border-radius:12px;border:1px solid rgba(77,240,255,.45);background:rgba(4,14,28,.94);color:var(--accent);font-size:18px}
+/* Search + handsfree under top row */
+#search{
+  position:fixed;z-index:48;top:calc(var(--safe-t) + var(--top-row) + 6px);
+  left:var(--safe-l);right:calc(var(--safe-r) + 96px);display:flex;gap:8px;
+}
+#q{
+  flex:1;height:var(--search-h);border-radius:12px;border:1px solid rgba(77,240,255,.45);
+  background:rgba(4,14,28,.94);color:var(--fg);padding:0 12px;font-size:16px;outline:none;
+}
+#mic{
+  width:var(--search-h);height:var(--search-h);border-radius:12px;border:1px solid rgba(77,240,255,.45);
+  background:rgba(4,14,28,.94);color:var(--accent);font-size:18px;flex:none;
+}
 
-#sn-burger{position:fixed;z-index:45;left:12px;bottom:calc(var(--drawer-h) + var(--safe-b) + 12px);width:48px;height:48px;border-radius:14px;border:1.5px solid rgba(77,240,255,.85);background:rgba(4,16,28,.96);color:#4df0ff;font:800 22px/1 system-ui;box-shadow:0 0 12px rgba(77,240,255,.28)}
-#menu{position:fixed;z-index:46;left:12px;bottom:calc(var(--drawer-h) + var(--safe-b) + 68px);display:flex;flex-direction:column;gap:6px;width:min(240px, calc(100vw - 24px));padding:8px;border-radius:16px;background:rgba(4,14,28,.97);border:1px solid rgba(77,240,255,.35);box-shadow:0 12px 32px rgba(0,0,0,.45)}
+/* Round city/nearby radar — top right */
+#sn-radar{
+  position:fixed;z-index:47;
+  top:calc(var(--safe-t) + var(--top-row) + 6px);right:var(--safe-r);
+  width:88px;height:88px;border-radius:50%;pointer-events:none;
+  border:1px solid rgba(77,240,255,.5);
+  background:
+    radial-gradient(circle,transparent 46%,rgba(77,240,255,.22) 47% 48%,transparent 49%),
+    radial-gradient(circle,rgba(4,14,28,.55) 0 58%,transparent 59%),
+    conic-gradient(from 0deg,transparent 0 68%,rgba(77,240,255,.7) 100%);
+  animation:sn-sweep 2.8s linear infinite;
+  box-shadow:inset 0 0 18px rgba(77,240,255,.22),0 0 16px rgba(77,240,255,.18);
+}
+#sn-radar.hot{
+  border-color:rgba(126,255,154,.65);
+  background:
+    radial-gradient(circle,transparent 46%,rgba(126,255,154,.28) 47% 48%,transparent 49%),
+    radial-gradient(circle,rgba(4,14,28,.55) 0 58%,transparent 59%),
+    conic-gradient(from 0deg,transparent 0 68%,rgba(126,255,154,.75) 100%);
+}
+#sn-radar-blips{position:absolute;inset:0;border-radius:50%;overflow:hidden}
+#sn-radar-blips i{
+  position:absolute;width:5px;height:5px;margin:-2px;border-radius:50%;
+  background:#4df0ff;box-shadow:0 0 8px #4df0ff;opacity:.9;
+}
+@keyframes sn-sweep{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){#sn-radar{animation:none}}
+
+/* Burger menu panel — opens from top-left under burger */
+#menu{
+  position:fixed;z-index:55;left:var(--safe-l);
+  top:calc(var(--safe-t) + var(--top-row) + 8px);
+  display:flex;flex-direction:column;gap:6px;width:min(240px, calc(100vw - 24px));
+  padding:8px;border-radius:16px;background:rgba(4,14,28,.97);
+  border:1px solid rgba(77,240,255,.35);box-shadow:0 12px 32px rgba(0,0,0,.45);
+}
 #menu[hidden]{display:none}
-#menu button{display:flex;align-items:center;gap:10px;width:100%;height:44px;padding:0 12px;border-radius:10px;border:1px solid rgba(126,233,255,.28);background:rgba(4,16,28,.9);color:#e8fbff;font:800 13px/1 system-ui;letter-spacing:.06em;text-align:left}
+#menu button{
+  display:flex;align-items:center;gap:10px;width:100%;height:44px;padding:0 12px;
+  border-radius:10px;border:1px solid rgba(126,233,255,.28);background:rgba(4,16,28,.9);
+  color:#e8fbff;font:800 13px/1 system-ui;letter-spacing:.06em;text-align:left;
+}
 #sn-power.on{color:#041018;background:#4df0ff;border-color:#4df0ff;animation:sn-pulse 1.4s ease-in-out infinite}
 #sn-power.off{color:#fff;background:#c41414;border-color:#ff3b3b;box-shadow:none;animation:none}
 #gps.armed{border-color:#fff;color:#041018;background:#4df0ff}
 @keyframes sn-pulse{0%,100%{box-shadow:0 0 0 0 rgba(77,240,255,.55)}50%{box-shadow:0 0 0 8px rgba(77,240,255,0)}}
 
-#drawer{position:fixed;z-index:42;left:0;right:0;bottom:0;height:var(--drawer-h);max-height:72vh;display:flex;flex-direction:column;background:rgba(4,14,28,.97);border-top:1px solid rgba(77,240,255,.4);box-shadow:0 -10px 28px rgba(0,0,0,.4)}
-#handle{flex:none;height:48px;border:0;background:transparent;color:#4df0ff;font:800 12px/1 system-ui;letter-spacing:.14em;cursor:grab;touch-action:none}
-#sheet{flex:1;overflow:auto;padding:0 12px calc(12px + var(--safe-b));-webkit-overflow-scrolling:touch}
-#toast{position:fixed;z-index:60;left:12px;right:12px;top:calc(var(--safe-t) + 108px);padding:10px 12px;border-radius:12px;background:rgba(4,14,28,.94);border:1px solid rgba(77,240,255,.35);color:#d7f6ff;font:600 14px/1.35 system-ui;display:none}
-#toast.on{display:block}
+/* Bottom-left user · bottom-right GPS — rise with drawer */
+#sn-me{
+  position:fixed!important;z-index:52!important;
+  left:var(--safe-l)!important;right:auto!important;top:auto!important;
+  bottom:calc(var(--safe-b) + var(--drawer-h) + 12px)!important;
+  width:48px!important;height:48px!important;padding:0!important;border-radius:999px!important;
+  border:1.5px solid rgba(77,240,255,.85)!important;background:rgba(4,16,28,.96)!important;
+  color:#4df0ff!important;display:flex!important;align-items:center;justify-content:center;
+  box-shadow:0 0 12px rgba(77,240,255,.28);overflow:hidden;
+}
+#sn-me .ph,#sn-me img{width:48px;height:48px;object-fit:cover;display:flex;align-items:center;justify-content:center;font:800 16px system-ui;color:#4df0ff}
+#gps{
+  position:fixed!important;z-index:52!important;
+  right:var(--safe-r)!important;left:auto!important;top:auto!important;
+  bottom:calc(var(--safe-b) + var(--drawer-h) + 12px)!important;
+  width:48px;height:48px;border-radius:14px;border:1.5px solid rgba(77,240,255,.85);
+  background:rgba(4,16,28,.96);color:#4df0ff;font:800 11px/1 system-ui;letter-spacing:.08em;
+  box-shadow:0 0 12px rgba(77,240,255,.28);padding:0;
+}
+
+/* Bottom offers drawer — max 2/3 viewport */
+#drawer{
+  position:fixed;z-index:45;left:0;right:0;bottom:0;
+  height:var(--drawer-h);max-height:66.666vh;
+  display:flex;flex-direction:column;
+  background:rgba(4,14,28,.97);border-top:1px solid rgba(77,240,255,.4);
+  box-shadow:0 -10px 28px rgba(0,0,0,.4);touch-action:none;
+}
+#handle{
+  flex:none;height:44px;min-height:44px;border:0;background:transparent;color:#4df0ff;
+  font:800 12px/1 system-ui;letter-spacing:.14em;cursor:grab;touch-action:none;
+  display:flex;align-items:center;justify-content:center;gap:8px;user-select:none;
+}
+#handle::before{
+  content:"";width:42px;height:4px;border-radius:4px;background:#7eb0ff;display:block;
+  box-shadow:0 0 10px rgba(77,240,255,.55);
+}
+#handle .lab{letter-spacing:.14em}
+#sheet{
+  flex:1;min-height:0;overflow:auto;padding:0 12px calc(12px + var(--safe-b));
+  -webkit-overflow-scrolling:touch;touch-action:pan-y;overscroll-behavior:contain;
+}
+#toast,#line{
+  position:fixed;z-index:60;left:12px;right:12px;top:calc(var(--safe-t) + var(--top-row) + var(--search-h) + 18px);
+  padding:10px 12px;border-radius:12px;background:rgba(4,14,28,.94);
+  border:1px solid rgba(77,240,255,.35);color:#d7f6ff;font:600 14px/1.35 system-ui;display:none;
+}
+#toast.on,#line.on{display:block}
+
+/* Compat sheets used by app.js openSheet / jobs / support */
+#sn-sheet,#sn-tasks{
+  position:fixed;inset:0;z-index:70;display:none;pointer-events:none;background:transparent;
+}
+#sn-sheet.on,#sn-tasks.on{display:block;pointer-events:none}
+#sn-sheet .card,#sn-tasks .card,#sn-sheet-card{
+  pointer-events:auto;
+  position:absolute;left:50%;top:max(72px, calc(var(--safe-t) + 64px));
+  transform:translateX(-50%);width:min(420px,94vw);max-height:min(70vh, calc(100vh - 140px));
+  overflow:auto;padding:12px;border-radius:16px;
+  background:rgba(4,14,28,.97);border:1px solid rgba(126,233,255,.45);
+  box-shadow:0 16px 40px rgba(0,0,0,.5);-webkit-overflow-scrolling:touch;
+}
+#sn-support-sheet{
+  position:fixed;z-index:72;display:none;width:min(360px,94vw);padding:12px;border-radius:16px;
+  background:rgba(4,14,28,.97);border:1px solid rgba(126,233,255,.45);
+}
+#sn-support-sheet.on{display:block}
+.sheet-bar{display:flex;align-items:center;gap:8px;margin:0 0 10px}
+.sheet-ttl{flex:1;font:800 12px system-ui;letter-spacing:.14em;color:#7ee9ff}
+.sheet-x,.sheet-go{
+  height:40px;padding:0 12px;border-radius:10px;border:1px solid rgba(126,233,255,.35);
+  background:rgba(4,16,28,.9);color:#e8fbff;font:800 13px system-ui;
+}
+.sheet-go{display:block;width:100%;margin:8px 0 0;text-align:center;text-decoration:none;box-sizing:border-box;line-height:40px}
+.sheet-go.primary{background:#4df0ff;color:#041018;border-color:#4df0ff}
+.pill{
+  display:flex;align-items:center;gap:10px;width:100%;margin:0 0 8px;padding:10px;border-radius:12px;
+  border:1px solid rgba(126,233,255,.28);background:rgba(4,16,28,.9);color:#e8fbff;text-align:left;
+}
+.pill .ph{
+  width:36px;height:36px;border-radius:999px;display:flex;align-items:center;justify-content:center;
+  border:1px solid rgba(77,240,255,.45);font:800 14px system-ui;color:#4df0ff;flex:none;
+}
+.pill b{display:block;font:800 14px/1.2 system-ui}
+.pill span{display:block;font:500 12px/1.3 system-ui;color:var(--muted)}
+.stage{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}
+.stage b{font:800 10px system-ui;letter-spacing:.08em;color:#6a8ea0;padding:4px 6px;border-radius:6px;border:1px solid rgba(126,233,255,.2)}
+.stage b.on{color:#041018;background:#4df0ff;border-color:#4df0ff}
 
 .row{display:flex;align-items:center;gap:8px;margin:0 0 8px}
 .row b{flex:1;font:700 15px/1.3 system-ui}
@@ -56,56 +218,86 @@ button{cursor:pointer}
 .go.primary{background:#4df0ff;color:#041018;border-color:#4df0ff}
 .go.bad{color:#ffb4b4;border-color:rgba(255,90,90,.7)}
 .go.ok{color:#041018;background:#7dff9a;border-color:#7dff9a}
-.price{margin:8px 0 0;font:800 40px/1 system-ui;color:#4df0ff;letter-spacing:-.04em}
-.price small{font-size:16px;margin-left:6px}
+.price{
+  margin:10px 0 4px;font:800 48px/1 system-ui;color:#4df0ff;letter-spacing:-.04em;text-align:center;
+  text-shadow:0 0 18px rgba(77,240,255,.65),0 0 36px rgba(26,60,255,.35);
+}
+.price small{font-size:16px;margin-left:6px;letter-spacing:.08em}
+.offer-card{padding:4px 0 12px;border-bottom:1px solid rgba(77,240,255,.18);margin:0 0 10px}
 .break{margin:6px 0 0;color:#9ad7e8;font:600 13px/1.45 ui-monospace,monospace;white-space:pre-line}
 .note{margin:8px 0;color:var(--muted);font:500 13px/1.4 system-ui}
 h3{margin:4px 0 8px;font:800 13px system-ui;letter-spacing:.12em}
-input.field,textarea.field{display:block;width:100%;box-sizing:border-box;margin:8px 0;padding:10px;border-radius:10px;border:1px solid rgba(126,233,255,.35);background:#041018;color:#e8fbff;font:500 16px system-ui}
-textarea.field{min-height:88px}
+input.field,textarea.field,#sn-support-matter,#sn-add-eur{
+  display:block;width:100%;box-sizing:border-box;margin:8px 0;padding:10px;border-radius:10px;
+  border:1px solid rgba(126,233,255,.35);background:#041018;color:#e8fbff;font:500 16px system-ui;
+}
+textarea.field,#sn-support-matter{min-height:88px}
 .sn-route{animation:none!important}
 .leaflet-control-zoom{margin-top:108px!important}
 .pin{display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:999px;background:#041018;border:2px solid #4df0ff;color:#e8fbff;font:800 12px system-ui;box-shadow:0 2px 8px rgba(0,0,0,.45)}
 .pin.me{border-color:#fff;background:#1a3cff}
 .pin.drop{border-color:#7dff9a}
 .pin.drv{border-color:#ffb020}
-#sn-topchrome-drag,#cli-drag{height:10px;min-height:10px;max-height:10px;width:100%;font-size:0;line-height:0;color:transparent;overflow:hidden;pointer-events:auto;background:transparent;border:0;padding:0;margin:0;cursor:grab;user-select:none}
-#sn-topchrome-drag::before,#sn-topchrome-drag::after,#cli-drag::before,#cli-drag::after{content:none}
-#handle{height:10px;min-height:10px;max-height:10px;font-size:0;color:transparent;overflow:hidden;border:0;background:transparent}
-
+#sn-topchrome-drag,#cli-drag{height:10px;min-height:10px;max-height:10px;width:100%;font-size:0;line-height:0;color:transparent;overflow:hidden;pointer-events:none;background:transparent;border:0;padding:0;margin:0;user-select:none}
+.sn-radar-wrap{background:transparent!important;border:0!important;pointer-events:none!important}
+.sn-radar{
+  border-radius:999px;pointer-events:none;opacity:.55;
+  background:conic-gradient(from 0deg,transparent 0 68%,rgba(77,240,255,.42) 86%,transparent 100%);
+  animation:sn-radar-spin 4.2s linear infinite;box-shadow:inset 0 0 0 1px rgba(77,240,255,.35);
+}
+.sn-radar.hot{
+  background:conic-gradient(from 0deg,transparent 0 68%,rgba(232,197,107,.42) 86%,transparent 100%);
+  box-shadow:inset 0 0 0 1px rgba(232,197,107,.35);
+}
+@keyframes sn-radar-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.sn-radar{animation:none}}
 </style>
 </head>
 <body>
 <canvas id="g"></canvas>
-<div id="map"></div>
+<div id="map" aria-hidden="true"></div>
+<div id="city" aria-label="Street map"></div>
 <div id="sn-topchrome-drag" class="sn-trivial-law" aria-hidden="true"></div>
+
 <header id="top">
-  <button type="button" id="logo" aria-label="Astranov">ASTRANOV</button>
-  <button type="button" id="sn-support" aria-label="Support">🎧</button>
+  <button type="button" id="sn-burger" aria-label="Menu" aria-expanded="false" aria-controls="menu">☰</button>
+  <button type="button" id="logo" aria-label="Force update Astranov.eu">ASTRANOV.EU</button>
+  <button type="button" id="sn-money" class="on" aria-label="Wallet"><span class="lbl">AV€</span><span class="tgt">AV€</span></button>
 </header>
-<form id="search">
-  <input id="q" autocomplete="off" enterkeyhint="search" placeholder="Command the HUD · show, hide, or reshape"/>
-  <button type="button" id="mic" aria-label="Speak a search">🎤</button>
+
+<form id="search" action="/" method="get">
+  <input id="q" name="q" autocomplete="off" enterkeyhint="search" placeholder="Talk to SpaceNet · hunt a place"/>
+  <button type="button" id="mic" aria-label="Handsfree mic">🎤</button>
 </form>
-<button type="button" id="sn-burger" aria-label="Menu" aria-expanded="false">☰</button>
+
+<div id="sn-radar" aria-hidden="true"><div id="sn-radar-blips"></div></div>
+
 <nav id="menu" hidden>
   <button type="button" id="sn-power" class="on">POWER ON</button>
-  <button type="button" id="sn-me" aria-label="Login"><span class="ph">IN</span></button>
-  <button type="button" id="sn-money">MONEY</button>
-  <button type="button" id="sn-support-menu">SUPPORT</button>
-  <button type="button" id="gps">GPS</button>
+  <button type="button" id="sn-support" aria-label="Support">SUPPORT 🎧</button>
+  <button type="button" id="sn-support-menu">SUPPORT DESK</button>
   <button type="button" id="sn-view">VIEW</button>
   <button type="button" id="sn-compass">COMPASS</button>
   <button type="button" id="sn-portions">PORTIONS</button>
 </nav>
-<div id="drawer">
+
+<button type="button" id="sn-me" aria-label="Login"><span class="ph">IN</span></button>
+<button type="button" id="gps" aria-label="GPS">GPS</button>
+
+<div id="drawer" aria-label="Offers">
   <div id="cli-drag" class="sn-trivial-law" aria-hidden="true"></div>
-  <button type="button" id="handle">OFFERS</button>
+  <button type="button" id="handle" aria-label="Expand offers"><span class="lab">OFFERS</span></button>
   <div id="sheet"></div>
 </div>
+
+<div id="sn-sheet"><div id="sn-sheet-card" class="card"></div></div>
+<div id="sn-tasks"><div class="card"><div id="sn-tasks-list"></div></div></div>
+<div id="sn-support-sheet"></div>
 <div id="toast" role="status"></div>
-<script src="/js/vendor/leaflet.js?v=4423"></script>
-<script src="/js/spacenet/app.js?v=4423"></script>
-<script src="/js/spacenet/auth.js?v=4423"></script>
+<div id="line" role="status"></div>
+
+<script src="/js/vendor/leaflet.js?v=4424"></script>
+<script src="/js/spacenet/app.js?v=4424"></script>
+<script src="/js/spacenet/auth.js?v=4424"></script>
 </body>
 </html>
