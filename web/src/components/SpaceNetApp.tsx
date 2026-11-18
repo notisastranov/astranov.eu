@@ -97,7 +97,11 @@ export function SpaceNetApp() {
           ? ((user.user_metadata?.avatar_url as string | undefined) ?? null)
           : null,
       );
-      if (!user) setBalanceAve(null);
+      if (!user) {
+        // Clear wallet cache so a guest cannot see the previous session's txs.
+        setBalanceAve(null);
+        setTransactions([]);
+      }
     });
     return () => sub.subscription.unsubscribe();
   }, []);
@@ -157,6 +161,7 @@ export function SpaceNetApp() {
     setDisplayName(null);
     setAvatarUrl(null);
     setBalanceAve(null);
+    setTransactions([]);
   };
 
   const onLayer = useCallback((layer: "osm" | "ktima" | "greece" | "rhodes") => {

@@ -7,11 +7,20 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
  * Guest boot should stay quiet until sign-in (egress law); callers decide when to connect.
  */
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const anon =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-  "";
+function envNonEmpty(...candidates: Array<string | undefined>): string {
+  for (const value of candidates) {
+    const trimmed = (value ?? "").trim();
+    // Empty string in .env.example must not block the publishable-key alias.
+    if (trimmed.length > 0) return trimmed;
+  }
+  return "";
+}
+
+const url = envNonEmpty(process.env.NEXT_PUBLIC_SUPABASE_URL);
+const anon = envNonEmpty(
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+);
 
 let browserClient: SupabaseClient | null = null;
 
