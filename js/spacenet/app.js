@@ -1655,7 +1655,7 @@
     var W = window.innerWidth, H = window.innerHeight, pad = 10;
     /* Push chrome apart: measure blockers, never stack. */
     var me = $("sn-me"), gps = $("gps");
-    var lift = Math.max(28, Number(String(getComputedStyle(document.documentElement).getPropertyValue("--drawer-h")).replace("px", "")) || drawerH || 28);
+    var lift = Math.max(70, Number(String(getComputedStyle(document.documentElement).getPropertyValue("--drawer-h")).replace("px", "")) || drawerH || 70);
     document.documentElement.style.setProperty("--drawer-h", lift + "px");
     if (me) {
       me.style.setProperty("left", "var(--safe-l)", "important");
@@ -1669,17 +1669,25 @@
       gps.style.setProperty("top", "auto", "important");
       gps.style.setProperty("bottom", "calc(var(--safe-b) + var(--drawer-h) + var(--gap, 8px))", "important");
     }
-    var search = $("search"), radar = $("sn-radar"), money = $("sn-money");
+    var radar = $("sn-radar"), money = $("sn-money"), topEl = $("top"), drawer = $("drawer");
     if (radar) {
-      var gap = 40;
-      var top = 120;
-      if (search) {
-        var sr = search.getBoundingClientRect();
-        if (sr && sr.bottom) top = Math.round(sr.bottom + gap);
+      var gap = 16;
+      var top = 56;
+      if (topEl) {
+        var tr = topEl.getBoundingClientRect();
+        if (tr && tr.bottom) top = Math.round(tr.bottom + gap);
       }
       if (money) {
         var mr = money.getBoundingClientRect();
         if (mr && mr.bottom) top = Math.max(top, Math.round(mr.bottom + gap));
+      }
+      var rh = Math.max(40, radar.offsetHeight || 52);
+      if (drawer) {
+        var dr = drawer.getBoundingClientRect();
+        if (dr && dr.top) {
+          var maxTop = Math.round(dr.top - rh - gap);
+          if (isFinite(maxTop)) top = Math.min(top, Math.max(gap, maxTop));
+        }
       }
       radar.style.setProperty("top", top + "px", "important");
       radar.style.setProperty("right", "var(--safe-r)", "important");
@@ -1726,14 +1734,14 @@
     layoutKey = key;
     layoutChrome();
   }
-  var drawerH = 28;
+  var drawerH = 70;
   var drawerDrag = null;
   var cityRadarLayers = [];
   function maxDrawerH() { return Math.floor(window.innerHeight * (2 / 3)); }
   function setDrawerHeight(h) {
     var d = $("drawer");
     if (!d) return;
-    var minH = 28;
+    var minH = 70;
     var maxH = maxDrawerH();
     drawerH = Math.max(minH, Math.min(maxH, Math.round(h)));
     d.style.height = drawerH + "px";
@@ -1767,7 +1775,7 @@
     var d = $("drawer"), handle = $("handle");
     if (!d || !handle || handle.__snDrawer) return;
     handle.__snDrawer = true;
-    setDrawerHeight(28);
+    setDrawerHeight(70);
     paintOffersDrawer();
     function eventY(e) {
       if (e.clientY != null) return e.clientY;
@@ -1796,10 +1804,10 @@
     function onUp(e) {
       if (!drawerDrag) return;
       if (e) e.preventDefault();
-      var mid = 28 + (maxDrawerH() - 28) * 0.28;
+      var mid = 70 + (maxDrawerH() - 70) * 0.28;
       var openH = Math.min(maxDrawerH(), Math.round(window.innerHeight * 0.45));
-      if (!drawerDrag.moved) setDrawerHeight(drawerH > mid ? 28 : openH);
-      else setDrawerHeight(drawerH > mid ? Math.max(openH, drawerH) : 28);
+      if (!drawerDrag.moved) setDrawerHeight(drawerH > mid ? 70 : openH);
+      else setDrawerHeight(drawerH > mid ? Math.max(openH, drawerH) : 70);
       drawerDrag = null;
     }
     ["pointerdown", "mousedown", "touchstart"].forEach(function (ev) { handle.addEventListener(ev, onDown, { passive: false }); });

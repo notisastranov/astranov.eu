@@ -18,14 +18,14 @@
   --safe-b:max(6px, env(safe-area-inset-bottom));
   --safe-l:max(10px, env(safe-area-inset-left));
   --safe-r:max(10px, env(safe-area-inset-right));
-  --drawer-h:28px;
+  --drawer-h:70px;
   --sheet-h:0px;
   --top-row:36px;
   --search-h:34px;
   --ctrl:36px;
   --gap:8px;
   --radar:52px;
-  --radar-gap:40px;
+  --radar-gap:16px;
 }
 html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:system-ui,sans-serif;overflow:hidden}
 #map,#city{position:fixed;inset:0;background:var(--bg);z-index:0}
@@ -64,10 +64,11 @@ button{cursor:pointer}
 #sn-money .lbl{display:none!important}
 #sn-money .tgt{font:inherit;letter-spacing:inherit;line-height:1;display:block}
 
-/* Search + mic under top row */
+/* Search + mic live in the drawer header — not top chrome */
 #search{
-  position:fixed;z-index:48;top:calc(var(--safe-t) + var(--top-row) + var(--gap));
-  left:var(--safe-l);right:var(--safe-r);display:flex;gap:6px;min-width:0;
+  position:relative;z-index:1;flex:none;display:flex;gap:6px;min-width:0;
+  margin:0;padding:0 10px 8px;box-sizing:border-box;width:100%;
+  pointer-events:auto;touch-action:manipulation;
 }
 #q{
   flex:1;min-width:0;height:var(--search-h);border-radius:10px;border:1px solid rgba(77,240,255,.35);
@@ -78,10 +79,10 @@ button{cursor:pointer}
   background:rgba(4,14,28,.92);color:var(--accent);font-size:15px;flex:none;
 }
 
-/* Radar — below search with hard clearance; never under money/search */
+/* Radar — under top row only; stays clear of money and drawer */
 #sn-radar{
   position:fixed;z-index:46;
-  top:calc(var(--safe-t) + var(--top-row) + var(--gap) + var(--search-h) + var(--radar-gap));
+  top:calc(var(--safe-t) + var(--top-row) + var(--radar-gap));
   right:var(--safe-r);
   width:var(--radar);height:var(--radar);border-radius:50%;pointer-events:none;overflow:hidden;
   border:1px solid rgba(77,240,255,.4);
@@ -146,7 +147,7 @@ button{cursor:pointer}
   box-shadow:0 0 6px rgba(77,240,255,.16);padding:0;
 }
 
-/* Compact unlabeled drawer handle — pill only */
+/* Drawer: drag pill + search/mic header + scrollable sheet */
 #drawer{
   position:fixed;z-index:45;left:0;right:0;bottom:0;
   height:var(--drawer-h);max-height:66.666vh;
@@ -155,7 +156,7 @@ button{cursor:pointer}
   box-shadow:0 -6px 18px rgba(0,0,0,.35);touch-action:none;
 }
 #handle{
-  flex:none;height:28px;min-height:28px;border:0;background:transparent;color:transparent;
+  flex:none;height:22px;min-height:22px;border:0;background:transparent;color:transparent;
   font-size:0;line-height:0;cursor:grab;touch-action:none;
   display:flex;align-items:center;justify-content:center;user-select:none;padding:0;
 }
@@ -267,11 +268,6 @@ textarea.field,#sn-support-matter{min-height:88px}
   <button type="button" id="sn-money" class="on" aria-label="Wallet"><span class="tgt">AV€</span></button>
 </header>
 
-<form id="search" action="/" method="get">
-  <input id="q" name="q" autocomplete="off" enterkeyhint="search" placeholder="Talk to SpaceNet · hunt a place"/>
-  <button type="button" id="mic" aria-label="Handsfree mic">🎤</button>
-</form>
-
 <div id="sn-radar" aria-hidden="true"><div id="sn-radar-sweep"></div><div id="sn-radar-blips"></div></div>
 
 <nav id="menu" hidden>
@@ -289,6 +285,10 @@ textarea.field,#sn-support-matter{min-height:88px}
 <div id="drawer" aria-label="Sheet">
   <div id="cli-drag" class="sn-trivial-law" aria-hidden="true"></div>
   <button type="button" id="handle" aria-label="Expand sheet"></button>
+  <form id="search" action="/" method="get">
+    <input id="q" name="q" autocomplete="off" enterkeyhint="search" placeholder="Talk to SpaceNet · hunt a place"/>
+    <button type="button" id="mic" aria-label="Handsfree mic">🎤</button>
+  </form>
   <div id="sheet"></div>
 </div>
 
