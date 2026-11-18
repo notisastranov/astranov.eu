@@ -35,7 +35,7 @@ button{cursor:pointer}
 #top{
   position:fixed;z-index:50;top:0;left:0;right:0;
   height:calc(var(--safe-t) + var(--top-row));
-  display:grid;grid-template-columns:48px 1fr 56px;align-items:flex-end;gap:8px;
+  display:grid;grid-template-columns:48px 1fr minmax(48px,auto);align-items:flex-end;gap:8px;
   padding:0 var(--safe-r) 4px var(--safe-l);pointer-events:none;box-sizing:border-box;
 }
 #top > *{pointer-events:auto}
@@ -51,18 +51,19 @@ button{cursor:pointer}
   text-shadow:0 0 14px rgba(77,240,255,.45);
 }
 #sn-money{
-  width:56px;height:48px;border-radius:14px;border:1.5px solid rgba(77,240,255,.85);
-  background:rgba(4,16,28,.96);color:#4df0ff;display:inline-flex;flex-direction:column;
-  align-items:center;justify-content:center;gap:2px;padding:0;
-  box-shadow:0 0 12px rgba(77,240,255,.28);
+  min-width:48px;height:48px;border-radius:14px;border:1.5px solid rgba(77,240,255,.85);
+  background:rgba(4,16,28,.96);color:#4df0ff;display:inline-flex;flex-direction:row;
+  align-items:center;justify-content:center;padding:0 12px;gap:0;
+  box-shadow:0 0 12px rgba(77,240,255,.28);white-space:nowrap;
+  font:800 13px/1 system-ui;letter-spacing:.06em;text-shadow:none;
 }
-#sn-money .lbl{font:800 9px/1 system-ui;letter-spacing:.12em;opacity:.85}
-#sn-money .tgt{font:800 11px/1 ui-monospace,system-ui;letter-spacing:0}
+#sn-money .lbl{display:none!important}
+#sn-money .tgt{font:inherit;letter-spacing:inherit;line-height:1;display:block}
 
-/* Search + handsfree under top row */
+/* Search + handsfree under top row — full width; radar sits below */
 #search{
   position:fixed;z-index:48;top:calc(var(--safe-t) + var(--top-row) + 6px);
-  left:var(--safe-l);right:calc(var(--safe-r) + 96px);display:flex;gap:8px;
+  left:var(--safe-l);right:var(--safe-r);display:flex;gap:8px;
 }
 #q{
   flex:1;height:var(--search-h);border-radius:12px;border:1px solid rgba(77,240,255,.45);
@@ -73,33 +74,35 @@ button{cursor:pointer}
   background:rgba(4,14,28,.94);color:var(--accent);font-size:18px;flex:none;
 }
 
-/* Round city/nearby radar — top right */
+/* Round nearby radar — clear top-right below search, never under money */
 #sn-radar{
-  position:fixed;z-index:47;
-  top:calc(var(--safe-t) + var(--top-row) + 6px);right:var(--safe-r);
-  width:88px;height:88px;border-radius:50%;pointer-events:none;
+  position:fixed;z-index:46;
+  top:calc(var(--safe-t) + var(--top-row) + 6px + var(--search-h) + 28px);right:var(--safe-r);
+  width:64px;height:64px;border-radius:50%;pointer-events:none;overflow:hidden;
   border:1px solid rgba(77,240,255,.5);
-  background:
-    radial-gradient(circle,transparent 46%,rgba(77,240,255,.22) 47% 48%,transparent 49%),
-    radial-gradient(circle,rgba(4,14,28,.55) 0 58%,transparent 59%),
-    conic-gradient(from 0deg,transparent 0 68%,rgba(77,240,255,.7) 100%);
-  animation:sn-sweep 2.8s linear infinite;
+  background:radial-gradient(circle,rgba(4,14,28,.72) 0 58%,transparent 59%);
   box-shadow:inset 0 0 18px rgba(77,240,255,.22),0 0 16px rgba(77,240,255,.18);
 }
-#sn-radar.hot{
-  border-color:rgba(126,255,154,.65);
+#sn-radar-sweep{
+  position:absolute;inset:0;border-radius:50%;
+  background:
+    radial-gradient(circle,transparent 46%,rgba(77,240,255,.22) 47% 48%,transparent 49%),
+    conic-gradient(from 0deg,transparent 0 68%,rgba(77,240,255,.7) 100%);
+  animation:sn-sweep 2.8s linear infinite;
+}
+#sn-radar.hot{border-color:rgba(126,255,154,.65)}
+#sn-radar.hot #sn-radar-sweep{
   background:
     radial-gradient(circle,transparent 46%,rgba(126,255,154,.28) 47% 48%,transparent 49%),
-    radial-gradient(circle,rgba(4,14,28,.55) 0 58%,transparent 59%),
     conic-gradient(from 0deg,transparent 0 68%,rgba(126,255,154,.75) 100%);
 }
-#sn-radar-blips{position:absolute;inset:0;border-radius:50%;overflow:hidden}
+#sn-radar-blips{position:absolute;inset:0;border-radius:50%;overflow:hidden;z-index:1}
 #sn-radar-blips i{
   position:absolute;width:5px;height:5px;margin:-2px;border-radius:50%;
   background:#4df0ff;box-shadow:0 0 8px #4df0ff;opacity:.9;
 }
 @keyframes sn-sweep{to{transform:rotate(360deg)}}
-@media (prefers-reduced-motion:reduce){#sn-radar{animation:none}}
+@media (prefers-reduced-motion:reduce){#sn-radar-sweep{animation:none}}
 
 /* Burger menu panel — opens from top-left under burger */
 #menu{
@@ -163,7 +166,7 @@ button{cursor:pointer}
   -webkit-overflow-scrolling:touch;touch-action:pan-y;overscroll-behavior:contain;
 }
 #toast,#line{
-  position:fixed;z-index:60;left:12px;right:12px;top:calc(var(--safe-t) + var(--top-row) + var(--search-h) + 18px);
+  position:fixed;z-index:60;left:12px;right:calc(var(--safe-r) + 76px);top:calc(var(--safe-t) + var(--top-row) + var(--search-h) + 18px);
   padding:10px 12px;border-radius:12px;background:rgba(4,14,28,.94);
   border:1px solid rgba(77,240,255,.35);color:#d7f6ff;font:600 14px/1.35 system-ui;display:none;
 }
@@ -262,7 +265,7 @@ textarea.field,#sn-support-matter{min-height:88px}
 <header id="top">
   <button type="button" id="sn-burger" aria-label="Menu" aria-expanded="false" aria-controls="menu">☰</button>
   <button type="button" id="logo" aria-label="Force update Astranov.eu">ASTRANOV.EU</button>
-  <button type="button" id="sn-money" class="on" aria-label="Wallet"><span class="lbl">AV€</span><span class="tgt">AV€</span></button>
+  <button type="button" id="sn-money" class="on" aria-label="Wallet"><span class="tgt">AV€</span></button>
 </header>
 
 <form id="search" action="/" method="get">
@@ -270,7 +273,7 @@ textarea.field,#sn-support-matter{min-height:88px}
   <button type="button" id="mic" aria-label="Handsfree mic">🎤</button>
 </form>
 
-<div id="sn-radar" aria-hidden="true"><div id="sn-radar-blips"></div></div>
+<div id="sn-radar" aria-hidden="true"><div id="sn-radar-sweep"></div><div id="sn-radar-blips"></div></div>
 
 <nav id="menu" hidden>
   <button type="button" id="sn-power" class="on">POWER ON</button>

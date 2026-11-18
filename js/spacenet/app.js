@@ -158,15 +158,15 @@
     btn.hidden = false;
     btn.style.display = "inline-flex";
     btn.classList.add("on");
-    var tgt = btn.querySelector(".tgt");
+    var tgt = btn.querySelector(".tgt") || btn;
     var lbl = btn.querySelector(".lbl");
-    if (lbl) lbl.textContent = "AV€";
+    if (lbl) lbl.style.display = "none";
     if (!signed()) {
-      if (tgt) tgt.textContent = "—";
+      tgt.textContent = "AV€";
       return;
     }
     var n = Math.round(avcGet());
-    if (tgt) tgt.textContent = n.toLocaleString("en-GB");
+    tgt.textContent = n.toLocaleString("en-GB") + " AV€";
   }
   function signed() {
     try {
