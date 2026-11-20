@@ -6,6 +6,7 @@ import { useCad, adoptSession } from "@/lib/cad/store";
 import { SAMPLE_CATALOG } from "@/lib/cad/samples";
 import { exportSurveyCsv, exportSvg } from "@/lib/cad/export";
 import { sampleOliveTreehouse } from "@/lib/cad/olive-house";
+import { patchSite } from "@/lib/cad/site-session";
 import { authEnabled, signIn } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { accessState } from "@/lib/billing/api";
@@ -106,7 +107,23 @@ export function Studio() {
   }, []);
 
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("from") === "spacenet") setEntered(true);
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("from") === "spacenet") setEntered(true);
+    /* SpaceNet deep-link: ?from=spacenet&lat=&lon=&zoom=&plot= */
+    const lat = Number(q.get("lat"));
+    const lon = Number(q.get("lon") || q.get("lng"));
+    const zoom = Number(q.get("zoom"));
+    const plot = (q.get("plot") || "").trim();
+    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+      const alt = Number.isFinite(zoom)
+        ? Math.max(80, Math.min(12000, Math.pow(2, Math.max(0, 19 - zoom)) * 45))
+        : 280;
+      const st = useCad.getState();
+      st.setView("globe");
+      st.setGlobe({ lat, lon, alt, flyNonce: st.globe.flyNonce + 1 });
+      if (plot) patchSite({ plot });
+      st.setStatus(plot ? `Plot ${plot} · ${lat.toFixed(5)}, ${lon.toFixed(5)}` : `${lat.toFixed(5)}, ${lon.toFixed(5)}`);
+    }
   }, []);
 
   if (!user && !entered) {
