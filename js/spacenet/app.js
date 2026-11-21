@@ -1,7 +1,7 @@
-/* SpaceNet 4444 — land.pack external; drop root failure junk. */
+/* SpaceNet 4445 — nested API routes on land.pack base. */
 (function () {
   "use strict";
-  var VER = "4444";
+  var VER = "4445";
   var INTRO_MS = 13000;
   var LAND = [];
   function unpackLand(pack) {
@@ -526,7 +526,7 @@
       if (!p || p.z < 0.28) continue;
       ctx.fillText(LABELS[i].name, p.x, p.y);
     }
-    /* 4443: constellation applet removed in 4442 lean — call was orphaned */
+    /* 4444: constellation applet removed in 4444 lean — call was orphaned */
   }
   var PLANETS = [
     { n: "MERCURY", p: 87.969, L: 252.25, au: 0.387, inc: 7.0, col: "#c8bba8", sz: 2.4 },
@@ -4005,7 +4005,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4444 = true;
+    window.__SN_4445 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
