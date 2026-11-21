@@ -1,0 +1,44 @@
+name: grokbuild 4450 (merge main 4440 into preview + wallet ledger, HOLD chain, trade pins, talk city; self-deleting)
+on:
+  push:
+    branches: ["grokbuild/4328-street-level-gps"]
+    paths: [".grokbuild/fix4450.b64", ".github/workflows/grokbuild-4450.yml"]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: grokbuild/4328-street-level-gps
+          fetch-depth: 0
+      - name: Apply fix4450
+        run: |
+          set -euo pipefail
+          git config user.name "Grok Bot"
+          git config user.email "grok@astranov.eu"
+          git fetch origin main
+          MAIN_PARENT="07493f7f78edb7121fe9863d694ace9fe3ba91ca"
+          git merge-base --is-ancestor "$MAIN_PARENT" origin/main || { echo "main does not contain $MAIN_PARENT"; exit 1; }
+          git merge-base --is-ancestor 4f9bef230f28cc7a1a825a18c83138695e387e02 HEAD || { echo "preview base moved"; exit 1; }
+          base64 -d .grokbuild/fix4450.b64 > /tmp/f.tgz
+          test "$(sha256sum /tmp/f.tgz | cut -d' ' -f1)" = "b4ce4da5b0686d974193e5b044514c7f670eca5fbb8643bdfe7c37cc1399196f"
+          mkdir -p /tmp/f && tar -xzf /tmp/f.tgz -C /tmp/f
+          test "$(wc -c < /tmp/f/js/spacenet/app.js)" = "410026"
+          grep -q '__SN_4450' /tmp/f/js/spacenet/app.js
+          grep -q 'function pullLedger' /tmp/f/js/spacenet/app.js
+          grep -q 'content="4450"' /tmp/f/index.html
+          grep -q 'sn-shell-4450' /tmp/f/sw.js
+          git rm -rq .grokbuild || true
+          git rm -f .github/workflows/grokbuild-4450.yml || true
+          T0="$(git write-tree)"
+          test "$T0" = "0a4589c382b6f9aef4ecfbdef3f3d034dc16e214" || { echo "tree0 $T0"; exit 1; }
+          cp -a /tmp/f/. .
+          git add -A
+          T="$(git write-tree)"
+          test "$T" = "5e65bd605b61ea5e491ca6fe24ee0ca42d855277" || { echo "tree $T"; exit 1; }
+          C="$(git commit-tree "$T" -p HEAD -p "$MAIN_PARENT" -m "4450: merge main 4440 (07493f7f) into preview 4439 + wallet = real ledger in stars (JWT+anon /api/transactions, honest 0, no 3,000,300 dummy), START TRANSACTION from hunt pins, order -> HOLD -> pay with 4434 terms, READY/PICKUP/ON THE BIKE/DELIVERED/RECEIVED strip, draggable drop pin, Deliver-to-GPS, named trade pins (plumber Athens via OSM craft), talk names the hunted city + real count (no Rhodes default, no false Grok dark), photo+name pins, LIST/INSERT on hold, fakes removed; lockstep 4450 (4441-4444 taken on main).")"
+          git update-ref refs/heads/grokbuild/4328-street-level-gps "$C"
+          git push origin HEAD:grokbuild/4328-street-level-gps
+          echo "TIP $C"
