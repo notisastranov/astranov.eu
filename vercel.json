@@ -8,8 +8,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4427"},
-        {"key": "X-Astranov-Ship", "value": "4427-chrome"}
+        {"key": "X-Astranov-Build", "value": "4430"},
+        {"key": "X-Astranov-Ship", "value": "4430-chrome"}
       ]
     },
     {
@@ -17,8 +17,8 @@
       "headers": [
         {"key": "Cache-Control", "value": "no-store, no-cache, must-revalidate"},
         {"key": "Pragma", "value": "no-cache"},
-        {"key": "X-Astranov-Build", "value": "4427"},
-        {"key": "X-Astranov-Ship", "value": "4427-chrome"}
+        {"key": "X-Astranov-Build", "value": "4430"},
+        {"key": "X-Astranov-Ship", "value": "4430-chrome"}
       ]
     },
     {
