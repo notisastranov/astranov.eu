@@ -1,4 +1,4 @@
-/* SpaceNet 4432 — one map peer talk; every order step = confirm + messaging. */
+/* SpaceNet 4433 — partner delivery stubs + delivery_services vendors. */
 (function () {
   "use strict";
   var VER = "4432";
@@ -991,21 +991,31 @@
     openSheet("INSERT",
       '<p class="note">Plot ' + coords + '. Insert a role, then verify. Architect stays a separate app.</p>' +
       '<button type="button" class="sheet-go primary" data-act="insert-actor" data-role="vendor">INSERT VENDOR</button>' +
+      '<button type="button" class="sheet-go" data-act="insert-actor" data-role="delivery_services">INSERT DELIVERY SERVICES</button>' +
       '<button type="button" class="sheet-go" data-act="insert-actor" data-role="driver">INSERT DELIVERY DRIVER</button>' +
       '<button type="button" class="sheet-go" data-act="insert-actor" data-role="client">INSERT CLIENT</button>' +
       '<button type="button" class="sheet-go" data-act="open-architect">OPEN ARCHITECT</button>' +
       '<button type="button" class="sheet-go" data-act="close">CANCEL</button>');
     say(coords);
   }
+  function isVendorRole(role) {
+    return role === "vendor" || role === "delivery_services";
+  }
   function insertActor(role) {
     if (!signed()) { needLogin("LOGIN to insert."); return; }
     if (!listPt) { say("Hold a map spot first."); return; }
-    role = role === "driver" || role === "client" || role === "vendor" ? role : "vendor";
+    role = role === "driver" || role === "client" || role === "vendor" || role === "delivery_services" ? role : "vendor";
     var nameEl = null;
-    openSheet("NAME · " + role.toUpperCase(),
-      '<p class="note">Name this ' + role + ' at ' + listPt.lat.toFixed(5) + ", " + listPt.lng.toFixed(5) + "</p>" +
-      '<input id="sn-actor-name" class="field" placeholder="' + (role === "vendor" ? "Shop / Google Business name" : role === "driver" ? "Driver name" : "Client / house name") + '" />' +
-      (role === "vendor" ? '<input id="sn-actor-gbp" class="field" placeholder="Google Business Profile URL or place id" />' : "") +
+    var label = role === "delivery_services" ? "DELIVERY SERVICES" : role.toUpperCase();
+    var ph = role === "delivery_services"
+      ? "Courier / platform city office name"
+      : (role === "vendor" ? "Shop / Google Business name" : role === "driver" ? "Driver name" : "Client / house name");
+    openSheet("NAME · " + label,
+      '<p class="note">' + (role === "delivery_services"
+        ? "Same UX as restaurant vendors — sells delivery, not products. DoorDash/DH list as this type."
+        : ("Name this " + role + " at " + listPt.lat.toFixed(5) + ", " + listPt.lng.toFixed(5))) + "</p>" +
+      '<input id="sn-actor-name" class="field" placeholder="' + ph + '" />' +
+      (isVendorRole(role) ? '<input id="sn-actor-gbp" class="field" placeholder="Google Business Profile URL or place id" />' : "") +
       '<button type="button" class="sheet-go primary" data-act="save-actor" data-role="' + role + '">SAVE · VERIFY</button>' +
       '<button type="button" class="sheet-go" data-act="close">CANCEL</button>');
     nameEl = $("sn-actor-name");
@@ -1013,16 +1023,17 @@
   }
   function saveActor(role) {
     if (!signed() || !listPt) return;
-    role = role === "driver" || role === "client" || role === "vendor" ? role : "vendor";
+    role = role === "driver" || role === "client" || role === "vendor" || role === "delivery_services" ? role : "vendor";
     var nm = $("sn-actor-name");
     var name = nm ? String(nm.value || "").trim() : "";
     if (!name) { say("Name required."); return; }
     var gbp = $("sn-actor-gbp");
     var gbpVal = gbp ? String(gbp.value || "").trim() : "";
     var actor = {
-      id: role[0] + Date.now().toString(36),
+      id: (role === "delivery_services" ? "ds" : role[0]) + Date.now().toString(36),
       role: role,
       kind: role,
+      vendor_type: isVendorRole(role) ? role : undefined,
       name: name.slice(0, 80),
       lat: listPt.lat,
       lng: listPt.lng,
@@ -1032,9 +1043,9 @@
     };
     var ok = verifyActor(actor);
     if (!ok.ok) {
-      openSheet("VERIFY · " + role.toUpperCase(),
+      openSheet("VERIFY · " + (role === "delivery_services" ? "DELIVERY SERVICES" : role.toUpperCase()),
         '<p class="note">' + ok.msg + "</p>" +
-        (role === "vendor" ? '<input id="sn-actor-gbp" class="field" placeholder="Google Business Profile URL" value="' + String(gbpVal).replace(/"/g, "") + '" />' : "") +
+        (isVendorRole(role) ? '<input id="sn-actor-gbp" class="field" placeholder="Google Business Profile URL" value="' + String(gbpVal).replace(/"/g, "") + '" />' : "") +
         '<button type="button" class="sheet-go primary" data-act="retry-verify" data-role="' + role + '" data-name="' + name.replace(/"/g, "") + '">RETRY VERIFY</button>' +
         '<button type="button" class="sheet-go" data-act="close">CANCEL</button>');
       return;
@@ -1043,24 +1054,38 @@
     var rows = loadActors();
     rows.unshift(actor);
     saveActors(rows);
-    if (role === "vendor") {
-      shops.unshift({ id: actor.id, name: actor.name, lat: actor.lat, lng: actor.lng, kind: "vendor", phone: "", src: "listed", gbp: actor.gbp, role: "vendor" });
+    if (isVendorRole(role)) {
+      shops.unshift({
+        id: actor.id,
+        name: actor.name,
+        lat: actor.lat,
+        lng: actor.lng,
+        kind: role,
+        phone: "",
+        src: "listed",
+        gbp: actor.gbp,
+        role: role,
+        vendor_type: role,
+        menu: role === "delivery_services"
+          ? [{ name: "City delivery", price: "3", note: "Overflow / zone rate", hours: "24/7", stock: "in" }]
+          : undefined
+      });
       shops = uniqPlaces(shops.concat(FAMOUS_VENDORS));
     }
-    persistListing({ id: actor.id, kind: role, name: actor.name, lat: actor.lat, lng: actor.lng, gbp: actor.gbp });
+    persistListing({ id: actor.id, kind: role, name: actor.name, lat: actor.lat, lng: actor.lng, gbp: actor.gbp, vendor_type: actor.vendor_type });
     paintActorsOnMap();
     paintShopsOnMap();
     closeSheet();
-    say(role.toUpperCase() + " verified · tap pin to start a transaction.");
+    say((role === "delivery_services" ? "DELIVERY SERVICES" : role.toUpperCase()) + " verified · tap pin to start a transaction.");
     startTransaction(actor);
   }
   function verifyActor(actor) {
     loadVerify();
     if (!actor) return { ok: false, msg: "Missing actor." };
-    if (actor.role === "vendor") {
+    if (actor.role === "vendor" || actor.role === "delivery_services") {
       var gbp = String(actor.gbp || "").trim();
       if (!gbp || !/(google\.|g\.page|maps\.app|business\.site|goo\.gl|g\.co|maps\.|place_id:|cid=)/i.test(gbp) && gbp.length < 8) {
-        return { ok: false, msg: "Vendors verify via Google Business Profile. Paste the GBP / Maps link." };
+        return { ok: false, msg: (actor.role === "delivery_services" ? "Delivery services" : "Vendors") + " verify via Google Business Profile. Paste the GBP / Maps link." };
       }
       verifyState.vendor = true; saveVerify();
       return { ok: true };
@@ -1095,10 +1120,22 @@
     if (!actor) return;
     if (!signed()) { needLogin("LOGIN to start a transaction."); return; }
     vendor = null; drop = null;
-    if (actor.role === "vendor" || actor.kind === "vendor" || actor.kind === "shop") {
-      vendor = { name: actor.name, lat: actor.lat, lng: actor.lng, kind: "vendor", phone: actor.phone || "", menu: actor.menu || [{ name: "Order", price: "12", note: "Walkthrough" }], gbp: actor.gbp };
+    if (actor.role === "vendor" || actor.role === "delivery_services" || actor.kind === "vendor" || actor.kind === "shop" || actor.kind === "delivery_services") {
+      var ds = actor.role === "delivery_services" || actor.kind === "delivery_services" || actor.vendor_type === "delivery_services";
+      vendor = {
+        name: actor.name,
+        lat: actor.lat,
+        lng: actor.lng,
+        kind: ds ? "delivery_services" : "vendor",
+        vendor_type: ds ? "delivery_services" : "vendor",
+        phone: actor.phone || "",
+        menu: actor.menu || (ds
+          ? [{ name: "City delivery", price: "3", note: "Capacity / zone", hours: "24/7", stock: "in" }]
+          : [{ name: "Order", price: "12", note: "Walkthrough" }]),
+        gbp: actor.gbp
+      };
       openVendor(vendor);
-      say("Transaction · vendor. Set drop (TO MY GPS), then SEND.");
+      say(ds ? "Transaction · delivery services (same UX as food). Set drop, then SEND." : "Transaction · vendor. Set drop (TO MY GPS), then SEND.");
       return;
     }
     if (actor.role === "client" || actor.kind === "client" || actor.kind === "drop") {
@@ -1155,9 +1192,10 @@
     }));
     rows.forEach(function (a) {
       if (!a || !isFinite(a.lat) || !isFinite(a.lng)) return;
-      var color = a.role === "driver" ? "#1a3cff" : a.role === "client" ? "#0b6b45" : "#ff8a3d";
+      var color = a.role === "driver" ? "#1a3cff" : a.role === "client" ? "#0b6b45" : a.role === "delivery_services" ? "#0ea5e9" : "#ff8a3d";
       var mark = L.circleMarker([a.lat, a.lng], { radius: 9, color: color, fillColor: color, fillOpacity: 0.9, weight: 2 });
-      mark.bindTooltip((a.role || "vendor").toUpperCase() + " · " + (a.name || ""), { direction: "top" });
+      var tipRole = a.role === "delivery_services" ? "DELIVERY SERVICES" : String(a.role || "vendor").toUpperCase();
+      mark.bindTooltip(tipRole + " · " + (a.name || ""), { direction: "top" });
       mark.on("click", function (e) {
         if (e && e.originalEvent) L.DomEvent.stop(e.originalEvent);
         openActorSheet(a);
@@ -2162,11 +2200,13 @@
     cart = { items: {}, comment: cart && cart.comment || "" };
     if (map && isFinite(s.lat)) map.setView([s.lat, s.lng], 17);
     renderVendorShop();
-    say(s.name + " · profile + menu. Order in AV€ · 3% fee.");
+    var ds = s && (s.vendor_type === "delivery_services" || s.kind === "delivery_services");
+    say(s.name + (ds ? " · delivery services · same UX as food · AV€ · 3% fee." : " · profile + menu. Order in AV€ · 3% fee."));
   }
   function renderVendorShop() {
     if (!vendor) return;
     var s = vendor;
+    var ds = s.vendor_type === "delivery_services" || s.kind === "delivery_services";
     var km = here ? haversineKm(here, s).toFixed(1) : "—";
     var addr = s.address || s.raw || (Number(s.lat).toFixed(4) + ", " + Number(s.lng).toFixed(4));
     var phone = s.phone ? String(s.phone) : "";
@@ -2176,7 +2216,7 @@
     var rows = menu.map(function (m) {
       var q = cartQty(m.i);
       return '<div class="menu-row" data-i="' + m.i + '">' +
-        (m.photo ? '<img class="menu-pic" src="' + String(m.photo).replace(/"/g, "") + '" alt=""/>' : '<div class="menu-pic ph">🍽</div>') +
+        (m.photo ? '<img class="menu-pic" src="' + String(m.photo).replace(/"/g, "") + '" alt=""/>' : '<div class="menu-pic ph">' + (ds ? "🚚" : "🍽") + "</div>") +
         '<div class="menu-body"><b>' + String(m.name).replace(/[<>]/g, "") + "</b>" +
         '<span class="menu-meta">' + m.price + " AV€ · " + String(m.hours).replace(/[<>]/g, "") + " · " + (m.stock === "in" ? "available" : "low") + "</span>" +
         (m.note ? '<span class="menu-desc">' + String(m.note).replace(/[<>]/g, "") + "</span>" : "") +
@@ -2187,17 +2227,17 @@
     var sub = cartSubtotal(), fee = cartFee(sub), tot = cartTotal();
     var html =
       '<div class="vendor-banner">' +
-        (pic ? '<img class="vendor-pic" src="' + String(pic).replace(/"/g, "") + '" alt=""/>' : '<div class="vendor-pic ph">🏪</div>') +
+        (pic ? '<img class="vendor-pic" src="' + String(pic).replace(/"/g, "") + '" alt=""/>' : '<div class="vendor-pic ph">' + (ds ? "🚚" : "🏪") + "</div>") +
         '<div class="vendor-who"><b>' + String(s.name || "VENDOR").replace(/[<>]/g, "") + "</b>" +
         '<span>' + String(addr).replace(/[<>]/g, "") + "</span>" +
         (phone ? '<span>' + String(phone).replace(/[<>]/g, "") + "</span>" : "") +
-        '<span>' + (s.kind || "vendor") + " · " + km + " km</span></div>" +
+        '<span>' + (ds ? "delivery_services" : (s.kind || "vendor")) + " · " + km + " km</span></div>" +
         '<div class="vendor-comms">' +
           '<button type="button" class="sheet-go" data-act="peer-msg" data-id="' + actorId + '">MESSAGE</button>' +
           '<button type="button" class="sheet-go" data-act="peer-video" data-id="' + actorId + '">VIDEO</button>' +
           (phone ? '<a class="sheet-go" href="tel:' + phone.replace(/[^\d+]/g, "") + '">CALL</a>' : "") +
         "</div></div>" +
-      '<b class="menu-ttl">MENU</b>' + rows +
+      '<b class="menu-ttl">' + (ds ? "DELIVERY SKUS" : "MENU") + "</b>" + rows +
       '<div class="checkout">' +
         '<p class="note">Subtotal ' + sub + " AV€ · fee 3% " + fee + " AV€ · <b>" + tot + " AV€</b> (only fee)</p>" +
         '<button type="button" class="sheet-go primary" data-act="open-order"' + (sub > 0 ? "" : " disabled") + ">CHECKOUT AV€</button>" +
@@ -3370,9 +3410,9 @@
         if ($("sn-actor-name")) {} else {
           /* recreate name field value via attribute */
         }
-        openSheet("NAME · " + String(rn || "").toUpperCase(),
+        openSheet("NAME · " + (rn === "delivery_services" ? "DELIVERY SERVICES" : String(rn || "").toUpperCase()),
           '<input id="sn-actor-name" class="field" value="' + String(nm2).replace(/"/g, "") + '" />' +
-          (rn === "vendor" ? '<input id="sn-actor-gbp" class="field" placeholder="Google Business Profile URL" value="' + String(gbp2 && gbp2.value || "").replace(/"/g, "") + '" />' : "") +
+          (rn === "vendor" || rn === "delivery_services" ? '<input id="sn-actor-gbp" class="field" placeholder="Google Business Profile URL" value="' + String(gbp2 && gbp2.value || "").replace(/"/g, "") + '" />' : "") +
           '<button type="button" class="sheet-go primary" data-act="save-actor" data-role="' + rn + '">SAVE · VERIFY</button>');
       }
       if (act === "start-tx") { startTransaction(findActor(id)); }
