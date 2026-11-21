@@ -297,10 +297,10 @@
     var s = document.createElement("style");
     s.id = "sn-me-css";
     s.textContent =
-      "#sn-me{position:static;width:36px;height:36px;padding:0;border-radius:999px;overflow:hidden;border:1px solid rgba(77,240,255,.85);background:rgba(4,16,28,.9);color:#4df0ff;display:flex;align-items:center;justify-content:center}" +
+      "#sn-me{position:fixed!important;left:max(10px,env(safe-area-inset-left))!important;right:auto!important;top:auto!important;bottom:calc(max(6px,env(safe-area-inset-bottom)) + var(--drawer-h,28px) + var(--gap,8px))!important;z-index:52!important;width:var(--ctrl,36px)!important;height:var(--ctrl,36px)!important;padding:0;border-radius:999px;overflow:hidden;border:1px solid rgba(77,240,255,.7);background:rgba(4,16,28,.94);color:#4df0ff;display:flex!important;align-items:center;justify-content:center;box-shadow:0 0 6px rgba(77,240,255,.16)}" +
       "#sn-me.in,#sn-me.out{display:flex!important}" +
       "#sn-me .lbl{display:none}" +
-      "#sn-me img,#sn-me .ph{width:36px;height:36px;object-fit:cover;display:flex;align-items:center;justify-content:center;font:800 14px system-ui;color:#4df0ff}" +
+      "#sn-me img,#sn-me .ph{width:var(--ctrl,36px);height:var(--ctrl,36px);object-fit:cover;display:flex;align-items:center;justify-content:center;font:800 12px system-ui;color:#4df0ff}" +
       "#sn-me-sheet{position:fixed;inset:0;z-index:80;display:none}" +
       "#sn-me-sheet.on{display:block}" +
       "#sn-me-sheet .bg{position:absolute;inset:0}" +
@@ -375,16 +375,16 @@
     body.innerHTML =
       '<div class="who">' + face(u) + "<div><b>" + String(name).replace(/[<>]/g, "") + "</b><span>" + (inNow ? String(mail).replace(/[<>]/g, "") : "Not signed in") + "</span></div></div>" +
       (inNow && mine ? '<p class="note">' + mine + "</p>" : "") +
+      roleBtn("client", "CLIENT", "C") + roleBtn("driver", "DELIVERY DRIVER", "D") + roleBtn("vendor", "VENDOR", "V") +
       (inNow
-        ? roleBtn("client", "CLIENT", "C") + roleBtn("driver", "DRIVER", "D") + roleBtn("vendor", "VENDOR", "V") +
-          '<input id="sn-newpass" type="password" placeholder="Astranov password" autocomplete="new-password"/>' +
+        ? '<input id="sn-newpass" type="password" placeholder="Astranov password" autocomplete="new-password"/>' +
           '<button type="button" class="go" data-act="set-pass">SET ASTRANOV PASSWORD</button>' +
           '<button type="button" class="go" data-act="out">SIGN OUT</button>'
         : '<button type="button" class="go" data-act="google">GOOGLE</button>' +
           '<input id="sn-mail" type="email" placeholder="Astranov email" autocomplete="username"/>' +
           '<input id="sn-pass" type="password" placeholder="Astranov password" autocomplete="current-password"/>' +
           '<button type="button" class="go" data-act="mail-in">SIGN IN</button>') +
-      '<p class="note">' + (inNow ? "Google verified this id. The password is the Astranov account. No SMS." : "Google creates and verifies the id. No SMS and no confirmation mail. An existing Astranov password also signs in.") + "</p>";
+      '<p class="note">' + (inNow ? "Roles on this control: client · delivery driver · vendor. Google verified this id. The password is the Astranov account. No SMS." : "Roles on this control: client · delivery driver · vendor (LOGIN to activate). Google creates and verifies the id. No SMS.") + "</p>";
   }
   function openMe() {
     css();

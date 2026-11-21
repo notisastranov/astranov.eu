@@ -16,6 +16,12 @@ const handlers = {
   "paypal/capture-order": require("../lib/http/paypal/capture-order"),
   "support/open": require("../lib/http/support/open"),
   "auth/config": require("../lib/http/auth/config"),
+  "partners/orders": require("../lib/http/partners/orders"),
+  "partners/webhooks/test": require("../lib/http/partners/webhooks-test"),
+  "partners/city-accounts": require("../lib/http/partners/city-accounts"),
+  "partners/overflow-offers": require("../lib/http/partners/overflow-offers"),
+  "partners/openapi.json": require("../lib/http/partners/openapi"),
+  "vendors/direct": require("../lib/http/vendors/direct"),
 };
 
 function routeKey(req) {
@@ -28,9 +34,21 @@ function routeKey(req) {
   return "";
 }
 
+/** Dynamic partner/vendor paths (keep stamp router small). */
+function resolve(key) {
+  if (handlers[key]) return handlers[key];
+  if (/^partners\/orders\/[^/]+\/status$/.test(key)) {
+    return require("../lib/http/partners/order-status");
+  }
+  if (/^vendors\/direct\/[^/]+\/menu$/.test(key)) {
+    return require("../lib/http/vendors/direct-menu");
+  }
+  return null;
+}
+
 module.exports = function (req, res) {
   const key = routeKey(req);
-  const fn = handlers[key];
+  const fn = resolve(key);
   if (typeof fn !== "function") {
     res.statusCode = 404;
     res.setHeader("Content-Type", "application/json");
