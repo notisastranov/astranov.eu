@@ -375,16 +375,16 @@
     body.innerHTML =
       '<div class="who">' + face(u) + "<div><b>" + String(name).replace(/[<>]/g, "") + "</b><span>" + (inNow ? String(mail).replace(/[<>]/g, "") : "Not signed in") + "</span></div></div>" +
       (inNow && mine ? '<p class="note">' + mine + "</p>" : "") +
+      roleBtn("client", "CLIENT", "C") + roleBtn("driver", "DELIVERY DRIVER", "D") + roleBtn("vendor", "VENDOR", "V") +
       (inNow
-        ? roleBtn("client", "CLIENT", "C") + roleBtn("driver", "DRIVER", "D") + roleBtn("vendor", "VENDOR", "V") +
-          '<input id="sn-newpass" type="password" placeholder="Astranov password" autocomplete="new-password"/>' +
+        ? '<input id="sn-newpass" type="password" placeholder="Astranov password" autocomplete="new-password"/>' +
           '<button type="button" class="go" data-act="set-pass">SET ASTRANOV PASSWORD</button>' +
           '<button type="button" class="go" data-act="out">SIGN OUT</button>'
         : '<button type="button" class="go" data-act="google">GOOGLE</button>' +
           '<input id="sn-mail" type="email" placeholder="Astranov email" autocomplete="username"/>' +
           '<input id="sn-pass" type="password" placeholder="Astranov password" autocomplete="current-password"/>' +
           '<button type="button" class="go" data-act="mail-in">SIGN IN</button>') +
-      '<p class="note">' + (inNow ? "Google verified this id. The password is the Astranov account. No SMS." : "Google creates and verifies the id. No SMS and no confirmation mail. An existing Astranov password also signs in.") + "</p>";
+      '<p class="note">' + (inNow ? "Roles on this control: client · delivery driver · vendor. Google verified this id. The password is the Astranov account. No SMS." : "Roles on this control: client · delivery driver · vendor (LOGIN to activate). Google creates and verifies the id. No SMS.") + "</p>";
   }
   function openMe() {
     css();
