@@ -1,4 +1,4 @@
-/* SpaceNet 4433 — partner delivery stubs + delivery_services vendors. */
+/* SpaceNet 4434 — cancel keep-pay, +1/min delay, +1 non-ground room service. */
 (function () {
   "use strict";
   var VER = "4432";
@@ -89,7 +89,7 @@
   var offerActiveId = null;
   var pendingOffer = null;
   var powerCdTimer = null;
-  var quoteOpts = { rain: false, tip: 0 };
+  var quoteOpts = { rain: false, floor: false, tip: 0 };
   var STAGES = ["ACCEPT", "PICKUP HANDOFF", "IN TRANSIT", "DELIVERED", "RECEIVED"];
   var view = { cx: 0, cy: 0, scale: 120, w: 1, h: 1 };
   var SIDEREAL_DAY_S = 86164.0905;
@@ -1488,6 +1488,9 @@
       quote: job.quote || null,
       created_at: job.t || null,
       prompt: job.prompt || null,
+      delay_fee: Number(job.delayFee) || 0,
+      floor_surcharge: !!(job.quote && job.quote.floor),
+      keep_pay: !!job.keepPay,
       messages: (job.thread || []).slice(0, 20)
     };
   }
@@ -1526,30 +1529,70 @@
     if (!job) { say("Order not found."); return; }
     if (!signed()) { needLogin("LOGIN to talk on this order."); return; }
     ensureHopConfirms(job);
+    applyDelayFees(job);
     var prompt = job.prompt || null;
-    var html = '<p class="note">Same map · vendor / client / driver. Every step is confirm + message.</p>' +
+    var delayN = Number(job.delayFee) || 0;
+    var html = '<p class="note">Same map · arrive → ready/wait → Yes/No → pickup → at client → pickup or cancel. Delay +1 AV€/min. Cancel: money stays driver+vendor.</p>' +
+      (delayN ? '<p class="note">Delay fee: <b>' + delayN + ' AV€</b> (client).</p>' : "") +
+      (job.cancelled ? '<p class="note"><b>CANCELLED</b> · pay kept by driver+vendor.</p>' : "") +
       threadHtml(job) +
       (prompt === "vendor-ready"
-        ? '<p class="note"><b>DRIVER ARRIVED</b> · are you ready?</p>' +
-          '<button type="button" class="sheet-go primary" data-act="order-ready" data-id="' + job.id + '">READY · CONFIRM HANDOFF</button>' +
+        ? '<p class="note"><b>ARRIVED</b> · vendor ready?</p>' +
+          '<button type="button" class="sheet-go primary" data-act="order-ready" data-id="' + job.id + '">READY</button>' +
           '<button type="button" class="sheet-go" data-act="order-wait-2" data-id="' + job.id + '">NEED 2 MORE MINUTES</button>'
+        : "") +
+      (prompt === "wait-yesno"
+        ? '<p class="note"><b>WAIT 2 MIN?</b> Yes = delay clock (+1 AV€/min). No = cancel (keep pay).</p>' +
+          '<button type="button" class="sheet-go primary" data-act="order-wait-yes" data-id="' + job.id + '">YES · WAIT</button>' +
+          '<button type="button" class="sheet-go" data-act="order-wait-no" data-id="' + job.id + '">NO</button>'
+        : "") +
+      (prompt === "pickup"
+        ? '<p class="note"><b>PICKUP</b></p>' +
+          '<button type="button" class="sheet-go primary" data-act="order-pickup" data-id="' + job.id + '">PICKUP · CONFIRM</button>'
         : "") +
       (prompt === "client-receive"
-        ? '<p class="note"><b>DRIVER AT DROP</b> · confirm receive?</p>' +
-          '<button type="button" class="sheet-go primary" data-act="order-client-ok" data-id="' + job.id + '">RECEIVED · CONFIRM</button>' +
-          '<button type="button" class="sheet-go" data-act="order-wait-2" data-id="' + job.id + '">NEED 2 MORE MINUTES</button>'
+        ? '<p class="note"><b>AT CLIENT</b> · pickup or cancel (cancel: money stays driver+vendor).</p>' +
+          '<button type="button" class="sheet-go primary" data-act="order-client-ok" data-id="' + job.id + '">CLIENT PICKUP · CONFIRM</button>' +
+          '<button type="button" class="sheet-go" data-act="order-wait-2" data-id="' + job.id + '">NEED 2 MORE MINUTES</button>' +
+          '<button type="button" class="sheet-go" data-act="order-cancel" data-id="' + job.id + '">CANCEL · KEEP PAY</button>'
         : "") +
-      '<button type="button" class="sheet-go" data-act="order-arrived" data-id="' + job.id + '">DRIVER · I ARRIVED</button>' +
-      '<button type="button" class="sheet-go" data-act="order-at-drop" data-id="' + job.id + '">DRIVER · AT CUSTOMER</button>' +
+      (!job.cancelled
+        ? '<button type="button" class="sheet-go" data-act="order-arrived" data-id="' + job.id + '">DRIVER · I ARRIVED</button>' +
+          '<button type="button" class="sheet-go" data-act="order-at-drop" data-id="' + job.id + '">DRIVER · AT CLIENT</button>'
+        : "") +
       '<textarea id="sn-order-msg" class="field" placeholder="Peer reply on this order">' + String(seed || "").replace(/[<>]/g, "") + "</textarea>" +
       '<button type="button" class="sheet-go primary" data-act="order-send" data-id="' + job.id + '">SEND ON ORDER</button>' +
       '<button type="button" class="sheet-go" data-act="close">HIDE</button>';
     openSheet("ORDER TALK · " + String((job.vendor && job.vendor.name) || job.id).slice(0, 18).toUpperCase(), html);
   }
+  function applyDelayFees(job) {
+    if (!job || !job.waitUntil || job.cancelled || job.status === "delivered") return 0;
+    var now = Date.now();
+    if (now < job.waitUntil) return Number(job.delayFee) || 0;
+    var mins = Math.max(1, Math.ceil((now - (job.waitStarted || job.waitUntil)) / 60000));
+    var already = Number(job.delayAppliedMins) || 0;
+    var add = Math.max(0, mins - already);
+    if (add <= 0) return Number(job.delayFee) || 0;
+    job.delayAppliedMins = mins;
+    job.delayFee = (Number(job.delayFee) || 0) + add;
+    job.fee = (Number(job.fee) || 0) + add;
+    job.driverPay = (Number(job.driverPay != null ? job.driverPay : job.fee - add) || 0) + add;
+    if (avcGet() >= add) avcSet(avcGet() - add);
+    else job.delayOwed = (Number(job.delayOwed) || 0) + add;
+    postOrderMsg(job, "system", "+" + add + " AV€ delay (" + mins + " min lost).", "delay");
+    return job.delayFee;
+  }
+  function startWaitClock(job, mins) {
+    mins = mins || 2;
+    job.waitStarted = Date.now();
+    job.waitUntil = Date.now() + mins * 60000;
+    job.waitMins = mins;
+  }
   function driverArrived(jobId) {
     var job = jobs.filter(function (j) { return String(j.id) === String(jobId); })[0];
     if (!job) return;
     if (!signed()) { needLogin("LOGIN first."); return; }
+    if (job.cancelled) { say("Order cancelled."); return; }
     postOrderMsg(job, "driver", "I arrived at vendor.", "arrived");
     job.prompt = "vendor-ready";
     job.confirms.pickup = job.confirms.pickup || { vendor: false, driver: false };
@@ -1558,60 +1601,112 @@
     syncOrderStatus(job);
     saveJobs();
     openOrderTalk(job.id);
-    say("Driver arrived · vendor prompted: ready?");
+    say("Arrived · vendor: ready or wait?");
   }
   function driverAtDrop(jobId) {
     var job = jobs.filter(function (j) { return String(j.id) === String(jobId); })[0];
     if (!job) return;
     if (!signed()) { needLogin("LOGIN first."); return; }
+    if (job.cancelled) { say("Order cancelled."); return; }
     ensureHopConfirms(job);
     if (!(job.confirms.pickup.vendor && job.confirms.pickup.driver)) {
-      say("Finish vendor handoff first.");
+      say("Finish pickup first.");
       return;
     }
-    postOrderMsg(job, "driver", "I arrived at customer.", "at_drop");
+    applyDelayFees(job);
+    postOrderMsg(job, "driver", "I am at the client.", "at_client");
     job.prompt = "client-receive";
     job.confirms.deliver = job.confirms.deliver || { driver: false, client: false };
     job.confirms.deliver.driver = true;
     syncOrderStatus(job);
     saveJobs();
     openOrderTalk(job.id);
-    say("At customer · client prompted to confirm receive.");
+    say("At client · pickup or cancel (pay stays).");
   }
   function vendorReady(jobId) {
     var job = jobs.filter(function (j) { return String(j.id) === String(jobId); })[0];
     if (!job) return;
-    postOrderMsg(job, "vendor", "Ready for handoff.", "ready");
-    job.prompt = null;
-    confirmHop(job.id, "pickup", "vendor");
+    postOrderMsg(job, "vendor", "Ready.", "ready");
+    job.prompt = "pickup";
+    saveJobs();
     openOrderTalk(job.id);
+    say("Ready · confirm pickup.");
   }
   function orderWait2(jobId) {
     var job = jobs.filter(function (j) { return String(j.id) === String(jobId); })[0];
     if (!job) return;
     var who = job.prompt === "client-receive" ? "client" : "vendor";
     postOrderMsg(job, who, "Need 2 more minutes.", "wait");
+    job.waitFrom = who;
+    job.prompt = "wait-yesno";
     saveJobs();
     openOrderTalk(job.id);
-    say((who === "client" ? "Client" : "Vendor") + " · need 2 more minutes.");
+    say("Wait asked · Yes / No?");
+  }
+  function orderWaitYes(jobId) {
+    var job = jobs.filter(function (j) { return String(j.id) === String(jobId); })[0];
+    if (!job) return;
+    postOrderMsg(job, "peer", "Yes · wait 2 min (+1 AV€/min if late).", "wait_yes");
+    startWaitClock(job, 2);
+    job.prompt = job.waitFrom === "client" ? "client-receive" : "vendor-ready";
+    saveJobs();
+    openOrderTalk(job.id);
+    say("Wait Yes · +1 AV€/min after clock.");
+  }
+  function orderWaitNo(jobId) {
+    var job = jobs.filter(function (j) { return String(j.id) === String(jobId); })[0];
+    if (!job) return;
+    postOrderMsg(job, "peer", "No · will not wait.", "wait_no");
+    orderCancelKeepPay(job.id, "Wait refused");
+  }
+  function orderPickup(jobId) {
+    var job = jobs.filter(function (j) { return String(j.id) === String(jobId); })[0];
+    if (!job) return;
+    applyDelayFees(job);
+    postOrderMsg(job, "vendor", "Pickup confirmed.", "pickup");
+    job.prompt = null;
+    confirmHop(job.id, "pickup", "vendor");
+    if (!(job.confirms.pickup && job.confirms.pickup.driver)) confirmHop(job.id, "pickup", "driver");
+    postOrderMsg(job, "system", "Pickup done · drive to client.", "pickup_done");
+    saveJobs();
+    openOrderTalk(job.id);
+    say("Pickup · next: at client.");
   }
   function clientReceived(jobId) {
     var job = jobs.filter(function (j) { return String(j.id) === String(jobId); })[0];
     if (!job) return;
-    postOrderMsg(job, "client", "Received · confirmed.", "received");
+    applyDelayFees(job);
+    postOrderMsg(job, "client", "Client pickup · confirmed.", "received");
     job.prompt = null;
     confirmHop(job.id, "deliver", "client");
+    if (!(job.confirms.deliver && job.confirms.deliver.driver)) confirmHop(job.id, "deliver", "driver");
     openOrderTalk(job.id);
+  }
+  function orderCancelKeepPay(jobId, reason) {
+    var job = jobs.filter(function (j) { return String(j.id) === String(jobId); })[0];
+    if (!job) return;
+    applyDelayFees(job);
+    job.cancelled = true;
+    job.status = "cancelled";
+    job.prompt = null;
+    job.keepPay = true;
+    job.cancelReason = reason || "cancelled";
+    postOrderMsg(job, "system", "Cancelled · " + (reason || "") + " · money stays with driver + vendor (no refund).", "cancel");
+    saveJobs();
+    openOrderTalk(job.id);
+    say("Cancelled · pay kept by driver+vendor.");
   }
   function sendOrderMsg(jobId) {
     var job = jobs.filter(function (j) { return String(j.id) === String(jobId); })[0];
     var ta = $("sn-order-msg");
     var msg = ta ? String(ta.value || "").trim() : "";
     if (!job || !msg) { say("Type a message on this order."); return; }
+    applyDelayFees(job);
     postOrderMsg(job, "peer", msg, "chat");
     openOrderTalk(job.id);
-    say("Order message sent · same map, no separate app.");
+    say("Order message sent.");
   }
+
   function hopHtml(job) {
     ensureHopConfirms(job);
     var p = job.confirms.pickup, d = job.confirms.deliver;
@@ -1627,7 +1722,9 @@
       '</div><p class="note">Confirm + peer talk on this order.</p></div>' +
       threadHtml(job) +
       '<button type="button" class="sheet-go primary" data-act="order-arrived" data-id="' + job.id + '">DRIVER · I ARRIVED</button>' +
-      '<button type="button" class="sheet-go" data-act="order-talk" data-id="' + job.id + '">ORDER TALK</button>';
+      '<button type="button" class="sheet-go" data-act="order-at-drop" data-id="' + job.id + '">AT CLIENT</button>' +
+      '<button type="button" class="sheet-go" data-act="order-talk" data-id="' + job.id + '">ORDER TALK</button>' +
+      '<button type="button" class="sheet-go" data-act="order-cancel" data-id="' + job.id + '">CANCEL · KEEP PAY</button>';
   }
   function clearDriverMark() {
     if (driverMark && map) try { map.removeLayer(driverMark); } catch (e) {}
@@ -1903,8 +2000,10 @@
     var night = (opts.night === true || (opts.night !== false && isNight())) ? 1 : 0;
     var extraKm = Math.max(0, Math.floor((d - 3) / 3)); /* +1 per each 3 km beyond 3 */
     var weather = (opts.rain || opts.weather) ? 1 : 0;
+    /* +1 room service: basement / penthouse / any non-ground (not street/ground) */
+    var floor = (opts.floor || opts.nonground || opts.room) ? 1 : 0;
     /* Surcharges included in the delivery price the client pays */
-    var fee = base + night + extraKm + weather;
+    var fee = base + night + extraKm + weather + floor;
     /* All delivery money → driver (no platform cut on delivery) */
     return {
       km: d,
@@ -1912,6 +2011,7 @@
       night: night,
       extraKm: extraKm,
       weather: weather,
+      floor: floor,
       fee: fee,
       driver: fee,
       cut: 0,
@@ -2464,7 +2564,7 @@
       driverPay: q.driver,
       orderTotal: tot,
       cut: cartFee(cartSubtotal()),
-      quote: { base: q.base, night: q.night, extraKm: q.extraKm, weather: q.weather },
+      quote: { base: q.base, night: q.night, extraKm: q.extraKm, weather: q.weather, floor: q.floor },
       prepMin: VENDOR_PREP_MIN,
       currency: "AV€",
       items: Object.keys(cart.items).map(function (k) { return { i: Number(k), qty: cart.items[k] }; }),
@@ -2496,10 +2596,12 @@
     if (q.night) bits.push("night +1");
     if (q.extraKm) bits.push("extra-km +" + q.extraKm);
     if (q.weather) bits.push("weather +1");
+    if (q.floor) bits.push("non-ground +1");
     bits.push("all → driver · pay upfront");
     var html =
       '<p class="note"></p>' +
       '<button type="button" class="sheet-go" data-act="weather">' + (quoteOpts.rain ? "BAD WEATHER +1 ON" : "BAD WEATHER +1") + "</button>" +
+      '<button type="button" class="sheet-go" data-act="floor">' + (quoteOpts.floor ? "NON-GROUND / ROOM +1 ON" : "NON-GROUND / ROOM +1") + "</button>" +
       (signed()
         ? '<button type="button" class="sheet-go primary" data-act="send">PAY DELIVERY · ' + q.total + " AV€</button>"
         : '<button type="button" class="sheet-go primary" data-act="needlogin">LOGIN TO PAY · ' + q.total + " AV€</button>");
@@ -2544,7 +2646,7 @@
       km: q.km,
       fee: q.total,
       driverPay: q.driver,
-      quote: { base: q.base, night: q.night, extraKm: q.extraKm, weather: q.weather },
+      quote: { base: q.base, night: q.night, extraKm: q.extraKm, weather: q.weather, floor: q.floor },
       prepMin: VENDOR_PREP_MIN,
       stage: 0,
       confirms: { vendor: false, driver: false, client: false, pickup: { vendor: false, driver: false }, deliver: { driver: false, client: false } },
@@ -3399,7 +3501,11 @@
       if (act === "order-at-drop") { driverAtDrop(id); }
       if (act === "order-ready") { vendorReady(id); }
       if (act === "order-wait-2") { orderWait2(id); }
+      if (act === "order-wait-yes") { orderWaitYes(id); }
+      if (act === "order-wait-no") { orderWaitNo(id); }
+      if (act === "order-pickup") { orderPickup(id); }
       if (act === "order-client-ok") { clientReceived(id); }
+      if (act === "order-cancel") { orderCancelKeepPay(id, "Client/peer cancel"); }
       if (act === "order-send") { sendOrderMsg(id); }
       if (act === "insert-actor") { insertActor(t.getAttribute("data-role")); }
       if (act === "save-actor") { saveActor(t.getAttribute("data-role")); }
@@ -3459,6 +3565,7 @@
       }
       if (act === "pindrop") { closeSheet(); say("Long tap the map to pin the drop."); }
       if (act === "weather") { quoteOpts.rain = !quoteOpts.rain; showQuote(); }
+      if (act === "floor") { quoteOpts.floor = !quoteOpts.floor; showQuote(); }
       if (act === "send") sendJob();
       if (act === "needlogin") { if (window.SNAuth && SNAuth.google) SNAuth.google(); else say("LOGIN to order."); }
       if (act === "add-eur") {
