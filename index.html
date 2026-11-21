@@ -4,13 +4,13 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4434"/>
+<meta name="astranov-build" content="4440"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
-<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4434"/>
+<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4440"/>
 <style>
 :root{
   --bg:#02040a; --fg:#e8fbff; --muted:#8ec8d8; --accent:#4df0ff;
@@ -68,7 +68,8 @@ button{cursor:pointer}
 #sn-power{
   position:fixed;z-index:51;left:var(--safe-l);top:calc(var(--safe-t) + var(--top-row) + var(--gap));
   width:var(--ctrl);height:var(--ctrl);border-radius:10px;padding:0;
-  border:1px solid #ff3b3b;background:#c41414;color:#fff;font:800 9px/1 system-ui;letter-spacing:.04em;
+  border:1px solid #ff3b3b;background:#c41414;color:#fff;font:800 18px/1 system-ui;letter-spacing:0;
+  display:flex;align-items:center;justify-content:center;
   box-shadow:0 0 8px rgba(255,60,60,.35);
 }
 #sn-power.on{
@@ -197,6 +198,17 @@ button{cursor:pointer}
   background:rgba(4,14,28,.96);border-top:1px solid rgba(77,240,255,.28);
   box-shadow:0 -6px 18px rgba(0,0,0,.35);touch-action:none;
 }
+#drawer.open{touch-action:manipulation}
+.sn-exch,.sn-txns,.sn-now{margin:0 0 12px}
+.sn-exch h3,.sn-txns h3{margin:8px 0 6px;font:800 11px system-ui;letter-spacing:.14em;color:#7ee9ff}
+.sn-exch-row{display:flex;gap:8px;margin:0 0 6px;align-items:flex-start}
+.sn-exch-row b{flex:none;width:36px;font:800 10px/1.4 system-ui;letter-spacing:.08em;color:#4df0ff}
+.sn-exch-row.a b{color:#9ad7e8}
+.sn-exch-row span{flex:1;font:500 13px/1.35 system-ui;color:#d7f6ff}
+.sn-txn{display:flex;flex-direction:column;gap:2px;padding:8px 0;border-bottom:1px solid rgba(77,240,255,.12)}
+.sn-txn b{font:700 13px/1.3 system-ui;color:#e8fbff}
+.sn-txn span{font:500 11px/1.3 ui-monospace,monospace;color:var(--muted)}
+.lean-task{padding-top:4px}
 #handle{
   flex:none;height:22px;min-height:22px;border:0;background:transparent;color:transparent;
   font-size:0;line-height:0;cursor:grab;touch-action:none;
@@ -345,10 +357,10 @@ textarea.field,#sn-support-matter{min-height:88px}
 <div id="toast" role="status"></div>
 <div id="line" role="status"></div>
 
-<script src="/js/vendor/leaflet.js?v=4434"></script>
-<script src="/js/spacenet/partners/types.js?v=4434"></script>
-<script src="/js/spacenet/partners/client.js?v=4434"></script>
-<script src="/js/spacenet/app.js?v=4434"></script>
-<script src="/js/spacenet/auth.js?v=4434"></script>
+<script src="/js/vendor/leaflet.js?v=4440"></script>
+<script src="/js/spacenet/partners/types.js?v=4440"></script>
+<script src="/js/spacenet/partners/client.js?v=4440"></script>
+<script src="/js/spacenet/app.js?v=4440"></script>
+<script src="/js/spacenet/auth.js?v=4440"></script>
 </body>
 </html>
