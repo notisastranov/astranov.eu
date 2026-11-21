@@ -5,12 +5,9 @@ const handlers = {
   "place": require("../lib/http/place"),
   "public-config": require("../lib/http/public-config"),
   "queue": require("../lib/http/queue"),
-  "research": require("../lib/http/research"),
   "sms": require("../lib/http/sms"),
   "space": require("../lib/http/space"),
   "version": require("../lib/http/version"),
-  "videos": require("../lib/http/videos"),
-  "parcels": require("../lib/http/parcels"),
   "paypal": require("../lib/http/paypal"),
   "paypal/create-order": require("../lib/http/paypal/create-order"),
   "paypal/capture-order": require("../lib/http/paypal/capture-order"),
@@ -23,6 +20,8 @@ const handlers = {
   "partners/openapi.json": require("../lib/http/partners/openapi"),
   "vendors/direct": require("../lib/http/vendors/direct"),
   "transactions": require("../lib/http/transactions"),
+  "stripe/create-checkout": require("../lib/http/stripe/create-checkout"),
+  "revolut/create-order": require("../lib/http/revolut/create-order"),
 };
 
 function routeKey(req) {
