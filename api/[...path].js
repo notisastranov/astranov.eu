@@ -22,6 +22,7 @@ const handlers = {
   "partners/overflow-offers": require("../lib/http/partners/overflow-offers"),
   "partners/openapi.json": require("../lib/http/partners/openapi"),
   "vendors/direct": require("../lib/http/vendors/direct"),
+  "transactions": require("../lib/http/transactions"),
 };
 
 function routeKey(req) {
