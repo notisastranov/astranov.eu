@@ -2,6 +2,7 @@ const handlers = {
   "ai": require("../lib/http/ai"),
   "find": require("../lib/http/find"),
   "live": require("../lib/http/live"),
+  "news": require("../lib/http/news"),
   "place": require("../lib/http/place"),
   "public-config": require("../lib/http/public-config"),
   "queue": require("../lib/http/queue"),

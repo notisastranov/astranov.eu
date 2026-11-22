@@ -1,7 +1,7 @@
-/* SpaceNet 4446 — country borders, test checkout, offers, and resource monitor. */
+/* SpaceNet 4447 — rotating globe, video news, audio mixer, and product gallery. */
 (function () {
   "use strict";
-  var VER = "4446";
+  var VER = "4447";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -75,23 +75,12 @@
     { lat: 55.75, lng: 37.62, c: "#ddd0ff", n: "MOSCOW" },
     { lat: -23.55, lng: -46.63, c: "#ffd0b0", n: "SAO PAULO" }
   ];
-  var NEWS = [
-    "SPACENET · EARTH LIVE",
-    "RADAR · PLANETARY SWEEP",
-    "MESH · WAITING FOR A NODE",
-    "ISS · NIGHT PASS",
-    "AEGEAN · CORRIDOR QUIET",
-    "SURFACE · VECTOR SCAN",
-    "AV€ · WORK-MINTED ONLY"
-  ];
-
   var cam = { yaw: 0.49, pitch: 0.35, dist: 1.85 };
   var vel = { yaw: 0, pitch: 0 };
   var fly = null;
   var here = null;
   var intro = true;
   var introT0 = 0;
-  var newsI = -1;
   var stars = [];
   var shops = [];
   var map = null;
@@ -128,7 +117,10 @@
   var STAGES = ["ACCEPT", "PICKUP HANDOFF", "IN TRANSIT", "DELIVERED", "RECEIVED"];
   var view = { cx: 0, cy: 0, scale: 120, w: 1, h: 1 };
   var SIDEREAL_DAY_S = 86164.0905;
-  var SIDEREAL_OMEGA = (Math.PI * 2) / SIDEREAL_DAY_S;
+  var earthOpenTime = performance.now();
+  var earthStartPhase = ((Date.now() / 1000) % SIDEREAL_DAY_S) * 2 * Math.PI / SIDEREAL_DAY_S;
+  // Keep the starting meridian aligned to sidereal time, then animate at viewing speed.
+  var globeDaySeconds = matchMedia("(prefers-reduced-motion: reduce)").matches ? SIDEREAL_DAY_S : 300;
   var listPt = null;
   var listAlt = "street";
   var FAMOUS_VENDORS = [
@@ -168,7 +160,9 @@
     return /bug|broken|crash|error|glitch|freeze|won't|wont|can't|cant|login|power|offer|drawer|map|globe|button|ui|screen|reload|cache|wallet|av€|paypal|stamp|cursor|fix|product/.test(t);
   }
   function daysSinceJ2000() { return Date.now() / 86400000 + 2440587.5 - 2451545.0; }
-  function earthSpin() { return ((Date.now() / 1000) % SIDEREAL_DAY_S) * SIDEREAL_OMEGA; }
+  function earthSpin() {
+    return (earthStartPhase + (performance.now() - earthOpenTime) / 1000 * 2 * Math.PI / globeDaySeconds) % (2 * Math.PI);
+  }
   function solarLngDeg() {
     var s = ((Date.now() / 1000) % 86400) / 86400;
     return 180 - s * 360;
@@ -184,7 +178,6 @@
   var tierLock = 0;
   var aim = null;
   var gpsSeq = 0;
-  var freeLook = false; /* user spun the globe — do not snap/face-hold aim */
   var wheelAt = -Infinity, wheelDirection = 0, wheelAmount = 0, wheelStepped = false;
   var txns = []; /* completed exchanges (≥5y retention mirrored to Supabase) */
   var activeExchange = []; /* command turns for the current open task */
@@ -510,7 +503,7 @@
     night.addColorStop(1, "rgba(2,6,12,0)");
     ctx.fillStyle = night;
     ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
-    var sweepLng = solarLngDeg() + (earthSpin() * 180) / Math.PI;
+    var sweepLng = solarLngDeg();
     ctx.beginPath(); first = true;
     for (lat = -80; lat <= 80; lat += 3) {
       p = project(lat, sweepLng, cam);
@@ -675,14 +668,6 @@
       if (cam.dist < 1.7 || cam.dist > 2.05) cam.dist = 1.85;
       return;
     }
-    /* Face-hold only when navigating to a pin — never after free drag/spin. */
-    if (!drag && !freeLook && tierI >= 3 && aim && !cityOn) {
-      var held2 = face(aim);
-      cam.yaw = held2.yaw;
-      cam.pitch = held2.pitch;
-      vel.yaw = 0; vel.pitch = 0;
-      return;
-    }
     if (!drag && (Math.abs(vel.yaw) > 0.00004 || Math.abs(vel.pitch) > 0.00004)) {
       var damp = Math.pow(0.94, dt / 0.016);
       var travel = (1 - damp) / (1 - 0.94);
@@ -693,8 +678,156 @@
       if (Math.abs(vel.pitch) < 0.00004) vel.pitch = 0;
     } else if (!drag) { vel.yaw = 0; vel.pitch = 0; }
   }
-  function tickNews() {
-    return;
+  var newsRegions = [];
+  var newsCountry = null;
+  var newsRegionCheck = 0;
+  var newsRefresh = 0;
+  var newsGeneration = 0;
+  var newsItems = [];
+  var newsIndex = 0;
+  var newsPlayer = null;
+  var newsPlayerReady = false;
+  var newsScriptPending = false;
+  var newsScriptRetry = 0;
+  var newsFrame = 0;
+  var newsLastAdvance = 0;
+
+  function countryAt(point) {
+    if (!point) return "";
+    return (newsRegions.find(function (region) {
+      return region[1].some(function (ring) {
+        var inside = false;
+        for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+          var a = ring[i], b = ring[j];
+          if ((a[1] > point.lat) !== (b[1] > point.lat) &&
+              point.lng < (b[0] - a[0]) * (point.lat - a[1]) / (b[1] - a[1]) + a[0]) inside = !inside;
+        }
+        return inside;
+      });
+    }) || [""])[0];
+  }
+  function applyNewsAudio() {
+    if (!newsPlayerReady || !newsPlayer) return;
+    var volume = soundLevel("news");
+    newsPlayer.setVolume(Math.round(volume * 100));
+    if (volume) newsPlayer.unMute();
+    else newsPlayer.mute();
+  }
+  function prepareNewsPlayer() {
+    if (newsPlayer || !newsItems.length || cityOn || $("sn-news").hidden || !$("sn-news-tile").open) return;
+    if (!window.YT || !YT.Player) {
+      if (newsScriptPending || performance.now() < newsScriptRetry) return;
+      newsScriptPending = true;
+      window.onYouTubeIframeAPIReady = prepareNewsPlayer;
+      var script = document.createElement("script");
+      script.src = "https://www.youtube.com/iframe_api";
+      script.onerror = function () {
+        newsScriptPending = false;
+        newsScriptRetry = performance.now() + 30000;
+        script.remove();
+        $("sn-news-status").textContent = "Preview unavailable. Open the clip on YouTube.";
+      };
+      document.head.appendChild(script);
+      return;
+    }
+    var frame = ++newsFrame;
+    var target = document.createElement("div");
+    $("sn-news-preview").replaceChildren(target);
+    newsPlayer = new YT.Player(target, {
+      host: "https://www.youtube-nocookie.com",
+      videoId: newsItems[newsIndex].id,
+      playerVars: { playsinline: 1, autoplay: 0, rel: 0, origin: location.origin },
+      events: {
+        onReady: function (event) {
+          if (frame !== newsFrame) return;
+          newsPlayerReady = true;
+          applyNewsAudio();
+          event.target.loadVideoById(newsItems[newsIndex].id);
+        },
+        onAutoplayBlocked: function () {
+          if (frame === newsFrame) $("sn-news-status").textContent = "Tap play in the video to start the preview.";
+        },
+        onError: function () {
+          if (frame === newsFrame) $("sn-news-status").textContent = "Preview unavailable. Open the clip on YouTube.";
+        },
+        onStateChange: function (event) {
+          if (frame === newsFrame && event.data === 0 && newsItems.length > 1) selectNews((newsIndex + 1) % newsItems.length);
+        }
+      }
+    });
+  }
+  function selectNews(index) {
+    if (!newsItems[index]) return;
+    var clip = newsItems[index];
+    newsIndex = index;
+    newsLastAdvance = performance.now();
+    $("sn-news-open").href = "https://www.youtube.com/watch?v=" + clip.id;
+    $("sn-news-status").textContent = clip.source + " · " + clip.title;
+    $("sn-news-next").disabled = newsItems.length < 2;
+    if (newsPlayerReady) newsPlayer.loadVideoById(clip.id);
+    else prepareNewsPlayer();
+  }
+  function stopNews() {
+    if (newsPlayer) {
+      newsFrame++;
+      newsPlayer.destroy();
+      newsPlayer = null;
+      newsPlayerReady = false;
+    }
+  }
+  function loadNews(country) {
+    var generation = ++newsGeneration;
+    var previous = newsItems[newsIndex] && newsItems[newsIndex].id;
+    fetchJson("/api/news" + (country ? "?country=" + encodeURIComponent(country) : ""))
+      .then(function (feed) {
+        if (generation !== newsGeneration) return;
+        newsItems = ((feed && feed.items) || []).filter(function (clip) { return /^[\w-]{11}$/.test(clip.id); });
+        var exact = newsItems.findIndex(function (clip) { return clip.id === previous; });
+        var region = feed && feed.country;
+        var regionName = region && Intl.DisplayNames ? new Intl.DisplayNames([navigator.language], { type: "region" }).of(region) : region;
+        $("sn-news-label").textContent = regionName ? regionName + " news" : "World news";
+        $("sn-news-open").hidden = !newsItems.length;
+        $("sn-news-next").hidden = newsItems.length < 2;
+        $("sn-news-preview").hidden = !newsItems.length;
+        if (!newsItems.length) {
+          newsRefresh = performance.now() + 30000;
+          stopNews();
+          $("sn-news-status").textContent = "Recent clips are unavailable. Retrying shortly.";
+        } else if (exact >= 0 && newsPlayer) {
+          newsIndex = exact;
+          $("sn-news-status").textContent = newsItems[exact].source + " · " + newsItems[exact].title;
+        } else selectNews(Math.max(exact, 0));
+      });
+  }
+  function tickNews(now) {
+    var deck = $("sn-news");
+    if (!deck || now < newsRegionCheck) return;
+    newsRegionCheck = now + 900;
+    var show = !cityOn && (tierI === 2 || tierI === 3) && !document.hidden;
+    deck.hidden = !show;
+    if (!show) { stopNews(); return; }
+    var country = tierI === 3 ? countryAt(pointUnder()) : "";
+    if (country !== newsCountry || now >= newsRefresh) {
+      newsCountry = country;
+      newsRefresh = now + 180000;
+      loadNews(country);
+    }
+    if (newsItems.length && !newsPlayer) prepareNewsPlayer();
+    if ($("sn-news-tile").open && newsItems.length > 1 && now - newsLastAdvance > 45000) selectNews((newsIndex + 1) % newsItems.length);
+  }
+  function bindNews() {
+    $("sn-news-tile").addEventListener("toggle", function (event) {
+      if (event.currentTarget.open) prepareNewsPlayer();
+      else stopNews();
+    });
+    $("sn-news-next").addEventListener("click", function () { selectNews((newsIndex + 1) % newsItems.length); });
+    fetchJson("/js/spacenet/assets/news-regions.json?v=" + VER).then(function (regions) {
+      if (Array.isArray(regions)) newsRegions = regions;
+    });
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden && newsPlayerReady) newsPlayer.pauseVideo();
+      if (!document.hidden && newsPlayerReady && !cityOn) newsPlayer.playVideo();
+    });
   }
   function loop(now) {
     var dt = Math.min(0.05, lastT ? (now - lastT) / 1000 : 0.016);
@@ -702,8 +835,8 @@
     if (!introT0) introT0 = now;
     if (intro && now - introT0 >= INTRO_MS) endIntro();
     stepCam(now, dt);
-    tickNews(now);
     if (!cityOn) drawGlobe(now);
+    tickNews(now);
     if (skyOn) drawSky(now);
     maybeLayout();
     requestAnimationFrame(loop);
@@ -765,7 +898,7 @@
           drag.yaw = cam.yaw;
           drag.pitch = cam.pitch;
         }
-        drag.moved = true; intro = false; freeLook = true;
+        drag.moved = true; intro = false;
         if (holdT) { clearTimeout(holdT); holdT = 0; }
       }
       if (!drag.moved) return;
@@ -845,7 +978,7 @@
   function settleTier(i, pt) {
     tierI = i;
     tierLock = Date.now() + (i === 3 ? 750 : 360);
-    freeLook = true;
+
     vel.yaw = 0; vel.pitch = 0;
     var f = face(pt || aim);
     fly = {
@@ -891,7 +1024,6 @@
   }
   function land(pt, open) {
     intro = false;
-    freeLook = false;
     here = { lat: pt.lat, lng: pt.lng };
     aim = { lat: pt.lat, lng: pt.lng };
     window.__SN_HERE = here;
@@ -934,6 +1066,8 @@
     if (!el || typeof L === "undefined") return;
     tierI = 4;
     cityOn = true;
+    $("sn-news").hidden = true;
+    stopNews();
     intro = false;
     fly = null;
     el.classList.add("on");
@@ -1003,7 +1137,7 @@
     cam.dist = TIERS[3].dist;
     tierI = 3;
     tierLock = Date.now() + 450;
-    freeLook = true;
+
     paintViewBtn();
   }
   function plotIdFor(pt) {
@@ -1336,6 +1470,7 @@
     stepTier(cityOn ? 1 : -1);
   }
   function paintViewBtn() {
+    syncAmbient();
     var inBtn = $("sn-view"), outBtn = $("sn-view-out");
     var level = $("sn-level");
     if (level) {
@@ -1460,28 +1595,93 @@
       if (t.html) openSheet(t.title, t.html);
     }
   }
-  function playOfferBeep() {
-    try {
-      var AC = window.AudioContext || window.webkitAudioContext;
-      if (!AC) return;
-      var ctx = playOfferBeep._ctx || (playOfferBeep._ctx = new AC());
-      if (ctx.state === "suspended") ctx.resume().catch(function () {});
-      var now = ctx.currentTime;
-      function tone(f, t0, dur, type) {
-        var o = ctx.createOscillator();
-        var g = ctx.createGain();
-        o.type = type || "sine";
-        o.frequency.value = f;
-        g.gain.setValueAtTime(0.0001, t0);
-        g.gain.exponentialRampToValueAtTime(0.22, t0 + 0.02);
-        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-        o.connect(g); g.connect(ctx.destination);
-        o.start(t0); o.stop(t0 + dur + 0.02);
+  var sound = { enabled: false, news: 65, offers: 65, ambient: 15, helper: 65 };
+  var audioContext, ambientGain, ambientFilter, ambientBand = "";
+  try { Object.assign(sound, JSON.parse(localStorage.getItem("sn:sound")) || {}); } catch (e) {}
+  function soundLevel(track) {
+    return sound.enabled ? Math.max(0, Math.min(100, Number(sound[track]) || 0)) / 100 : 0;
+  }
+  function syncAmbient() {
+    if (!audioContext || !ambientGain) return;
+    var band = cityOn ? "city" : tierI === 3 ? "national" : "space";
+    if (ambientBand !== band) {
+      ambientBand = band;
+      ambientFilter.frequency.setTargetAtTime({ space: 105, national: 240, city: 520 }[band], audioContext.currentTime, .4);
+    }
+    ambientGain.gain.setTargetAtTime(document.hidden ? 0 : soundLevel("ambient") * .28, audioContext.currentTime, .16);
+  }
+  function unlockAudio() {
+    var Audio = window.AudioContext || window.webkitAudioContext;
+    if (!Audio) return null;
+    if (!audioContext) {
+      audioContext = new Audio();
+      var buffer = audioContext.createBuffer(1, audioContext.sampleRate * 3, audioContext.sampleRate);
+      var data = buffer.getChannelData(0);
+      var smooth = 0;
+      for (var i = 0; i < data.length; i++) {
+        smooth = smooth * .985 + (Math.random() * 2 - 1) * .015;
+        data[i] = smooth * 3;
       }
-      tone(880, now, 0.18, "triangle");
-      tone(1320, now + 0.16, 0.22, "sine");
-      tone(1760, now + 0.34, 0.28, "triangle");
-    } catch (e) {}
+      var noise = audioContext.createBufferSource();
+      noise.buffer = buffer;
+      noise.loop = true;
+      ambientFilter = audioContext.createBiquadFilter();
+      ambientFilter.type = "lowpass";
+      ambientGain = audioContext.createGain();
+      ambientGain.gain.value = 0;
+      noise.connect(ambientFilter).connect(ambientGain).connect(audioContext.destination);
+      noise.start();
+    }
+    if (audioContext.state === "suspended") audioContext.resume().catch(function () {});
+    syncAmbient();
+    return audioContext;
+  }
+  function bindSound() {
+    var button = $("sn-sound"), dialog = $("sn-sound-dialog");
+    var controls = dialog.querySelectorAll("input");
+    function paint() {
+      button.classList.toggle("on", sound.enabled);
+      button.setAttribute("aria-label", "Sound settings · " + (sound.enabled ? "on" : "off"));
+      controls.forEach(function (input) {
+        if (input.name === "enabled") input.checked = sound.enabled;
+        else input.value = sound[input.name];
+      });
+    }
+    paint();
+    button.addEventListener("click", function () { dialog.showModal(); });
+    dialog.addEventListener("input", function (event) {
+      var control = event.target;
+      if (control.name === "enabled") sound.enabled = control.checked;
+      else if (Object.hasOwn(sound, control.name)) sound[control.name] = Number(control.value);
+      try { localStorage.setItem("sn:sound", JSON.stringify(sound)); } catch (e) {}
+      if (sound.enabled) unlockAudio();
+      if (!soundLevel("helper") && window.speechSynthesis) speechSynthesis.cancel();
+      applyNewsAudio();
+      if (soundLevel("news") && newsPlayerReady && !cityOn) newsPlayer.playVideo();
+      syncAmbient();
+      paint();
+    });
+    document.addEventListener("visibilitychange", syncAmbient);
+    if (sound.enabled) document.addEventListener("pointerdown", unlockAudio, { once: true });
+  }
+  function playOfferBeep() {
+    var volume = soundLevel("offers");
+    if (!volume) return;
+    var audio = unlockAudio();
+    if (!audio) return;
+    [880, 1320, 1760].forEach(function (frequency, i) {
+      var start = audio.currentTime + i * .16;
+      var oscillator = audio.createOscillator();
+      var gain = audio.createGain();
+      oscillator.type = "triangle";
+      oscillator.frequency.value = frequency;
+      gain.gain.setValueAtTime(.0001, start);
+      gain.gain.exponentialRampToValueAtTime(Math.max(.0001, .17 * volume), start + .02);
+      gain.gain.exponentialRampToValueAtTime(.0001, start + .23);
+      oscillator.connect(gain).connect(audio.destination);
+      oscillator.start(start);
+      oscillator.stop(start + .24);
+    });
   }
   function paintOfferHud() {
     var amount = $("sn-offer-pay");
@@ -2411,11 +2611,40 @@
       if (image) image.close();
     }
   }
+  var starterProducts = [
+    { name: "Margherita pizza", note: "Tomato, mozzarella and basil.", price: 12, photo: "/js/spacenet/assets/products/pizza.webp" },
+    { name: "Espresso", note: "Freshly brewed espresso.", price: 3, photo: "/js/spacenet/assets/products/coffee.webp" },
+    { name: "Amber beer", note: "Chilled amber beer, 330 ml.", price: 5, photo: "/js/spacenet/assets/products/beer.webp" }
+  ];
+  function productGallery() {
+    var recent = loadTestPins().flatMap(function (pin) { return (pin.menu || []).slice().reverse(); });
+    recent.sort(function (a, b) { return (b.savedAt || 0) - (a.savedAt || 0); });
+    var byName = new Map();
+    recent.forEach(function (item) {
+      var key = item.name.trim().toLowerCase();
+      if (!byName.has(key)) byName.set(key, item);
+    });
+    var starters = starterProducts.map(function (item) {
+      var key = item.name.toLowerCase();
+      var reusable = byName.get(key);
+      byName.delete(key);
+      return reusable || item;
+    });
+    return starters.concat(Array.from(byName.values())).slice(0, 15);
+  }
+  function renderGallery(items) {
+    return '<div class="product-gallery" aria-label="Product gallery">' + items.map(function (item, i) {
+      var photo = item.photo ? '<img src="' + escHtml(item.photo) + '" alt="" loading="lazy">' : '';
+      return '<button type="button" data-product="' + i + '">' + photo + '<span>' + escHtml(item.name) + '</span></button>';
+    }).join("") + '</div>';
+  }
   function editTestMenu() {
     if (!vendor || !vendor.test) return;
-    var vendorId = vendor.id;
+    var vendorId = vendor.id, gallery = productGallery(), galleryPhoto = "";
     openSheet("List an item",
       '<form id="test-item-form" class="test-form">' +
+      renderGallery(gallery) +
+      '<p class="note" id="sn-product-selected" aria-live="polite"></p>' +
       '<label>Name<input class="field" name="name" maxlength="80" required></label>' +
       '<label>Photo<input class="field" name="photo" type="file" accept="image/*"></label>' +
       '<label>Description<textarea class="field" name="note" maxlength="300"></textarea></label>' +
@@ -2427,6 +2656,20 @@
       '<p role="alert" class="note"></p><button class="sheet-go primary">Save item</button>' +
       '<button type="button" class="sheet-go" data-act="test-menu">Back</button></form>');
     var form = $("test-item-form");
+    form.addEventListener("click", function (e) {
+      var card = e.target.closest("[data-product]");
+      if (!card) return;
+      var item = gallery[Number(card.dataset.product)];
+      form.elements.name.value = item.name;
+      form.elements.note.value = item.note || "";
+      form.elements.price.value = item.price || "";
+      form.elements.from.value = item.from || "";
+      form.elements.until.value = item.until || "";
+      form.elements.stock.checked = item.stock !== "out";
+      form.elements.photo.value = "";
+      galleryPhoto = item.photo || "";
+      $("sn-product-selected").textContent = item.name + " filled in.";
+    });
     form.addEventListener("submit", async function (e) {
       e.preventDefault();
       var data = new FormData(form);
@@ -2438,14 +2681,14 @@
       if (!!from !== !!until) { alert.textContent = "Enter both availability times."; return; }
       submit.disabled = true;
       try {
-        var photo = await menuPhoto(data.get("photo"));
+        var photo = (await menuPhoto(data.get("photo"))) || galleryPhoto;
         if (!form.isConnected || !vendor || vendor.id !== vendorId) return;
         var pins = loadTestPins();
         var pin = pins.find(function (row) { return row.id === vendorId; });
         if (!pin) throw new Error("This vendor pin was removed.");
         pin.menu = (pin.menu || []).concat({
           name: name, photo: photo, note: data.get("note").trim(), price: Number(data.get("price")),
-          stock: data.has("stock") ? "in" : "out", from: from, until: until,
+          stock: data.has("stock") ? "in" : "out", from: from, until: until, savedAt: Date.now(),
           hours: from && from !== until ? from + "–" + until : "All day"
         });
         if (updateTestPins(pins, true)) {
@@ -3003,11 +3246,14 @@
   function speakIfVoice(s) {
     if (!lastVoice) return;
     lastVoice = false;
+    var volume = soundLevel("helper");
+    if (!volume) return;
     try {
       if (!window.speechSynthesis) return;
       speechSynthesis.cancel();
       var u = new SpeechSynthesisUtterance(String(s || "").slice(0, 280));
       u.lang = "en-GB";
+      u.volume = volume;
       speechSynthesis.speak(u);
     } catch (e) {}
   }
@@ -3207,7 +3453,7 @@
       gps.style.setProperty("bottom", "calc(var(--safe-b) + var(--drawer-h) + var(--gap, 8px))", "important");
     }
     var money = $("sn-money");
-    var powerBtn = $("sn-power"), supportBtn = $("sn-support"), burgerBtn = $("sn-burger");
+    var powerBtn = $("sn-power"), soundBtn = $("sn-sound"), supportBtn = $("sn-support"), burgerBtn = $("sn-burger");
     var rowGap = 8;
     if (powerBtn && burgerBtn) {
       var brr = burgerBtn.getBoundingClientRect();
@@ -3216,6 +3462,10 @@
         powerBtn.style.setProperty("right", "auto", "important");
         powerBtn.style.setProperty("top", Math.round(brr.bottom + rowGap) + "px", "important");
         powerBtn.style.setProperty("bottom", "auto", "important");
+        if (soundBtn) {
+          soundBtn.style.left = Math.round(brr.left) + "px";
+          soundBtn.style.top = Math.round(brr.bottom + 2 * rowGap + powerBtn.offsetHeight) + "px";
+        }
       }
     }
     if (supportBtn && money) {
@@ -3671,6 +3921,8 @@
     bindSearchMic();
     bindDrawer();
     bindMonitor();
+    bindSound();
+    bindNews();
     syncRadarHud();
     var power = $("sn-power");
     if (power && !power.__sn) {
@@ -4110,7 +4362,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4446 = true;
+    window.__SN_4447 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },

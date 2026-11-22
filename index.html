@@ -4,13 +4,13 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4446"/>
+<meta name="astranov-build" content="4447"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
-<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4446"/>
+<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4447"/>
 <style>
 :root{
   --bg:#02040a; --fg:#e8fbff; --muted:#8ec8d8; --accent:#4df0ff;
@@ -337,6 +337,39 @@ textarea.field,#sn-support-matter{min-height:88px}
 #sn-resource-readings i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
 #sn-resource-readings dd{margin:0;text-align:right;color:#9ad7e8}
 
+#sn-sound{
+  position:fixed;z-index:51;left:var(--safe-l);top:calc(var(--safe-t) + var(--top-row) + 52px);
+  width:var(--ctrl);height:var(--ctrl);display:grid;place-items:center;padding:0;
+  border-radius:10px;border:1px solid rgba(77,240,255,.6);background:#04101c;color:#9ad7e8;
+}
+#sn-sound svg{width:20px;height:20px}
+#sn-sound.on{color:#4df0ff;background:#11244a}
+#sn-sound.on .sound-mute{display:none}
+#sn-sound-dialog{
+  box-sizing:border-box;width:min(92vw,360px);padding:14px;border:1px solid #4df0ff;
+  border-radius:14px;background:#040e1c;color:#e8fbff;
+}
+#sn-sound-dialog::backdrop{background:rgba(2,4,10,.55)}
+#sn-sound-dialog label{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:12px 0;font:600 13px system-ui}
+#sn-sound-dialog input{accent-color:#4df0ff}
+#sn-news{
+  position:fixed;z-index:41;right:var(--safe-r);bottom:calc(var(--drawer-h) + 55px);
+  width:min(250px,calc(100vw - 88px));max-height:max(34px,calc(100dvh - var(--drawer-h) - 130px));
+  overflow:auto;border:1px solid rgba(77,240,255,.45);border-radius:10px;background:rgba(4,14,28,.96);
+}
+#sn-news summary{padding:7px 10px;color:#7ee9ff;cursor:pointer;font:700 12px system-ui}
+#sn-news-preview iframe{width:100%;height:200px;border:0;display:block}
+#sn-news-status{padding:0 8px;margin:5px 0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#sn-news-actions{display:flex;gap:6px;padding:0 7px 6px}
+#sn-news .sheet-go{min-height:28px}
+#sn-news [hidden]{display:none}
+.product-gallery{display:flex;gap:6px;overflow-x:auto;padding:2px 0 6px}
+.product-gallery button{
+  flex:0 0 78px;display:grid;align-content:start;gap:4px;padding:4px;border-radius:8px;
+  background:#04101c;color:#e8fbff;border:1px solid rgba(77,240,255,.38);font:600 11px/1.2 system-ui;
+}
+.product-gallery img{width:68px;height:48px;object-fit:cover;border-radius:5px}
+
 </style>
 </head>
 <body>
@@ -355,6 +388,28 @@ textarea.field,#sn-support-matter{min-height:88px}
 <button type="button" id="sn-power" class="off" aria-label="Receive offers" aria-pressed="false">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 2v9M7 5a8 8 0 1 0 10 0"/></svg>
 </button>
+<button type="button" id="sn-sound" aria-label="Sound settings" aria-haspopup="dialog">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 9h4l5-4v14l-5-4H3zM16 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12"/><path class="sound-mute" d="M3 3l18 18"/></svg>
+</button>
+<dialog id="sn-sound-dialog" aria-labelledby="sn-sound-title">
+  <div class="sheet-bar"><b id="sn-sound-title" class="sheet-ttl">Sound</b><form method="dialog"><button class="sheet-x">Close</button></form></div>
+  <label>Enable sound<input name="enabled" type="checkbox"></label>
+  <label>News<input name="news" type="range" min="0" max="100"></label>
+  <label>Offers<input name="offers" type="range" min="0" max="100"></label>
+  <label>Ambient<input name="ambient" type="range" min="0" max="100"></label>
+  <label>AI helper<input name="helper" type="range" min="0" max="100"></label>
+</dialog>
+<aside id="sn-news" aria-label="Video news" hidden>
+  <details id="sn-news-tile" open>
+    <summary id="sn-news-label">World news</summary>
+    <div id="sn-news-preview" hidden></div>
+    <p id="sn-news-status" class="note">Finding recent clips…</p>
+    <div id="sn-news-actions">
+      <button id="sn-news-next" class="sheet-go" type="button" hidden>Next clip</button>
+      <a id="sn-news-open" class="sheet-go" target="_blank" rel="noopener noreferrer" hidden>Open on YouTube</a>
+    </div>
+  </details>
+</aside>
 <button type="button" id="sn-support" aria-label="Support">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 13v-2a8 8 0 0 1 16 0v5a5 5 0 0 1-5 5h-3"/><rect x="3" y="11" width="4" height="6" rx="1"/><rect x="17" y="11" width="4" height="6" rx="1"/></svg>
 </button>
@@ -394,10 +449,10 @@ textarea.field,#sn-support-matter{min-height:88px}
 <div id="toast" role="status"></div>
 <div id="line" role="status"></div>
 
-<script src="/js/vendor/leaflet.js?v=4446"></script>
-<script src="/js/spacenet/partners/types.js?v=4446"></script>
-<script src="/js/spacenet/partners/client.js?v=4446"></script>
-<script src="/js/spacenet/app.js?v=4446"></script>
-<script src="/js/spacenet/auth.js?v=4446"></script>
+<script src="/js/vendor/leaflet.js?v=4447"></script>
+<script src="/js/spacenet/partners/types.js?v=4447"></script>
+<script src="/js/spacenet/partners/client.js?v=4447"></script>
+<script src="/js/spacenet/app.js?v=4447"></script>
+<script src="/js/spacenet/auth.js?v=4447"></script>
 </body>
 </html>

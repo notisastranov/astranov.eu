@@ -1,17 +1,21 @@
-/* SpaceNet SW 4446 — one entity. Tree lock. */
-var CACHE = "sn-shell-4446";
-var VER = "4446";
+/* SpaceNet SW 4447 — one entity. Tree lock. */
+var CACHE = "sn-shell-4447";
+var VER = "4447";
 var SHELL = [
   "/",
   "/index.html",
-  "/js/spacenet/app.js?v=4446",
-  "/js/spacenet/land.pack?v=4446",
-  "/js/spacenet/assets/borders.pack?v=4446",
-  "/js/spacenet/auth.js?v=4446",
-  "/js/spacenet/partners/types.js?v=4446",
-  "/js/spacenet/partners/client.js?v=4446",
-  "/js/vendor/leaflet.js?v=4446",
-  "/js/vendor/leaflet.css?v=4446",
+  "/js/spacenet/app.js?v=4447",
+  "/js/spacenet/land.pack?v=4447",
+  "/js/spacenet/assets/borders.pack?v=4447",
+  "/js/spacenet/assets/news-regions.json?v=4447",
+  "/js/spacenet/assets/products/pizza.webp",
+  "/js/spacenet/assets/products/coffee.webp",
+  "/js/spacenet/assets/products/beer.webp",
+  "/js/spacenet/auth.js?v=4447",
+  "/js/spacenet/partners/types.js?v=4447",
+  "/js/spacenet/partners/client.js?v=4447",
+  "/js/vendor/leaflet.js?v=4447",
+  "/js/vendor/leaflet.css?v=4447",
   "/icon-192.png",
   "/manifest.webmanifest"
 ];
@@ -55,7 +59,7 @@ self.addEventListener("fetch", function (e) {
   var url = new URL(e.request.url);
   if (url.origin !== location.origin) return;
   if (isOverlay(url.pathname)) {
-    e.respondWith(new Response("/* TREE LOCK 4446: overlay blocked */", { headers: { "Content-Type": "application/javascript" }, status: 200 }));
+    e.respondWith(new Response("/* TREE LOCK 4447: overlay blocked */", { headers: { "Content-Type": "application/javascript" }, status: 200 }));
     return;
   }
   if (e.request.mode === "navigate" || url.pathname === "/" || url.pathname === "/index.html") {
