@@ -69,6 +69,7 @@
     write("sn:user", JSON.stringify(row));
     paintMe();
     if (window.SN && SN.paintMoney) SN.paintMoney();
+    window.dispatchEvent(new Event("spacenet:signed-in"));
     return row;
   }
   function user() { try { return JSON.parse(read("sn:user", "null") || "null"); } catch (e) { return null; } }
@@ -123,6 +124,7 @@
     if (t) fetch(SB + "/auth/v1/logout", { method: "POST", headers: headers({ Authorization: "Bearer " + t }) }).catch(function () {});
     paintMe();
     if (window.SN && SN.paintMoney) SN.paintMoney();
+    window.dispatchEvent(new Event("spacenet:signed-out"));
     talk("Signed out.");
   }
   function mailFields() {

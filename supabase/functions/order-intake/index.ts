@@ -78,7 +78,7 @@ function computeQuote(opts: {
   const deliveryEur = distanceFee + weightFee + surcharges.reduce((s, x) => s + x.eur, 0)
   const platformEur = Math.round((goodsEur + deliveryEur) * PRICING.PLATFORM_RATE * 100) / 100
   const totalEur = Math.round((goodsEur + deliveryEur + platformEur) * 100) / 100
-  const driverPayoutEur = Math.round(deliveryEur * 0.85 * 100) / 100
+  const driverPayoutEur = Math.round(deliveryEur * 100) / 100
   return {
     currency: 'AVC',
     peg_eur: 1,
@@ -160,9 +160,11 @@ async function pickDriver(
   return null
 }
 
-async function creditUser(sb: ReturnType<typeof createClient>, uid: string, delta: number): Promise<{ ok: boolean; error?: string }> {
+async function creditUser(sb: ReturnType<typeof createClient>, orderId: string, uid: string, delta: number, kind: string): Promise<{ ok: boolean; error?: string }> {
   if (!uid || !delta) return { ok: true }
-  const { error } = await sb.rpc('add_balance', { uid, delta })
+  const { error } = await sb.rpc('sn_record_marketplace_movement', {
+    order_ref: orderId, account: uid, amount: delta, movement_kind: kind,
+  })
   if (error) return { ok: false, error: error.message }
   return { ok: true }
 }
@@ -176,8 +178,8 @@ async function payoutOnAccept(
   const total = Number(calc.total_avc) || 0
   const deliveryEur = Number(calc.delivery_eur) || Number(calc.delivery_avc) || 0
   const goodsEur = Number(calc.goods_eur) || Math.max(0, total - deliveryEur)
-  const driverPay = Number(calc.driver_payout_eur) || Math.round(deliveryEur * 0.85 * 100) / 100
-  const vendorPay = Math.round(goodsEur * 0.97 * 100) / 100
+  const driverPay = Number(calc.driver_payout_eur) || Math.round(deliveryEur * 100) / 100
+  const vendorPay = Math.round(goodsEur * 100) / 100
   const vendorOwner = vendor.owner_id
   const driverId = order.driver_id as string | undefined
   const cod = !!(order.pay_on_delivery || calc.pay_on_delivery)
@@ -188,13 +190,13 @@ async function payoutOnAccept(
   }
 
   if (vendorOwner && vendorPay > 0) {
-    const r = await creditUser(sb, vendorOwner, vendorPay)
+    const r = await creditUser(sb, String(order.id), vendorOwner, vendorPay, 'vendor_payout')
     if (!r.ok) errors.push('vendor_credit: ' + (r.error || 'failed'))
   } else if (vendorPay > 0 && !vendorOwner) {
     errors.push('vendor_owner_missing')
   }
   if (driverId && driverPay > 0) {
-    const r = await creditUser(sb, driverId, driverPay)
+    const r = await creditUser(sb, String(order.id), driverId, driverPay, 'driver_payout')
     if (!r.ok) errors.push('driver_credit: ' + (r.error || 'failed'))
   }
 
@@ -208,29 +210,29 @@ async function payoutOnDelivered(
 ) {
   const calc = (order.calc || {}) as Record<string, number>
   const cod = !!(order.pay_on_delivery || calc.pay_on_delivery)
-  if (!cod) return null
+  if (!cod || (order.calc as Record<string, unknown> | undefined)?.cod_collected_at) return null
   const total = Number(calc.total_avc) || 0
   const deliveryEur = Number(calc.delivery_eur) || Number(calc.delivery_avc) || 0
   const goodsEur = Number(calc.goods_eur) || Math.max(0, total - deliveryEur)
-  const driverPay = Number(calc.driver_payout_eur) || Math.round(deliveryEur * 0.85 * 100) / 100
-  const vendorPay = Math.round(goodsEur * 0.97 * 100) / 100
+  const driverPay = Number(calc.driver_payout_eur) || Math.round(deliveryEur * 100) / 100
+  const vendorPay = Math.round(goodsEur * 100) / 100
   const vendorOwner = vendor.owner_id
   const driverId = order.driver_id as string | undefined
   const customerId = order.customer_id as string | undefined
 
   const errors: string[] = []
   if (customerId && total > 0) {
-    const r = await creditUser(sb, customerId, -total)
-    if (!r.ok) errors.push('customer_debit: ' + (r.error || 'failed'))
+    const r = await creditUser(sb, String(order.id), customerId, -total, 'delivery_collection')
+    if (!r.ok) return { vendorPay: 0, driverPay: 0, vendorOwner, driverId, cod_collected: false, total, errors: ['customer_debit: ' + (r.error || 'failed')] }
   }
   if (vendorOwner && vendorPay > 0) {
-    const r = await creditUser(sb, vendorOwner, vendorPay)
+    const r = await creditUser(sb, String(order.id), vendorOwner, vendorPay, 'vendor_payout')
     if (!r.ok) errors.push('vendor_credit: ' + (r.error || 'failed'))
   } else if (vendorPay > 0 && !vendorOwner) {
     errors.push('vendor_owner_missing')
   }
   if (driverId && driverPay > 0) {
-    const r = await creditUser(sb, driverId, driverPay)
+    const r = await creditUser(sb, String(order.id), driverId, driverPay, 'driver_payout')
     if (!r.ok) errors.push('driver_credit: ' + (r.error || 'failed'))
   }
 
@@ -317,6 +319,9 @@ async function handleDriverAccept(sb: ReturnType<typeof createClient>, body: Rec
 
   const now = new Date().toISOString()
   const payouts = order.driver_accepted_at ? null : await payoutOnAccept(sb, order, vendor || { id: order.vendor_id, name: 'Vendor' })
+  if (payouts?.errors?.some(message => !message.endsWith('_missing'))) {
+    return new Response(JSON.stringify({ error: 'settlement_pending', payouts }), { status: 409, headers: cors })
+  }
 
   const { data: updated, error } = await sb.from('orders').update({
     driver_id: order.driver_id,
@@ -381,6 +386,9 @@ async function handleStatusUpdate(sb: ReturnType<typeof createClient>, body: Rec
     patch.delivered_at = new Date().toISOString()
     const { data: vendor } = await sb.from('vendors').select('id, name, owner_id').eq('id', order.vendor_id).maybeSingle()
     codPayouts = await payoutOnDelivered(sb, order, vendor || { id: order.vendor_id, name: 'Vendor' })
+    if (codPayouts && (!codPayouts.cod_collected || codPayouts.errors?.some(message => !message.endsWith('_missing')))) {
+      return new Response(JSON.stringify({ error: 'settlement_pending', payouts: codPayouts }), { status: 409, headers: cors })
+    }
     if (codPayouts) {
       patch.calc = {
         ...(order.calc || {}),
@@ -560,30 +568,10 @@ async function handleCreateOrder(sb: ReturnType<typeof createClient>, body: Reco
   }
   const totalAvc = serverQuote.total_avc
 
-  let balanceAfter: number | null = null
-  let paid = false
   const cod = !!pay_on_delivery
-  if (pay_with_balance && !cod) {
-    if (!customerId) {
-      return new Response(JSON.stringify({ error: 'login_required' }), { status: 401, headers: cors })
-    }
-    const { data: ledger } = await sb.from('balance_ledger').select('balance').eq('user_id', customerId).maybeSingle()
-    let balance = Number(ledger?.balance) || 0
-    if (!ledger) {
-      const { data: prof } = await sb.from('profiles').select('balance').eq('id', customerId).single()
-      balance = Number(prof?.balance) || 0
-    }
-    if (balance < totalAvc) {
-      return new Response(JSON.stringify({
-        error: 'insufficient_balance',
-        balance,
-        needed: totalAvc,
-      }), { status: 402, headers: cors })
-    }
-    const { error: payErr } = await sb.rpc('add_balance', { uid: customerId, delta: -totalAvc })
-    if (payErr) throw payErr
-    balanceAfter = balance - totalAvc
-    paid = true
+  const paid = !!pay_with_balance && !cod
+  if (paid && !customerId) {
+    return new Response(JSON.stringify({ error: 'login_required' }), { status: 401, headers: cors })
   }
 
   const calcOut = {
@@ -591,7 +579,9 @@ async function handleCreateOrder(sb: ReturnType<typeof createClient>, body: Reco
     ...serverQuote,
     total_avc: totalAvc,
     quote_validated_at: new Date().toISOString(),
-    ...(paid ? { paid: true, paid_at: new Date().toISOString(), balance_after: balanceAfter } : {}),
+    paid,
+    paid_at: paid ? new Date().toISOString() : null,
+    balance_after: null,
     ...(cod ? { pay_on_delivery: true } : {}),
   }
 
@@ -618,22 +608,15 @@ async function handleCreateOrder(sb: ReturnType<typeof createClient>, body: Reco
     row.driver_emoji = driver.emoji
   }
 
-  const { data: order, error } = await sb.from('orders').insert(row).select().single()
+  const { data: order, error } = await sb.rpc('sn_create_marketplace_order', {
+    order_payload: row,
+    issue_invoice: paid,
+  })
   if (error) throw error
-
-  if (paid && customerId) {
-    await sb.from('invoices').insert({
-      id: 'INV-' + String(order.short_id || order.id).replace(/^ORD-/, ''),
-      order_id: String(order.id),
-      vendor_name: vendor.name,
-      buyer_id: customerId,
-      items,
-      subtotal: totalAvc,
-      total: totalAvc,
-      currency: 'AVC',
-      status: 'paid',
-    }).catch(() => {})
+  if (order?.error === 'insufficient_balance') {
+    return new Response(JSON.stringify(order), { status: 402, headers: cors })
   }
+  const balanceAfter = paid ? Number(order.calc?.balance_after) : null
 
   if (customerId) {
     await sb.from('field_events').insert({

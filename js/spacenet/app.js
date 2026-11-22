@@ -1,7 +1,7 @@
-/* SpaceNet 4448 — geographic news tiles, vendor profiles, and test checkout. */
+/* SpaceNet 4449 — delivery choices, drawer momentum, power hold, and browser readings. */
 (function () {
   "use strict";
-  var VER = "4448";
+  var VER = "4449";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -217,7 +217,7 @@
     } catch (e) { return 0; }
   }
   function avcSet(n) {
-    n = Math.max(0, Math.round(Number(n) || 0));
+    n = Math.max(0, Math.round((Number(n) || 0) * 100) / 100);
     try { localStorage.setItem("sn:avc", String(n)); } catch (e) {}
     paintMoney();
     return n;
@@ -255,7 +255,7 @@
     var tgt = btn.querySelector(".tgt") || btn;
     var lbl = btn.querySelector(".lbl");
     if (lbl) lbl.style.display = "none";
-    var n = Math.round(avcGet());
+    var n = avcGet();
     tgt.textContent = n.toLocaleString("en-GB") + " AV€";
     btn.setAttribute("aria-label", "Wallet · " + n + " AV€");
   }
@@ -905,6 +905,7 @@
     });
   }
   function loop(now) {
+    resourceFrames++;
     var dt = Math.min(0.05, lastT ? (now - lastT) / 1000 : 0.016);
     lastT = now;
     if (!introT0) introT0 = now;
@@ -1149,6 +1150,9 @@
     if (!map) {
       map = L.map(el, { zoomControl: false, attributionControl: false, minZoom: 12, maxZoom: 19, scrollWheelZoom: true }).setView([pt.lat, pt.lng], 16);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, minZoom: 12 }).addTo(map);
+      map.on("click", function (e) {
+        if (pickingDestination) nameDestination(e.latlng);
+      });
       map.on("zoomend", function () {
         if (cityOn && !fittingRoute && map.getZoom() <= map.getMinZoom()) closeCity();
       });
@@ -1161,12 +1165,12 @@
       var hold = 0, holdPt = null;
       el.addEventListener("contextmenu", function (e) {
         e.preventDefault();
-        if (!map) return;
+        if (!map || pickingDestination) return;
         var ll = map.mouseEventToLatLng(e);
         if (ll) listAt({ lat: ll.lat, lng: ll.lng });
       });
       el.addEventListener("pointerdown", function (e) {
-        if (e.button || !e.isPrimary || e.target.closest(".leaflet-interactive")) {
+        if (pickingDestination || e.button || !e.isPrimary || e.target.closest(".leaflet-interactive")) {
           cancelHold();
           return;
         }
@@ -1201,6 +1205,7 @@
   }
   function closeCity() {
     if (!cityOn) return;
+    if (pickingDestination) { endDestinationPick(); resumeCheckout(); }
     var center = map.getCenter();
     aim = { lat: center.lat, lng: center.lng };
     clearCityRadar();
@@ -1277,7 +1282,8 @@
       id: "test-" + crypto.randomUUID(),
       role: role, name: "Test " + testRoles[role].toLowerCase(),
       brandIndex: role === "vendor" ? pins.filter(function (pin) { return pin.role === "vendor"; }).length : undefined,
-      lat: listPt.lat, lng: listPt.lng, test: true
+      lat: listPt.lat, lng: listPt.lng, test: true,
+      accountId: role === "client" ? checkoutAccount() : undefined
     });
     updateTestPins(pins);
   }
@@ -1342,6 +1348,7 @@
       lat: listPt.lat,
       lng: listPt.lng,
       gbp: gbpVal,
+      accountId: checkoutAccount(),
       owner: true,
       t: Date.now()
     };
@@ -1563,7 +1570,8 @@
     var rows = loadActors().filter(function (actor) {
       return !isVendorRole(actor.role) || !shopMarks.some(function (mark) { return mark.options.vendorId === actor.id; });
     });
-    rows.concat(loadTestPins()).forEach(function (a) {
+    rows.concat(loadTestPins(), savedDeliveryLocations()).forEach(function (a) {
+      if (a && a.role === "client" && a.accountId && a.accountId !== checkoutAccount()) return;
       if (!a || !isFinite(a.lat) || !isFinite(a.lng)) return;
       var icon = isVendorRole(a.role) ? vendorLogo(a) : '<span aria-hidden="true">' + (actorIcons[a.role] || actorIcons.vendor) + '</span>';
       var title = (testRoles[a.role] || "Delivery service") + " · " + a.name;
@@ -1581,6 +1589,7 @@
         return label;
       }, { direction: "top" });
       mark.on("click", function (e) {
+        if (pickingDestination) { nameDestination(e.latlng); return; }
         if (e && e.originalEvent) L.DomEvent.stop(e.originalEvent);
         if (isVendorRole(a.role)) {
           if (a.test) {
@@ -1600,6 +1609,10 @@
   }
   function openActorSheet(a) {
     if (!a) return;
+    if (a.savedDelivery) {
+      openSheet(a.name, '<button type="button" class="sheet-go primary" data-act="test-client" data-id="' + escHtml(a.id) + '">Deliver here</button>');
+      return;
+    }
     if (a.test) {
       if (a.role === "vendor") { openVendor(a); return; }
       var action = a.role === "client"
@@ -2586,6 +2599,7 @@
         return name;
       }, { direction: "top" });
       mark.on("click", function (e) {
+        if (pickingDestination) { nameDestination(e.latlng); return; }
         if (e && e.originalEvent) L.DomEvent.stop(e.originalEvent);
         openVendor(s);
       });
@@ -2715,9 +2729,9 @@
     return Math.round(sum * 100) / 100;
   }
   function cartFee(sub) { return Math.round((Number(sub) || 0) * FEE_PCT * 100) / 100; }
-  function cartTotal() {
-    var sub = cartSubtotal();
-    return Math.round((sub + cartFee(sub)) * 100) / 100;
+  function orderCharge(subtotal, delivery) {
+    var basis = subtotal + delivery;
+    return Math.round((basis + cartFee(basis)) * 100) / 100;
   }
   function openVendor(s) {
     vendor = s;
@@ -2755,7 +2769,7 @@
     openSheet(vendor.name + " · Menu",
       rows + '<button type="button" class="sheet-go" data-act="edit-test-menu">List an item</button>' +
       vendorContact(vendor) + '<button type="button" class="sheet-go" data-act="edit-test-vendor">Edit vendor</button>' +
-      '<button type="button" class="sheet-go primary" data-act="test-checkout"' + (cartSubtotal() > 0 ? "" : " disabled") + '>Cart · ' + cartTotal() + ' AV€</button>' +
+      '<button type="button" class="sheet-go primary" data-act="test-checkout"' + (cartSubtotal() > 0 ? "" : " disabled") + '>Cart · ' + cartSubtotal() + ' AV€</button>' +
       removeTestPinButton(vendor));
   }
   async function menuPhoto(file) {
@@ -2914,43 +2928,154 @@
     }
     return id;
   }
-  function openTestCheckout() {
-    if (!vendor || !vendor.test || !cartSubtotal()) return;
-    var shop = vendor;
-    var paidTest = signed();
-    var pins = loadTestPins();
-    var clients = pins.filter(function (pin) { return pin.role === "client"; });
-    var drivers = pins.filter(function (pin) { return pin.role === "driver"; });
-    if (!clients.length || !drivers.length) {
-      openSheet("Test checkout", '<p class="note">Place a test client and driver on the map first.</p>');
+  var pickingDestination = false;
+  function checkoutAccount() {
+    var account = window.SNAuth && SNAuth.user && SNAuth.user();
+    return signed() && authToken() && account ? String(account.id || account.email) : "";
+  }
+  function resumeCheckout() {
+    if (!vendor) return;
+    if (vendor.test) openTestCheckout();
+    else openOrderScreen();
+  }
+  function requireCheckoutSignIn() {
+    if (checkoutAccount()) return true;
+    openSheet("Sign in to order", '<p class="note">Sign in to choose a delivery location and pay.</p>' +
+      '<button type="button" class="sheet-go primary" data-act="checkout-sign-in">Sign in</button>');
+    return false;
+  }
+  function startCheckoutSignIn() {
+    try {
+      sessionStorage.removeItem("sn:history-after-auth");
+      sessionStorage.setItem("sn:checkout-after-auth", JSON.stringify({ vendor: vendor, cart: cart }));
+    } catch (e) {}
+    if (window.SNAuth && SNAuth.open) SNAuth.open();
+  }
+  function restoreCheckoutAfterAuth() {
+    if (!checkoutAccount()) return;
+    var draft, historyPending;
+    try {
+      historyPending = sessionStorage.getItem("sn:history-after-auth") === "1";
+      sessionStorage.removeItem("sn:history-after-auth");
+      draft = JSON.parse(sessionStorage.getItem("sn:checkout-after-auth") || "null");
+      sessionStorage.removeItem("sn:checkout-after-auth");
+    } catch (e) {}
+    if (historyPending) {
+      var historyAuth = $("sn-me-sheet");
+      if (historyAuth) historyAuth.classList.remove("on");
+      openTransactionHistory();
       return;
     }
-    openSheet("Test checkout", '<form id="test-order-form" class="test-form">' +
-      '<label>Deliver to<select name="client" class="field">' + clients.map(function (pin, i) {
+    if (!draft || !draft.vendor || !draft.cart) return;
+    vendor = draft.vendor.test ? loadTestPins().find(function (pin) { return pin.id === draft.vendor.id; }) : draft.vendor;
+    if (!vendor) { closeSheet(); return; }
+    cart = draft.cart;
+    var authSheet = $("sn-me-sheet");
+    if (authSheet) authSheet.classList.remove("on");
+    resumeCheckout();
+  }
+  function deliveryStorageKey() { return "sn:client-locations:" + checkoutAccount(); }
+  function savedDeliveryLocations() {
+    if (!checkoutAccount()) return [];
+    try {
+      var saved = JSON.parse(localStorage.getItem(deliveryStorageKey()) || "[]");
+      return Array.isArray(saved) ? saved : [];
+    } catch (e) { return []; }
+  }
+  function deliveryLocations() {
+    var account = checkoutAccount();
+    var known = loadActors().concat(loadTestPins()).filter(function (pin) {
+      return pin.role === "client" && (!pin.accountId || pin.accountId === account);
+    });
+    return savedDeliveryLocations().concat(known);
+  }
+  function deliveryPicker(clients) {
+    return '<label>Deliver to<select id="sn-checkout-client" class="field" required>' +
+      '<option value="">Choose a client location</option>' + clients.map(function (pin) {
         return '<option value="' + escHtml(pin.id) + '"' + (pin.id === testClientId ? " selected" : "") + '>' +
-          escHtml(pin.name) + ' ' + (i + 1) + ' · ' + pin.lat.toFixed(4) + ', ' + pin.lng.toFixed(4) + '</option>';
-      }).join("") + '</select></label><p class="note" id="sn-test-total"></p>' +
-      (paidTest ? '<p class="note" id="sn-test-credit">Loading test credit…</p>' :
-        '<p class="note">Guest simulation. Sign in to submit and pay with test credits.</p>') +
+          escHtml(pin.name) + ' · ' + Number(pin.lat).toFixed(4) + ', ' + Number(pin.lng).toFixed(4) + '</option>';
+      }).join("") + '</select></label>' +
+      '<button type="button" class="sheet-go" data-act="checkout-new-client">Add a client location on the map</button>';
+  }
+  function selectedDelivery(clients) {
+    return clients.find(function (pin) { return pin.id === $("sn-checkout-client").value; });
+  }
+  function beginDestinationPick() {
+    if (!vendor || !requireCheckoutSignIn()) return;
+    var note = $("sn-order-comment");
+    if (note) cart.comment = note.value;
+    closeSheet();
+    if (!cityOn) openCity(vendor);
+    map.closePopup();
+    pickingDestination = true;
+    $("sn-location-pick").hidden = false;
+    $("city").classList.add("picking-destination");
+  }
+  function endDestinationPick() {
+    pickingDestination = false;
+    $("sn-location-pick").hidden = true;
+    $("city").classList.remove("picking-destination");
+  }
+  function nameDestination(pt) {
+    endDestinationPick();
+    var account = checkoutAccount();
+    if (!account) { requireCheckoutSignIn(); return; }
+    openSheet("New client location", '<form id="sn-client-location-form" class="test-form">' +
+      '<p class="note">' + pt.lat.toFixed(5) + ', ' + pt.lng.toFixed(5) + '</p>' +
+      '<label>Location name<input class="field" name="label" placeholder="Home or a friend’s name" maxlength="80" required></label>' +
+      '<p class="note" role="alert"></p><button class="sheet-go primary">Save and use location</button> ' +
+      '<button type="button" class="sheet-go" data-act="checkout-cancel-client">Back to checkout</button></form>');
+    $("sn-client-location-form").addEventListener("submit", function (e) {
+      e.preventDefault();
+      if (checkoutAccount() !== account) { requireCheckoutSignIn(); return; }
+      var form = e.currentTarget;
+      var label = form.elements.label.value.trim();
+      if (!label) { form.querySelector('[role="alert"]').textContent = "Enter a location name."; return; }
+      var pin = { id: crypto.randomUUID(), name: label, lat: pt.lat, lng: pt.lng, role: "client", savedDelivery: true };
+      var locations = savedDeliveryLocations();
+      locations.unshift(pin);
+      try {
+        localStorage.setItem(deliveryStorageKey(), JSON.stringify(locations.slice(0, 120)));
+      } catch (err) {
+        form.querySelector('[role="alert"]').textContent = "This browser could not save the new location.";
+        return;
+      }
+      testClientId = pin.id;
+      paintActorsOnMap();
+      resumeCheckout();
+    });
+  }
+  function openTestCheckout() {
+    if (!vendor || !vendor.test || !cartSubtotal()) return;
+    if (!requireCheckoutSignIn()) return;
+    var shop = vendor;
+    var clients = deliveryLocations();
+    var drivers = loadTestPins().filter(function (pin) { return pin.role === "driver"; });
+    openSheet("Test checkout", '<form id="test-order-form" class="test-form">' +
+      deliveryPicker(clients) + '<p class="note" id="sn-test-total"></p>' +
+      '<p class="note" id="sn-test-credit">Loading test credit…</p>' +
       '<p role="alert" class="note"></p>' +
-      '<button class="sheet-go primary">' + (paidTest ? "Pay and place test order" : "Place test order") + '</button>' +
+      '<button class="sheet-go primary" disabled>Pay and place test order</button>' +
       '<button type="button" class="sheet-go" data-act="test-menu">Back to menu</button></form>');
     var form = $("test-order-form");
     var selectedQuote;
     function showTotal() {
-      var client = clients.find(function (pin) { return pin.id === form.elements.client.value; });
+      var client = selectedDelivery(clients);
+      form.querySelector('button:not([type])').disabled = !client;
+      $("sn-test-total").textContent = "";
+      testClientId = client ? client.id : "";
       if (!client) return;
       selectedQuote = quoteDelivery(shop, client, {});
       var delivery = selectedQuote.total;
-      $("sn-test-total").textContent = "Cart " + cartTotal() + " AV€ + delivery " + delivery +
-        " AV€ = " + testCoinText(Math.round((cartTotal() + delivery) * 100));
+      $("sn-test-total").textContent = "Cart " + cartSubtotal() + " AV€ + delivery " + delivery +
+        " AV€ + 3% fee = " + testCoinText(Math.round(orderCharge(cartSubtotal(), delivery) * 100));
     }
-    form.elements.client.addEventListener("change", showTotal);
+    $("sn-checkout-client").addEventListener("change", showTotal);
     showTotal();
-    if (paidTest) testCheckoutRequest().then(paintTestCredit);
+    testCheckoutRequest().then(paintTestCredit);
     form.addEventListener("submit", async function (e) {
       e.preventDefault();
-      if (vendor !== shop) return;
+      if (vendor !== shop || !requireCheckoutSignIn()) return;
       var alert = form.querySelector('[role="alert"]');
       var button = form.querySelector('button:not([type])');
       var lines = vendorMenu(shop).filter(function (item) { return cartQty(item.i) > 0; });
@@ -2962,35 +3087,40 @@
         alert.textContent = "Check the availability of the items in your cart.";
         return;
       }
-      var client = clients.find(function (pin) { return pin.id === form.elements.client.value; });
+      var client = selectedDelivery(clients);
       if (!client) return;
+      if (!drivers.length) {
+        alert.textContent = "Place a test driver on the map before paying.";
+        return;
+      }
       var quote = selectedQuote;
       var items = lines.map(function (item) {
         return { name: item.name, qty: cartQty(item.i), unit_cents: Math.round(item.price * 100) };
       });
-      var orderId = crypto.randomUUID();
-      if (paidTest) {
-        var payload = {
-          vendor: { id: shop.id, name: shop.name, lat: shop.lat, lng: shop.lng },
-          drop: { id: client.id, name: client.name, lat: client.lat, lng: client.lng },
-          items: items,
-          delivery_cents: Math.round(quote.driver * 100)
-        };
-        orderId = testOrderKey(payload);
-        button.disabled = true;
-        testSubmitting = true;
-        alert.textContent = "";
-        var result = await testCheckoutRequest({ order_id: orderId, payload: payload });
-        button.disabled = false;
-        testSubmitting = false;
-        if (!result.id) {
-          alert.textContent = result.error === "insufficient_test_credit" ? "Not enough test credit for this order." :
-            result.error === "auth_required" || result.error === "auth_changed" ? "Sign in again to use test credit." :
-            "Order confirmation unavailable. Retry to check the same order.";
-          return;
-        }
-        try { sessionStorage.removeItem("sn:test-submit"); } catch (err) {}
+      var payload = {
+        vendor: { id: shop.id, name: shop.name, lat: shop.lat, lng: shop.lng },
+        drop: { id: client.id, name: client.name, lat: client.lat, lng: client.lng },
+        items: items,
+        delivery_cents: Math.round(quote.driver * 100)
+      };
+      var orderId = testOrderKey(payload);
+      button.disabled = true;
+      $("sn-checkout-client").disabled = true;
+      form.querySelector('[data-act="checkout-new-client"]').disabled = true;
+      testSubmitting = true;
+      alert.textContent = "";
+      var result = await testCheckoutRequest({ order_id: orderId, payload: payload });
+      button.disabled = false;
+      form.querySelector("select").disabled = false;
+      form.querySelector('[data-act="checkout-new-client"]').disabled = false;
+      testSubmitting = false;
+      if (!result.id) {
+        alert.textContent = result.error === "insufficient_test_credit" ? "Not enough test credit for this order." :
+          result.error === "auth_required" || result.error === "auth_changed" ? "Sign in again to use test credit." :
+          "Order confirmation unavailable. Retry to check the same order.";
+        return;
       }
+      try { sessionStorage.removeItem("sn:test-submit"); } catch (err) {}
       if (form.isConnected && vendor === shop) cart.items = {};
       testOrder = {
         id: "test-order-" + orderId, test: true, stage: 0,
@@ -3030,7 +3160,7 @@
         '<em>' + q + "</em>" +
         '<button type="button" data-act="qty-plus" data-i="' + m.i + '">+</button></div></div></div>';
     }).join("");
-    var sub = cartSubtotal(), fee = cartFee(sub), tot = cartTotal();
+    var sub = cartSubtotal();
     var html =
       '<div class="vendor-banner">' +
         (pic ? '<img class="vendor-pic" src="' + String(pic).replace(/"/g, "") + '" alt=""/>' : '<div class="vendor-pic ph">' + (ds ? "🚚" : "🏪") + "</div>") +
@@ -3045,9 +3175,8 @@
         "</div></div>" +
       '<b class="menu-ttl">' + (ds ? "DELIVERY SKUS" : "MENU") + "</b>" + rows + vendorContact(s) +
       '<div class="checkout">' +
-        '<p class="note">Subtotal ' + sub + " AV€ · fee 3% " + fee + " AV€ · <b>" + tot + " AV€</b> (only fee)</p>" +
+        '<p class="note">Cart subtotal ' + sub + " AV€</p>" +
         '<button type="button" class="sheet-go primary" data-act="open-order"' + (sub > 0 ? "" : " disabled") + ">CHECKOUT AV€</button>" +
-        '<button type="button" class="sheet-go" data-act="gpsdrop">DELIVER TO GPS</button>' +
         '<button type="button" class="sheet-go" data-act="close">HIDE</button></div>';
     openSheet(String(s.name || "VENDOR").toUpperCase(), html);
   }
@@ -3056,6 +3185,8 @@
     var menu = vendorMenu(vendor);
     var lines = menu.filter(function (m) { return cartQty(m.i) > 0; });
     if (!lines.length) { say("Add items with +."); return; }
+    if (!requireCheckoutSignIn()) return;
+    var clients = deliveryLocations();
     var rows = lines.map(function (m) {
       return '<div class="menu-row"><div class="menu-body"><b>' + String(m.name).replace(/[<>]/g, "") + "</b>" +
         '<span class="menu-meta">' + m.price + " AV€ each</span>" +
@@ -3063,14 +3194,23 @@
         '<em>' + cartQty(m.i) + "</em>" +
         '<button type="button" data-act="qty-plus" data-i="' + m.i + '" data-order="1">+</button></div></div></div>';
     }).join("");
-    var sub = cartSubtotal(), fee = cartFee(sub), tot = cartTotal();
-    openSheet("ORDER · AV€",
-      '<p class="note">Edit items / qty. Comments optional. Checkout in Astranov AV€. Fee 3% forever — only fee.</p>' +
-      rows +
-      '<textarea id="sn-order-comment" class="field" placeholder="Order comments">' + String(cart.comment || "").replace(/</g, "") + "</textarea>" +
-      '<div class="checkout"><p class="note">Subtotal ' + sub + " · 3% " + fee + " · <b>total " + tot + " AV€</b></p>" +
-      '<button type="button" class="sheet-go primary" data-act="pay-avc">PAY ' + tot + " AV€</button>" +
-      '<button type="button" class="sheet-go" data-act="back-vendor">EDIT MENU</button></div>');
+    openSheet("Order · AV€", rows +
+      '<textarea id="sn-order-comment" class="field" placeholder="Order comments">' + escHtml(cart.comment || "") + '</textarea>' +
+      '<div class="checkout test-form">' + deliveryPicker(clients) +
+      '<p class="note" id="sn-cart-total"></p>' +
+      '<button type="button" id="sn-pay-cart" class="sheet-go primary" data-act="pay-avc" disabled>Pay and place order</button>' +
+      '<button type="button" class="sheet-go" data-act="back-vendor">Back to menu</button></div>');
+    function update() {
+      var chosen = selectedDelivery(clients);
+      $("sn-pay-cart").disabled = !chosen;
+      testClientId = chosen ? chosen.id : "";
+      var delivery = chosen ? quoteDelivery(vendor, chosen, quoteOpts).total : 0;
+      $("sn-cart-total").textContent = chosen
+        ? "Cart " + cartSubtotal() + " AV€ + delivery " + delivery + " AV€ + 3% fee = " + orderCharge(cartSubtotal(), delivery) + " AV€"
+        : "Cart " + cartSubtotal() + " AV€";
+    }
+    $("sn-checkout-client").addEventListener("change", update);
+    update();
   }
 
   function offersArmed() {
@@ -3246,14 +3386,17 @@
   }
 
   function payCartAvc() {
-    if (!signed()) { needLogin("LOGIN to pay in AV€."); return; }
+    if (!requireCheckoutSignIn()) return;
+    if (!$("sn-checkout-client")) return;
+    var destination = selectedDelivery(deliveryLocations());
+    if (!destination) return;
     var ta = $("sn-order-comment");
     if (ta) cart.comment = String(ta.value || "").trim().slice(0, 500);
-    var tot = cartTotal();
+    var tot = cartSubtotal();
     if (tot <= 0) { say("Cart empty."); return; }
-    if (!drop) drop = here || { lat: vendor.lat + 0.01, lng: vendor.lng + 0.01 };
+    drop = destination;
     var q = quoteDelivery(vendor, drop, quoteOpts);
-    var due = tot + q.total; /* cart + delivery (surcharges in) · delivery paid upfront */
+    var due = orderCharge(tot, q.total);
     if (avcGet() < due) {
       openSheet("TOP UP AV€",
         '<p class="note">Need ' + due + " AV€ (order " + tot + " + delivery " + q.total + " upfront). You have " + Math.round(avcGet()) + " AV€.</p>" +
@@ -3272,7 +3415,7 @@
       fee: q.total,
       driverPay: q.driver,
       orderTotal: tot,
-      cut: cartFee(cartSubtotal()),
+      cut: cartFee(tot + q.total),
       quote: { base: q.base, night: q.night, extraKm: q.extraKm, weather: q.weather, floor: q.floor },
       prepMin: VENDOR_PREP_MIN,
       currency: "AV€",
@@ -3287,6 +3430,7 @@
     };
     jobs.unshift(job);
     saveJobs();
+    recordOrderPayment(job, due, job.cut);
     routeOrderToLive(job);
     cart = { items: {}, comment: "" };
     closeSheet();
@@ -3312,7 +3456,7 @@
       '<button type="button" class="sheet-go" data-act="weather">' + (quoteOpts.rain ? "BAD WEATHER +1 ON" : "BAD WEATHER +1") + "</button>" +
       '<button type="button" class="sheet-go" data-act="floor">' + (quoteOpts.floor ? "NON-GROUND / ROOM +1 ON" : "NON-GROUND / ROOM +1") + "</button>" +
       (signed()
-        ? '<button type="button" class="sheet-go primary" data-act="send">PAY DELIVERY · ' + q.total + " AV€</button>"
+        ? '<button type="button" class="sheet-go primary" data-act="send">PAY DELIVERY · ' + orderCharge(0, q.total) + " AV€</button>"
         : '<button type="button" class="sheet-go primary" data-act="needlogin">LOGIN TO PAY · ' + q.total + " AV€</button>");
     openSheet("QUOTE", html);
     var note = $("sn-sheet-body") && $("sn-sheet-body").querySelector(".note");
@@ -3356,17 +3500,17 @@
     if (!vendor || !drop) return;
     if (!signed()) return;
     var q = quoteDelivery(vendor, drop, quoteOpts);
-    /* Delivery charge paid by client upfront at order time, before delivery */
-    if (avcGet() < q.total) {
+    var due = orderCharge(0, q.total);
+    if (avcGet() < due) {
       openSheet("TOP UP AV€",
-        '<p class="note">Delivery ' + q.total + " AV€ due upfront. You have " + Math.round(avcGet()) + " AV€.</p>" +
+        '<p class="note">Delivery and 3% fee ' + due + " AV€ due upfront. You have " + Math.round(avcGet()) + " AV€.</p>" +
         '<input id="sn-add-eur" inputmode="decimal" placeholder="Euro to top up" value="20" />' +
         '<button type="button" class="sheet-go primary" data-act="topup" data-rail="paypal">PAYPAL</button>' +
         '<button type="button" class="sheet-go" data-act="topup" data-rail="stripe">STRIPE</button>' +
         '<button type="button" class="sheet-go" data-act="topup" data-rail="revolut">REVOLUT</button>');
       return;
     }
-    avcSet(avcGet() - q.total);
+    avcSet(avcGet() - due);
     var job = {
       id: "j" + Date.now().toString(36),
       vendor: vendor,
@@ -3385,6 +3529,7 @@
     };
     jobs.unshift(job);
     saveJobs();
+    recordOrderPayment(job, due, cartFee(q.total));
     routeOrderToLive(job);
     closeSheet();
     openJobs();
@@ -3596,24 +3741,51 @@
     if (node) node.textContent = "";
     layoutChrome();
   }
+  var resourceFrames = 0;
   function bindMonitor() {
     var button = $("sn-resources"), dialog = $("sn-resource-dialog");
     if (!button || !dialog) return;
     var battery = null, blockedMs = 0, observer = null;
-    if (navigator.getBattery) navigator.getBattery().then(function (value) { battery = value; }).catch(function () {});
+    var probeAt = 0, responseMs = null, probeFailed = false, probing = false;
+    if (navigator.getBattery) {
+      Promise.resolve().then(function () { return navigator.getBattery(); })
+        .then(function (value) { battery = value; }).catch(function () {});
+    }
     if (window.PerformanceObserver && (PerformanceObserver.supportedEntryTypes || []).includes("longtask")) {
-      observer = new PerformanceObserver(function (list) {
-        list.getEntries().forEach(function (entry) { blockedMs += entry.duration; });
-      });
-      observer.observe({ type: "longtask" });
+      try {
+        observer = new PerformanceObserver(function (list) {
+          list.getEntries().forEach(function (entry) { blockedMs += entry.duration; });
+        });
+        observer.observe({ type: "longtask" });
+      } catch (e) { observer = null; }
     }
     var metrics = [
       { name: "Battery", color: "#7dff9a" },
-      { name: "RAM · browser JS heap", color: "#7ee9ff" },
-      { name: "CPU · page long-task time", color: "#ffd080" },
-      { name: "Network · estimated downlink", color: "#ccb5ff" },
+      { name: "Memory", color: "#7ee9ff" },
+      { name: "CPU & app performance", color: "#ffd080" },
+      { name: "Network", color: "#ccb5ff" },
       { name: "Device temperature", color: "#ff9ba9" }
     ];
+    async function probeNetwork() {
+      if (probing || !navigator.onLine || document.hidden) return;
+      probing = true;
+      probeAt = performance.now();
+      var controller = new AbortController();
+      var timeout = setTimeout(function () { controller.abort(); }, 4500);
+      try {
+        var response = await fetch("/api/version?probe=" + Date.now(), { cache: "no-store", signal: controller.signal });
+        if (!response.ok) throw new Error("Version endpoint unavailable");
+        await response.json();
+        responseMs = Math.round(performance.now() - probeAt);
+        probeFailed = false;
+      } catch (e) {
+        responseMs = null;
+        probeFailed = true;
+      } finally {
+        clearTimeout(timeout);
+        probing = false;
+      }
+    }
     var history = [], values = [], alerts = [], lastSample = performance.now();
     function draw(canvas, overview) {
       var graph = canvas.getContext("2d"), w = canvas.width, h = canvas.height;
@@ -3655,17 +3827,31 @@
       var heap = performance.memory;
       var ram = heap && heap.jsHeapSizeLimit > 0 ? heap.usedJSHeapSize / heap.jsHeapSizeLimit : null;
       var cpu = observer && elapsed > 0 ? Math.min(1, blockedMs / elapsed) : null;
-      var connection = navigator.connection;
+      var frames = elapsed >= 500 ? Math.round(resourceFrames * 1000 / elapsed) : null;
+      var connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
       var downlink = connection && Number.isFinite(connection.downlink) ? connection.downlink : null;
-      var level = battery ? battery.level : null;
+      var level = battery && Number.isFinite(battery.level) ? battery.level : null;
       var offline = !navigator.onLine;
+      var memory = [];
+      var performanceReadings = [];
+      var network = [];
       blockedMs = 0;
+      resourceFrames = 0;
       if (document.hidden) return;
+      if (dialog.open && now - probeAt >= 15000) probeNetwork();
+      if (Number.isFinite(navigator.deviceMemory)) memory.push("Approx. " + navigator.deviceMemory + " GB device RAM");
+      if (ram != null) memory.push(Math.round(ram * 100) + "% of JS heap limit");
+      if (Number.isFinite(navigator.hardwareConcurrency)) performanceReadings.push(navigator.hardwareConcurrency + " logical cores visible");
+      if (frames != null) performanceReadings.push(frames + " app FPS");
+      if (cpu != null) performanceReadings.push(Math.round(cpu * 100) + "% page long-task time");
+      if (downlink != null) network.push(downlink + " Mbps estimate");
+      if (responseMs != null) network.push(responseMs + " ms SpaceNet response");
+      else if (probeFailed) network.push("SpaceNet response unavailable");
       values = [
-        level == null ? "Unavailable" : Math.round(level * 100) + "%" + (battery.charging ? " · charging" : ""),
-        ram == null ? "Unavailable" : Math.round(ram * 100) + "% of JS heap limit",
-        cpu == null ? "Unavailable" : Math.round(cpu * 100) + "% of sample interval",
-        offline ? "Offline" : downlink == null ? "Downlink unavailable" : downlink + " Mbps estimate",
+        level == null ? "Unavailable in this browser" : Math.round(level * 100) + "%" + (battery.charging ? " · charging" : ""),
+        memory.join(" · ") || "Unavailable in this browser",
+        performanceReadings.join(" · ") || "Unavailable in this browser",
+        offline ? "Offline" : network.join(" · ") || "Online",
         "Unavailable in this browser"
       ];
       alerts = [];
@@ -3673,11 +3859,13 @@
       if (ram != null && ram >= .9) alerts.push("JS heap near limit");
       if (cpu != null && cpu >= .8) alerts.push("Main thread busy");
       if (offline) alerts.push("Network offline");
-      var pressure = [ram, cpu, battery && !battery.charging ? 1 - level : null, offline ? 1 : null]
+      var appPressure = cpu != null ? cpu : frames == null ? null : Math.max(0, 1 - frames / 60);
+      var networkPressure = offline ? 1 : responseMs == null ? null : Math.min(1, responseMs / 1000);
+      var pressure = [ram, appPressure, battery && !battery.charging ? 1 - level : null, networkPressure]
         .filter(function (value) { return value != null; });
       history.push({
         overall: pressure.length ? Math.max.apply(null, pressure) : null,
-        lines: [level, ram, cpu, offline ? 0 : downlink == null ? null : downlink / 10, null]
+        lines: [level, ram, appPressure, networkPressure, null]
       });
       if (history.length > 60) history.shift();
       var label = "Device resources" + (alerts.length ? " · " + alerts.join(", ") : "");
@@ -3687,7 +3875,11 @@
       draw($("sn-spark"), true);
       if (dialog.open) renderDetails();
     }
-    button.addEventListener("click", function () { renderDetails(); dialog.showModal(); });
+    button.addEventListener("click", function () {
+      renderDetails();
+      dialog.showModal();
+      probeNetwork();
+    });
     sample();
     setInterval(sample, 1000);
     window.addEventListener("online", sample);
@@ -3778,11 +3970,13 @@
   }
   var drawerH = 70;
   var drawerDrag = null;
+  var cancelDrawerCoast;
   var cityRadarLayers = [];
   function maxDrawerH() { return Math.max(collapsedDrawerH(), window.innerHeight - 64); }
   function setDrawerHeight(h, dragging) {
     var d = $("drawer");
     if (!d) return;
+    if (!dragging && cancelDrawerCoast) cancelDrawerCoast();
     var minH = collapsedDrawerH();
     var maxH = maxDrawerH();
     drawerH = Math.max(minH, Math.min(maxH, Math.round(h)));
@@ -3802,53 +3996,82 @@
   function escHtml(t) {
     return String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
-  function loadTxns() {
-    try { txns = JSON.parse(localStorage.getItem("sn:txns") || "[]") || []; } catch (e) { txns = []; }
-    if (!Array.isArray(txns)) txns = [];
+  function transactionKey(purpose, account) { return "sn:" + purpose + ":" + account; }
+  function loadAccountRows(purpose, account) {
+    try {
+      var rows = JSON.parse(localStorage.getItem(transactionKey(purpose, account)) || "[]");
+      return Array.isArray(rows) ? rows : [];
+    } catch (e) { return []; }
   }
-  function saveTxnsLocal() {
-    try { localStorage.setItem("sn:txns", JSON.stringify((txns || []).slice(0, 400))); } catch (e) {}
+  function writeAccountRows(purpose, account, rows) {
+    try { localStorage.setItem(transactionKey(purpose, account), JSON.stringify(rows)); return true; }
+    catch (e) { return false; }
+  }
+  function loadTxns() {
+    var account = checkoutAccount();
+    txns = account ? loadAccountRows("txns", account) : [];
   }
   function pullTxnsRemote() {
-    if (!window.SNAuth || !SNAuth.token || !SNAuth.token()) return;
+    var account = checkoutAccount(), token = authToken();
+    if (!account) return;
     fetch("/api/transactions", {
-      headers: { Authorization: "Bearer " + SNAuth.token(), Accept: "application/json" }
+      headers: { Authorization: "Bearer " + token, Accept: "application/json" }
     }).then(function (r) { return r.json(); }).then(function (j) {
-      if (!j || !j.ok || !Array.isArray(j.items)) return;
-      var byId = {};
-      txns.forEach(function (t) { if (t && t.client_id) byId[t.client_id] = t; });
-      j.items.forEach(function (row) {
-        var id = row.client_id || row.id;
-        if (!id) return;
-        byId[id] = {
-          client_id: id,
-          kind: row.kind,
-          status: row.status,
-          summary: row.summary,
-          amount_avc: row.amount_avc,
-          exchange: row.exchange || [],
-          created_at: row.created_at,
-          completed_at: row.completed_at,
-          retain_until: row.retain_until
-        };
+      if (account !== checkoutAccount() || !j || !j.ok || !Array.isArray(j.items)) return;
+      var united = new Map(loadAccountRows("txns", account).map(function (row) { return [row.client_id, row]; }));
+      j.items.forEach(function (row) { united.set(row.client_id || row.id, row); });
+      var sorted = Array.from(united.values()).sort(function (a, b) {
+        return String(b.completed_at || b.created_at || "").localeCompare(String(a.completed_at || a.created_at || ""));
       });
-      txns = Object.keys(byId).map(function (k) { return byId[k]; });
-      txns.sort(function (a, b) { return String(b.completed_at || b.created_at || "").localeCompare(String(a.completed_at || a.created_at || "")); });
-      saveTxnsLocal();
+      writeAccountRows("txns", account, sorted.slice(0, 400));
       paintDrawerContent();
     }).catch(function () {});
   }
-  function persistTxnRemote(row) {
-    if (!window.SNAuth || !SNAuth.token || !SNAuth.token()) return;
-    fetch("/api/transactions", {
-      method: "POST",
-      headers: {
-        Authorization: "Bearer " + SNAuth.token(),
-        "Content-Type": "application/json",
-        Accept: "application/json"
-      },
-      body: JSON.stringify(row)
-    }).catch(function () {});
+  var txnsFlushing = new Set();
+  async function flushTransactions() {
+    var account = checkoutAccount(), token = authToken();
+    if (!account || txnsFlushing.has(account)) return;
+    txnsFlushing.add(account);
+    try {
+      while (account === checkoutAccount() && token === authToken()) {
+        var pending = loadAccountRows("txn-outbox", account);
+        if (!pending.length) break;
+        var current = pending[0];
+        var response = await fetch("/api/transactions", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+          body: JSON.stringify(current)
+        });
+        var result = await response.json();
+        if (!response.ok || !result.ok) break;
+        var remaining = loadAccountRows("txn-outbox", account).filter(function (row) {
+          return row.client_id !== current.client_id || JSON.stringify(row) !== JSON.stringify(current);
+        });
+        if (!writeAccountRows("txn-outbox", account, remaining)) break;
+      }
+    } catch (err) {
+      // The next online event, sign-in, or transaction retries the saved rows.
+    } finally { txnsFlushing.delete(account); }
+  }
+  function recordTransaction(row) {
+    var account = checkoutAccount();
+    if (!account) return;
+    var queued = loadAccountRows("txn-outbox", account);
+    var local = loadAccountRows("txns", account);
+    if (!writeAccountRows("txn-outbox", account, [row].concat(queued.filter(function (entry) { return entry.client_id !== row.client_id; })))) {
+      say("Transaction history could not be saved on this device.");
+      return;
+    }
+    writeAccountRows("txns", account, [row].concat(local.filter(function (entry) { return entry.client_id !== row.client_id; })).slice(0, 400));
+    flushTransactions();
+  }
+  function recordOrderPayment(job, amount, platformFee) {
+    recordTransaction({
+      client_id: "pay-" + job.id, kind: "order_payment", status: "paid",
+      summary: (job.vendor && job.vendor.name) || "Order",
+      amount_avc: amount, created_at: new Date(job.t).toISOString(),
+      payload: { order_id: job.id, platform_fee: platformFee, delivery_fee: job.fee }
+    });
   }
   function archiveTransaction(job, exchange) {
     loadTxns();
@@ -3871,9 +4094,7 @@
       created_at: (job && job.created_at) || new Date().toISOString(),
       completed_at: new Date().toISOString()
     };
-    txns = [row].concat(txns.filter(function (t) { return t.client_id !== row.client_id; }));
-    saveTxnsLocal();
-    persistTxnRemote(row);
+    recordTransaction(row);
     activeExchange = [];
     /* Close current-task chrome; history remains. */
     dockTabs = dockTabs.filter(function (t) { return !(t.kind === "offer" && String(t.jobId) === String(job && job.id)); });
@@ -3883,6 +4104,148 @@
     paintDockTabs();
     paintDrawerContent();
     setDrawerHeight(collapsedDrawerH());
+  }
+  function transactionDate(value) {
+    return value ? new Date(value).toLocaleString(undefined, { timeZone: "Europe/Athens" }) : "";
+  }
+  function transactionType(kind) {
+    if (kind === "invoice") return "Invoice";
+    if (kind === "test_order") return "Test order";
+    if (kind === "order_payment") return "Order payment";
+    if (kind === "delivery") return "Delivery";
+    return String(kind || "").replace(/^wallet:/, "Wallet · ").replace(/[_-]/g, " ");
+  }
+  async function historyPage(filters, offset, limit) {
+    var token = authToken();
+    var params = new URLSearchParams(Object.assign({ history: "1", offset: offset, limit: limit }, filters));
+    var response = await fetch("/api/transactions?" + params, {
+      headers: { Authorization: "Bearer " + token }, cache: "no-store"
+    });
+    var data = await response.json();
+    if (token !== authToken() || !response.ok || !data.ok) throw new Error("History could not be loaded.");
+    return data;
+  }
+  function saveTransactionFile(name, content, type) {
+    var url = URL.createObjectURL(new Blob([content], { type: type + ";charset=utf-8" }));
+    var download = document.createElement("a");
+    download.href = url;
+    download.download = name;
+    download.click();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+  function downloadInvoice(row) {
+    var doc = row.document;
+    if (!doc || row.kind !== "invoice") return;
+    var items = Array.isArray(doc.items) ? doc.items : [];
+    var contents = '<!doctype html><html lang="en"><meta charset="utf-8"><title>' + escHtml(doc.id) +
+      '</title><style>body{font:15px system-ui;margin:40px}td,th{padding:6px;text-align:left}table{border-collapse:collapse}tr{border-bottom:1px solid #bbb}</style>' +
+      '<h1>Invoice ' + escHtml(doc.id) + '</h1><p>' + escHtml(transactionDate(row.event_at)) + ' · Athens time</p>' +
+      '<p>Vendor ' + escHtml(doc.vendor) + ' · Order ' + escHtml(doc.order_id) + '</p>' +
+      '<p>Record mark ' + escHtml(doc.mark || "Unavailable") +
+      (doc.mydata_mark && !/^LOCAL-/i.test(doc.mydata_mark) ? ' · myDATA ' + escHtml(doc.mydata_mark) : '') + '</p>' +
+      '<table><thead><tr><th>Item</th><th>Quantity</th><th>Unit price</th></tr></thead><tbody>' +
+      items.map(function (item) {
+        return '<tr><td>' + escHtml(item.name || item.title || "") + '</td><td>' + escHtml(item.qty || item.quantity || "") +
+          '</td><td>' + escHtml(item.price != null ? item.price : item.unit_price) + '</td></tr>';
+      }).join("") + '</tbody></table>' +
+      '<p>Subtotal ' + escHtml(doc.subtotal) + ' · Delivery ' + escHtml(doc.delivery_fee) + ' · Platform fee ' + escHtml(doc.platform_fee) +
+      '</p><p><b>Total ' + escHtml(doc.total) + ' ' + escHtml(row.currency) + '</b></p></html>';
+    saveTransactionFile(String(doc.id).replace(/[^\w.-]/g, "_") + ".html", contents, "text/html");
+  }
+  function csvCell(value) {
+    var text = String(value == null ? "" : value);
+    if (typeof value === "string" && /^\s*[=+\-@]/.test(text)) text = "'" + text;
+    return '"' + text.replace(/"/g, '""') + '"';
+  }
+  async function exportHistory(filters) {
+    var lines = ["Date (UTC),Type,Status,Description,Amount,Currency,Source,Role,Record ID,Account ID,Invoice ID,Platform fee,Retain until"];
+    var offset = 0, page;
+    do {
+      page = await historyPage(filters, offset, 250);
+      page.items.forEach(function (row) {
+        lines.push([row.event_at, row.kind, row.status, row.summary, Number(row.amount), row.currency, row.source,
+          row.access_role, row.id, row.account_id, row.document && row.document.id,
+          row.document && row.document.platform_fee != null ? Number(row.document.platform_fee) : "", row.retain_until].map(csvCell).join(","));
+      });
+      offset += page.items.length;
+    } while (page.items.length && offset < page.count);
+    saveTransactionFile("spacenet-transactions.csv", "\ufeff" + lines.join("\r\n"), "text/csv");
+  }
+  function openTransactionHistory() {
+    if (!checkoutAccount()) {
+      openSheet("Transactions", '<p class="note">Sign in to view your account history and invoices.</p>' +
+        '<button type="button" class="sheet-go primary" data-act="history-sign-in">Sign in</button>');
+      return;
+    }
+    openSheet("Transactions", '<form id="sn-history" class="test-form">' +
+      '<div class="test-times"><label>From (Athens time)<input type="date" class="field" name="from"></label>' +
+      '<label>Through (Athens time)<input type="date" class="field" name="to"></label></div>' +
+      '<div class="test-times"><label>Type<select class="field" name="kind"><option value="">All types</option></select></label>' +
+      '<label>Order<select class="field" name="sort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select></label></div>' +
+      '<label id="sn-history-scope" hidden>Accounts<select class="field" name="scope"><option value="own">My account</option><option value="all">All accounts</option></select></label>' +
+      '<button class="sheet-go primary">Apply filters</button> <button type="button" class="sheet-go" id="sn-history-export" disabled>Export CSV</button>' +
+      '<p id="sn-history-status" class="note" role="status"></p>' +
+      '<div id="sn-history-totals"></div><div id="sn-history-rows"></div>' +
+      '<button type="button" class="sheet-go" id="sn-history-more" hidden>Show more</button></form>');
+    flushTransactions();
+    var form = $("sn-history"), status = $("sn-history-status"), totals = $("sn-history-totals"), rows = $("sn-history-rows");
+    var more = $("sn-history-more"), exportButton = $("sn-history-export");
+    var filters, offset = 0, generation = 0;
+    async function load(reset) {
+      var request = ++generation;
+      if (reset) { rows.replaceChildren(); totals.replaceChildren(); filters = Object.fromEntries(new FormData(form)); offset = 0; }
+      more.hidden = true;
+      exportButton.disabled = true;
+      status.textContent = "Loading transactions…";
+      try {
+        var page = await historyPage(filters, offset, 50);
+        if (!form.isConnected || request !== generation) return;
+        var types = form.elements.kind;
+        types.replaceChildren(new Option("All types", ""));
+        page.types.forEach(function (kind) { types.append(new Option(transactionType(kind), kind)); });
+        types.value = filters.kind;
+        $("sn-history-scope").hidden = !page.admin;
+        if (reset) totals.innerHTML = page.totals.map(function (line) {
+          return '<p class="note">' + escHtml(transactionType(line.kind)) + ' · ' + line.count + ' · ' +
+            escHtml(line.total) + ' ' + escHtml(line.currency) +
+            (line.source === "client_recorded" ? ' · client-recorded' : '') + '</p>';
+        }).join("");
+        page.items.forEach(function (row) {
+          var entry = document.createElement("article");
+          entry.className = "sn-txn";
+          entry.innerHTML = '<b>' + escHtml(transactionType(row.kind)) + ' · ' + escHtml(row.summary) + '</b>' +
+            '<span>' + escHtml(transactionDate(row.event_at)) + ' · ' + escHtml(row.status) + ' · ' +
+            escHtml(row.amount) + ' ' + escHtml(row.currency) + (row.kind === "invoice" ? ' · ' + escHtml(row.access_role) : '') + '</span>' +
+            (row.source === "client_recorded" ? '<span>Client-recorded</span>' : '') +
+            (row.account_id ? '<span>Account ' + escHtml(row.account_id) + '</span>' : '');
+          if (row.kind === "invoice" && row.document) {
+            var button = document.createElement("button");
+            button.type = "button";
+            button.className = "sheet-go";
+            button.textContent = "Download invoice";
+            button.addEventListener("click", function () { downloadInvoice(row); });
+            entry.append(button);
+          }
+          rows.append(entry);
+        });
+        offset += page.items.length;
+        status.textContent = page.count ? offset + " of " + page.count + " records" : "No transactions match.";
+        more.hidden = offset >= page.count;
+        exportButton.disabled = !page.count;
+      } catch (err) {
+        if (request === generation) status.textContent = "Transaction history is unavailable.";
+      }
+    }
+    form.addEventListener("submit", function (e) { e.preventDefault(); load(true); });
+    more.addEventListener("click", function () { load(false); });
+    exportButton.addEventListener("click", async function () {
+      exportButton.disabled = true;
+      status.textContent = "Preparing CSV…";
+      try { await exportHistory(filters); status.textContent = "CSV downloaded."; }
+      catch (err) { status.textContent = "CSV export failed."; }
+      finally { exportButton.disabled = false; }
+    });
+    load(true);
   }
   function currentTaskHtml() {
     var offers = dockTabs.filter(function (t) { return t.kind === "offer" && !t.min; });
@@ -3910,7 +4273,7 @@
     return '<div class="sn-txns"><h3>TRANSACTIONS</h3>' + txns.slice(0, 40).map(function (t) {
       var when = "";
       try { when = new Date(t.completed_at || t.created_at).toLocaleString("en-GB"); } catch (e) {}
-      var retain = t.retain_until ? (" · keep→" + String(t.retain_until).slice(0, 10)) : " · keep≥5y";
+      var retain = t.retain_until ? (" · keep→" + String(t.retain_until).slice(0, 10)) : " · keep≥6y";
       return '<div class="sn-txn"><b>' + escHtml(t.summary || t.client_id || "tx") + "</b><span>" + escHtml(when + retain) + "</span></div>";
     }).join("") + "</div>";
   }
@@ -3927,6 +4290,77 @@
       sheet.innerHTML = body;
     }
   }
+  function bindPower() {
+    var power = $("sn-power");
+    if (!power || power.__sn) return;
+    power.__sn = true;
+    var indicator = $("sn-power-count");
+    var pointer = null, keyboard = null, timer = 0, started = 0;
+    function paint() {
+      var on = offersArmed();
+      power.classList.toggle("on", on);
+      power.classList.toggle("off", !on);
+      power.setAttribute("aria-pressed", String(on));
+      power.title = "Hold 3 seconds to " + (on ? "turn offers off" : "turn offers on");
+    }
+    function cancel() {
+      clearInterval(timer);
+      timer = 0;
+      pointer = null;
+      keyboard = null;
+      indicator.textContent = "";
+      power.classList.remove("holding");
+    }
+    function tick() {
+      var remaining = 3000 - (performance.now() - started);
+      if (remaining > 0) {
+        var count = String(Math.ceil(remaining / 1000));
+        if (indicator.textContent !== count) indicator.textContent = count;
+        return;
+      }
+      cancel();
+      var on = !offersArmed();
+      try { localStorage.setItem("sn:offers", on ? "1" : "0"); } catch (e) { return; }
+      paint();
+      if (on && testOrder && !testOrder.accepted && !pendingOffer) showTestOffer(testOrder, testOrder.drivers[0]);
+      if (!on && pendingOffer) closeOffer(pendingOffer.id);
+    }
+    function begin() {
+      started = performance.now();
+      power.classList.add("holding");
+      indicator.textContent = "3";
+      timer = setInterval(tick, 40);
+    }
+    paint();
+    power.addEventListener("pointerdown", function (e) {
+      if (timer || !e.isPrimary || e.button !== 0) return;
+      pointer = e.pointerId;
+      power.setPointerCapture(pointer);
+      begin();
+    });
+    power.addEventListener("pointermove", function (e) {
+      if (e.pointerId !== pointer) return;
+      var box = power.getBoundingClientRect();
+      if (e.clientX < box.left || e.clientX > box.right || e.clientY < box.top || e.clientY > box.bottom) cancel();
+    });
+    ["pointerup", "pointercancel", "lostpointercapture"].forEach(function (type) {
+      power.addEventListener(type, function (e) { if (e.pointerId === pointer) cancel(); });
+    });
+    power.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+    power.addEventListener("keydown", function (e) {
+      if (e.key !== " " && e.key !== "Enter") return;
+      e.preventDefault();
+      if (timer || e.repeat) return;
+      keyboard = e.key;
+      begin();
+    });
+    power.addEventListener("keyup", function (e) {
+      if (e.key === keyboard) cancel();
+    });
+    power.addEventListener("blur", cancel);
+    window.addEventListener("blur", cancel);
+    document.addEventListener("visibilitychange", function () { if (document.hidden) cancel(); });
+  }
   function bindDrawer() {
     var d = $("drawer"), handle = $("handle");
     if (!d || !handle || d.__snDrawer) return;
@@ -3935,6 +4369,7 @@
     loadTxns();
     paintDrawerContent();
     pullTxnsRemote();
+    flushTransactions();
     function toggleDrawer() {
       setDrawerHeight(d.classList.contains("open") ? collapsedDrawerH() : maxDrawerH());
     }
@@ -3964,11 +4399,45 @@
     handle.addEventListener("pointerup", endDrag);
     handle.addEventListener("pointercancel", endDrag);
     var sheet = $("sheet");
-    var touch = null;
+    var touch = null, coastFrame = 0;
+    cancelDrawerCoast = function () {
+      if (coastFrame) cancelAnimationFrame(coastFrame);
+      coastFrame = 0;
+    };
+    function moveBy(dy, inSheet) {
+      var before = sheet.scrollTop, height = drawerH;
+      if (inSheet) {
+        sheet.scrollTop += dy;
+        dy -= sheet.scrollTop - before;
+      }
+      if (Math.abs(dy) >= 1) setDrawerHeight(drawerH + dy, true);
+      return { moved: drawerH !== height || sheet.scrollTop !== before, resized: drawerH !== height };
+    }
+    function coast(state) {
+      var velocity = state.velocity;
+      var last = performance.now();
+      function frame(now) {
+        var dt = Math.min(32, now - last);
+        last = now;
+        var movement = moveBy(velocity * dt, state.inSheet);
+        state.resized = state.resized || movement.resized;
+        velocity *= Math.exp(-dt / 165);
+        if (movement.moved && Math.abs(velocity) >= .075) coastFrame = requestAnimationFrame(frame);
+        else {
+          coastFrame = 0;
+          if (state.resized) setDrawerHeight(drawerH);
+        }
+      }
+      coastFrame = requestAnimationFrame(frame);
+    }
     d.addEventListener("touchstart", function (e) {
+      if (coastFrame) setDrawerHeight(drawerH);
       if (e.touches.length !== 1) { touch = null; return; }
       var p = e.touches[0];
-      touch = { x: p.clientX, y: p.clientY, lastY: p.clientY, inSheet: sheet.contains(e.target), moved: false, resized: false };
+      touch = {
+        x: p.clientX, y: p.clientY, lastY: p.clientY, lastTime: performance.now(),
+        inSheet: sheet.contains(e.target), moved: false, resized: false, velocity: 0
+      };
     }, { passive: true });
     d.addEventListener("touchmove", function (e) {
       if (!touch || e.touches.length !== 1) return;
@@ -3980,21 +4449,23 @@
         touch.moved = true;
       }
       e.preventDefault();
-      var dy = touch.lastY - p.clientY;
+      var now = performance.now(), dy = touch.lastY - p.clientY;
+      var elapsed = Math.max(8, now - touch.lastTime);
+      var instant = Math.max(-2.4, Math.min(2.4, dy / elapsed));
+      touch.velocity = .25 * touch.velocity + .75 * instant;
       touch.lastY = p.clientY;
-      if (touch.inSheet) {
-        var before = sheet.scrollTop;
-        sheet.scrollTop += dy;
-        dy -= sheet.scrollTop - before;
-      }
-      if (Math.abs(dy) >= 1) {
-        touch.resized = true;
-        setDrawerHeight(drawerH + dy, true);
-      }
+      touch.lastTime = now;
+      var movement = moveBy(dy, touch.inSheet);
+      touch.resized = touch.resized || movement.resized;
     }, { passive: false });
-    function finishTouch() {
-      if (touch && touch.resized) setDrawerHeight(drawerH);
+    function finishTouch(e) {
+      var state = touch;
       touch = null;
+      if (!state) return;
+      if (e.type === "touchend" && state.moved && performance.now() - state.lastTime < 90 &&
+          Math.abs(state.velocity) >= .16 && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        coast(state);
+      } else if (state.resized) setDrawerHeight(drawerH);
     }
     d.addEventListener("touchend", finishTouch);
     d.addEventListener("touchcancel", finishTouch);
@@ -4030,6 +4501,10 @@
         openSupport();
       });
     }
+    $("sn-transactions-menu").addEventListener("click", function () {
+      setOpen(false);
+      openTransactionHistory();
+    });
     var viewBtn = $("sn-view");
     var outBtn = $("sn-view-out");
     if (outBtn) outBtn.addEventListener("click", function () { setOpen(false); stepTier(1); });
@@ -4183,24 +4658,7 @@
     bindSound();
     bindNews();
     syncRadarHud();
-    var power = $("sn-power");
-    if (power && !power.__sn) {
-      power.__sn = true; power.hidden = false;
-      function paintPower() {
-        var on = offersArmed();
-        power.classList.toggle("on", on);
-        power.classList.toggle("off", !on);
-        power.setAttribute("aria-pressed", String(on));
-      }
-      paintPower();
-      power.addEventListener("click", function () {
-        var on = !offersArmed();
-        try { localStorage.setItem("sn:offers", on ? "1" : "0"); } catch (e) { return; }
-        paintPower();
-        if (on && testOrder && !testOrder.accepted && !pendingOffer) showTestOffer(testOrder, testOrder.drivers[0]);
-        if (!on && pendingOffer) closeOffer(pendingOffer.id);
-      });
-    }
+    bindPower();
     var money = $("sn-money");
     if (money && !money.__sn) {
       money.__sn = true; money.hidden = false;
@@ -4210,7 +4668,7 @@
           openSheet("AV€", '<p class="note">Your coins after LOGIN. Pool is owner only.</p><button type="button" class="sheet-go primary" data-act="needlogin">LOGIN</button>');
           return;
         }
-        var html = '<p class="note">' + Math.round(avcGet()).toLocaleString("en-GB") +
+        var html = '<p class="note">' + avcGet().toLocaleString("en-GB") +
           ' AV€ in wallet</p><p id="sn-test-credit" class="note">Loading test credit…</p>';
         if (ownerMail()) html += '<p class="note">Pool ' + Math.round(poolGet()).toLocaleString("en-GB") + " AV€ · owner only.</p>";
         html += '<input id="sn-add-eur" inputmode="decimal" placeholder="Euro to top up → AV€" />' +
@@ -4346,9 +4804,19 @@
       if (act === "edit-test-vendor") editTestVendorProfile();
       if (act === "test-menu") renderTestVendor();
       if (act === "test-checkout") openTestCheckout();
+      if (act === "history-sign-in") {
+        try {
+          sessionStorage.removeItem("sn:checkout-after-auth");
+          sessionStorage.setItem("sn:history-after-auth", "1");
+        } catch (err) {}
+        if (window.SNAuth && SNAuth.open) SNAuth.open();
+      }
+      if (act === "checkout-sign-in") startCheckoutSignIn();
+      if (act === "checkout-new-client") beginDestinationPick();
+      if (act === "checkout-cancel-client") { endDestinationPick(); resumeCheckout(); }
       if (act === "test-client") {
         testClientId = id;
-        if (vendor && vendor.test && cartSubtotal() > 0) openTestCheckout();
+        if (vendor && cartSubtotal() > 0) resumeCheckout();
         else openSheet("Delivery address selected", '<p class="note">Tap a test vendor to add items.</p>');
       }
       if (act === "test-driver" && testOrder && !testOrder.accepted && !pendingOffer) {
@@ -4447,6 +4915,8 @@
         var ix = Number(t.getAttribute("data-i"));
         if (!isFinite(ix)) return;
         if (vendor && vendor.test && !itemAvailable(vendorMenu(vendor)[ix])) return;
+        var orderComment = $("sn-order-comment");
+        if (orderComment) cart.comment = orderComment.value;
         cart.items[ix] = Math.min(99, cartQty(ix) + 1);
         if (vendor && vendor.test) renderTestVendor();
         else if (t.getAttribute("data-order")) openOrderScreen(); else renderVendorShop();
@@ -4454,6 +4924,8 @@
       if (act === "qty-minus") {
         var iy = Number(t.getAttribute("data-i"));
         if (!isFinite(iy)) return;
+        var orderComment = $("sn-order-comment");
+        if (orderComment) cart.comment = orderComment.value;
         cart.items[iy] = Math.max(0, cartQty(iy) - 1);
         if (vendor && vendor.test) renderTestVendor();
         else if (t.getAttribute("data-order")) openOrderScreen(); else renderVendorShop();
@@ -4613,9 +5085,12 @@
             saveJobs();
             var dep = 0;
             try { dep = Number(localStorage.getItem("sn:pay-deposit") || 0); localStorage.removeItem("sn:pay-deposit"); } catch (e) {}
-            if (dep > 0 && signed()) {
-              avcSet(avcGet() + dep);
-              say("PayPal " + dep + " € on your account · " + avcGet() + " AV€.");
+            if (dep > 0 && signed() && j.captureId && Number(j.avc) > 0) {
+              var credit = Number(j.avc);
+              avcSet(avcGet() + credit);
+              recordTransaction({ client_id: "topup-" + j.captureId, kind: "wallet_topup", status: "completed",
+                summary: "PayPal wallet top-up", amount_avc: credit, created_at: new Date().toISOString() });
+              say("PayPal " + credit + " € on your account · " + avcGet() + " AV€.");
             } else say("PayPal captured. Transaction verified.");
           } else say((j && (j.error || j.message)) || "PayPal capture did not finish.");
         }).catch(function () { say("PayPal capture dark."); });
@@ -4624,7 +5099,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4448 = true;
+    window.__SN_4449 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
@@ -4647,6 +5122,23 @@
       drawRoute: drawRoute, architectUrl: architectUrl, openArchitectAt: openArchitectAt,
       goCityFromGlobe: goCityFromGlobe, startTransaction: startTransaction, openPeerMessage: openPeerMessage
     };
+    window.addEventListener("spacenet:signed-in", function () {
+      if (cityOn) paintActorsOnMap();
+      restoreCheckoutAfterAuth();
+      pullTxnsRemote();
+      flushTransactions();
+    });
+    window.addEventListener("online", flushTransactions);
+    window.addEventListener("spacenet:signed-out", function () {
+      if ($("sn-history")) closeSheet();
+      paintDrawerContent();
+      if (cityOn) paintActorsOnMap();
+      if (pickingDestination) { endDestinationPick(); resumeCheckout(); }
+    });
+    window.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && pickingDestination) { endDestinationPick(); resumeCheckout(); }
+    });
+    restoreCheckoutAfterAuth();
     Object.defineProperty(window, "__SN_INTRO", { get: function () { return intro; } });
     requestAnimationFrame(loop);
   }
