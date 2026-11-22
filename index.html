@@ -4,13 +4,13 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4444"/>
+<meta name="astranov-build" content="4445"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
-<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4444"/>
+<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4445"/>
 <style>
 :root{
   --bg:#02040a; --fg:#e8fbff; --muted:#8ec8d8; --accent:#4df0ff;
@@ -193,12 +193,11 @@ button{cursor:pointer}
 /* Drawer: drag pill + search/mic header + scrollable sheet */
 #drawer{
   position:fixed;z-index:45;left:0;right:0;bottom:0;
-  height:var(--drawer-h);max-height:66.666vh;
+  height:var(--drawer-h);
   display:flex;flex-direction:column;
   background:rgba(4,14,28,.96);border-top:1px solid rgba(77,240,255,.28);
-  box-shadow:0 -6px 18px rgba(0,0,0,.35);touch-action:none;
+  box-shadow:0 -6px 18px rgba(0,0,0,.35);
 }
-#drawer.open{touch-action:manipulation}
 .sn-exch,.sn-txns,.sn-now{margin:0 0 12px}
 .sn-exch h3,.sn-txns h3{margin:8px 0 6px;font:800 11px system-ui;letter-spacing:.14em;color:#7ee9ff}
 .sn-exch-row{display:flex;gap:8px;margin:0 0 6px;align-items:flex-start}
@@ -247,10 +246,14 @@ button{cursor:pointer}
 .sheet-bar{display:flex;align-items:center;gap:8px;margin:0 0 10px}
 .sheet-ttl{flex:1;font:800 12px system-ui;letter-spacing:.14em;color:#7ee9ff}
 .sheet-x,.sheet-go{
-  height:40px;padding:0 12px;border-radius:10px;border:1px solid rgba(126,233,255,.35);
-  background:rgba(4,16,28,.9);color:#e8fbff;font:800 13px system-ui;
+  min-height:34px;padding:6px 10px;border-radius:8px;border:1px solid rgba(126,233,255,.35);
+  background:rgba(4,16,28,.9);color:#e8fbff;font:700 12px/1.25 system-ui;
 }
-.sheet-go{display:block;width:100%;margin:8px 0 0;text-align:center;text-decoration:none;box-sizing:border-box;line-height:40px}
+.sheet-go{display:inline-flex;align-items:center;justify-content:center;max-width:100%;margin:4px 4px 0 0;text-align:center;text-decoration:none;box-sizing:border-box}
+.sheet-actions{display:flex;flex-wrap:wrap;gap:6px}
+.sheet-actions .sheet-go{margin:0}
+.listing-options{margin-top:10px;color:#7ee9ff;font:600 12px system-ui}
+.listing-options summary{cursor:pointer;padding:6px 0}
 .sheet-go.primary{background:#4df0ff;color:#041018;border-color:#4df0ff}
 .pill{
   display:flex;align-items:center;gap:10px;width:100%;margin:0 0 8px;padding:10px;border-radius:12px;
@@ -332,7 +335,8 @@ textarea.field,#sn-support-matter{min-height:88px}
 
 <nav id="menu" hidden>
   <button type="button" id="sn-support-menu">SUPPORT DESK</button>
-  <button type="button" id="sn-view">VIEW</button>
+  <button type="button" id="sn-view">Zoom in</button>
+  <button type="button" id="sn-view-out">Zoom out</button>
   <button type="button" id="sn-compass">COMPASS</button>
   <button type="button" id="sn-portions">PORTIONS</button>
 </nav>
@@ -342,7 +346,7 @@ textarea.field,#sn-support-matter{min-height:88px}
 
 <div id="drawer" aria-label="Sheet">
   <div id="cli-drag" class="sn-trivial-law" aria-hidden="true"></div>
-  <button type="button" id="handle" aria-label="Expand sheet"></button>
+  <button type="button" id="handle" aria-label="Expand sheet" aria-controls="sheet" aria-expanded="false"></button>
   <form id="search" action="/" method="get">
     <input id="q" name="q" autocomplete="off" enterkeyhint="search" placeholder="Command the HUD · show, hide, or reshape"/>
     <button type="button" id="mic" aria-label="Handsfree mic">🎤</button>
@@ -356,10 +360,10 @@ textarea.field,#sn-support-matter{min-height:88px}
 <div id="toast" role="status"></div>
 <div id="line" role="status"></div>
 
-<script src="/js/vendor/leaflet.js?v=4444"></script>
-<script src="/js/spacenet/partners/types.js?v=4444"></script>
-<script src="/js/spacenet/partners/client.js?v=4444"></script>
-<script src="/js/spacenet/app.js?v=4444"></script>
-<script src="/js/spacenet/auth.js?v=4444"></script>
+<script src="/js/vendor/leaflet.js?v=4445"></script>
+<script src="/js/spacenet/partners/types.js?v=4445"></script>
+<script src="/js/spacenet/partners/client.js?v=4445"></script>
+<script src="/js/spacenet/app.js?v=4445"></script>
+<script src="/js/spacenet/auth.js?v=4445"></script>
 </body>
 </html>

@@ -1,7 +1,7 @@
-/* SpaceNet 4444 — land.pack external; drop root failure junk. */
+/* SpaceNet 4445 — globe navigation, test pins, and scrollable drawer. */
 (function () {
   "use strict";
-  var VER = "4444";
+  var VER = "4445";
   var INTRO_MS = 13000;
   var LAND = [];
   function unpackLand(pack) {
@@ -140,7 +140,7 @@
     return /bug|broken|crash|error|glitch|freeze|won't|wont|can't|cant|login|power|offer|drawer|map|globe|button|ui|screen|reload|cache|wallet|av€|paypal|stamp|cursor|fix|product/.test(t);
   }
   function daysSinceJ2000() { return Date.now() / 86400000 + 2440587.5 - 2451545.0; }
-  function earthSpin() { return (Date.now() / 1000) * SIDEREAL_OMEGA; }
+  function earthSpin() { return ((Date.now() / 1000) % SIDEREAL_DAY_S) * SIDEREAL_OMEGA; }
   function solarLngDeg() {
     var s = ((Date.now() / 1000) % 86400) / 86400;
     return 180 - s * 360;
@@ -157,7 +157,7 @@
   var aim = null;
   var gpsSeq = 0;
   var freeLook = false; /* user spun the globe — do not snap/face-hold aim */
-  var cityEnterAcc = 0; /* slow continuous zoom into city */
+  var wheelAt = -Infinity, wheelDirection = 0, wheelAmount = 0, wheelStepped = false;
   var txns = []; /* completed exchanges (≥5y retention mirrored to Supabase) */
   var activeExchange = []; /* command turns for the current open task */
   function altitudeFromDist(d) {
@@ -350,13 +350,12 @@
     stars = [];
     for (var i = 0; i < 240; i++) stars.push({ x: Math.random(), y: Math.random(), a: 0.12 + Math.random() * 0.7, s: Math.random() < 0.12 ? 2 : 1.2 });
   }
-  function vecOf(lat, lng, c) {
-    var lam = (lng * Math.PI) / 180 - c.yaw - earthSpin();
+  function vecOf(lat, lng, yaw, cp, sp) {
+    var lam = (lng * Math.PI) / 180 - yaw;
     var phi = (lat * Math.PI) / 180;
     var x = Math.cos(phi) * Math.sin(lam);
     var y = Math.sin(phi);
     var z = Math.cos(phi) * Math.cos(lam);
-    var cp = Math.cos(c.pitch), sp = Math.sin(c.pitch);
     return { x: x, y: y * cp - z * sp, z: y * sp + z * cp };
   }
   function scrOf(v) {
@@ -372,9 +371,10 @@
     ctx.arc(view.cx, view.cy, view.scale * 0.998, a0, a1, d < 0);
   }
   function drawLand(ctx, ring, c) {
+    var yaw = c.yaw + earthSpin(), cp = Math.cos(c.pitch), sp = Math.sin(c.pitch);
     var n = ring.length, step = Math.max(1, (n / 4) | 0), seen = false, i;
     for (i = 0; i < n; i += step) {
-      if (vecOf(ring[i][0], ring[i][1], c).z > 0.02) { seen = true; break; }
+      if (vecOf(ring[i][0], ring[i][1], yaw, cp, sp).z > 0.02) { seen = true; break; }
     }
     if (!seen) return;
     var LIMB = 0.045;
@@ -386,7 +386,7 @@
       if (dl > 180) dl -= 360;
       if (dl < -180) dl += 360;
       if (Math.abs(dl) > 40) { pen = false; limb = null; continue; }
-      var va = vecOf(a[0], a[1], c), vb = vecOf(b[0], b[1], c);
+      var va = vecOf(a[0], a[1], yaw, cp, sp), vb = vecOf(b[0], b[1], yaw, cp, sp);
       var fa = va.z >= LIMB, fb = vb.z >= LIMB;
       if (!fa && !fb) { pen = false; continue; }
       var sa = scrOf(va), sb = scrOf(vb), sm;
@@ -655,10 +655,10 @@
       return;
     }
     if (!drag && (Math.abs(vel.yaw) > 0.00004 || Math.abs(vel.pitch) > 0.00004)) {
-      cam.yaw += vel.yaw;
-      cam.pitch = Math.max(-1.15, Math.min(1.15, cam.pitch + vel.pitch));
-      /* Trackball-style momentum: slow ease, not a snap. */
-      var damp = Math.pow(0.94, Math.max(0.5, (dt || 0.016) / 0.016));
+      var damp = Math.pow(0.94, dt / 0.016);
+      var travel = (1 - damp) / (1 - 0.94);
+      cam.yaw += vel.yaw * travel;
+      cam.pitch = Math.max(-1.15, Math.min(1.15, cam.pitch + vel.pitch * travel));
       vel.yaw *= damp; vel.pitch *= damp;
       if (Math.abs(vel.yaw) < 0.00004) vel.yaw = 0;
       if (Math.abs(vel.pitch) < 0.00004) vel.pitch = 0;
@@ -685,57 +685,8 @@
     var r = canvas.getBoundingClientRect();
     return { x: e.clientX - r.left, y: e.clientY - r.top, w: r.width, h: r.height };
   }
-  function tierFromDist(d) {
-    if (d >= 8.2) return 0;
-    if (d >= 3.6) return 1;
-    if (d >= 1.15) return 2;
-    return 3;
-  }
-  function nudgeZoom(dir, sx, sy) {
-    /* dir>0 zoom out · dir<0 zoom in. Continuous + slow — not one-tier-per-notch. */
-    intro = false;
-    fly = null;
-    gpsSeq++;
-    if (cityOn) {
-      if (dir > 0) {
-        cityEnterAcc = Math.max(0, cityEnterAcc - 1);
-        if (map) {
-          try {
-            var z = map.getZoom() || 16;
-            if (z <= 12.5) {
-              closeCity();
-              settleTier(3, aim);
-              freeLook = true;
-            } else {
-              map.setZoom(Math.max(12, z - 0.35), { animate: false });
-            }
-          } catch (e) {}
-        }
-      } else if (map) {
-        try { map.setZoom(Math.min(19, (map.getZoom() || 16) + 0.35), { animate: false }); } catch (e) {}
-      }
-      return;
-    }
-    var pt = pointUnder(sx, sy);
-    if (pt) aim = pt;
-    var factor = dir > 0 ? 1.065 : (1 / 1.065);
-    var next = Math.max(0.62, Math.min(9.6, (cam.dist || 1.85) * factor));
-    cam.dist = next;
-    tierI = tierFromDist(next);
-    if (dir < 0 && tierI >= 3 && aim) {
-      cityEnterAcc += 1;
-      if (cityEnterAcc >= 6) {
-        cityEnterAcc = 0;
-        openCity(aim);
-        say("City · " + aim.lat.toFixed(2) + "," + aim.lng.toFixed(2));
-        paintViewBtn();
-      }
-    } else if (dir > 0) {
-      cityEnterAcc = Math.max(0, cityEnterAcc - 2);
-    }
-    paintViewBtn();
-  }
   function bindGlobe() {
+    var pinchStepped = false;
     canvas.addEventListener("contextmenu", function (e) {
       e.preventDefault();
       var p = pos(e);
@@ -745,12 +696,14 @@
     canvas.addEventListener("pointerdown", function (e) {
       if (e.button) return;
       canvas.setPointerCapture(e.pointerId);
+      gpsSeq++;
       var p = pos(e);
       pointers.set(e.pointerId, { x: p.x, y: p.y });
       vel.yaw = 0; vel.pitch = 0;
       if (pointers.size === 2) {
         var pts = Array.from(pointers.values());
         pinch = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        pinchStepped = false;
         drag = null;
         if (holdT) { clearTimeout(holdT); holdT = 0; }
         return;
@@ -769,19 +722,23 @@
       if (pointers.size === 2 && pinch) {
         var pts = Array.from(pointers.values());
         var d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-        var grew = d / pinch;
-        pinch = d;
-        intro = false;
-        var mx = (pts[0].x + pts[1].x) / 2, my = (pts[0].y + pts[1].y) / 2;
-        /* Slow pinch: small continuous nudges, not tier jumps. */
-        if (grew > 1.035) nudgeZoom(-1, mx, my);
-        else if (grew < 0.965) nudgeZoom(1, mx, my);
+        var ratio = d / pinch;
+        if (!pinchStepped && (ratio > 1.12 || ratio < 1 / 1.12)) {
+          pinchStepped = true;
+          stepTier(ratio > 1 ? -1 : 1, (pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2);
+        }
         return;
       }
       if (!drag) return;
       var dx = p.x - drag.x, dy = p.y - drag.y;
       if (Math.hypot(dx, dy) > 6) {
-        drag.moved = true; intro = false; gpsSeq++; freeLook = true;
+        if (!drag.moved && fly) {
+          fly = null;
+          cam.dist = TIERS[tierI].dist;
+          drag.yaw = cam.yaw;
+          drag.pitch = cam.pitch;
+        }
+        drag.moved = true; intro = false; freeLook = true;
         if (holdT) { clearTimeout(holdT); holdT = 0; }
       }
       if (!drag.moved) return;
@@ -799,35 +756,29 @@
       if (holdT) { clearTimeout(holdT); holdT = 0; }
       var d = drag; drag = null;
       if (!d) return;
-      if (d.moved) {
-        /* Keep vel for inertia — do not zero. */
-        return;
+      if (!d.moved || e.type === "pointercancel" || nowMs() - d.lastT > 100) {
+        vel.yaw = 0; vel.pitch = 0;
       }
-      vel.yaw = 0; vel.pitch = 0;
-      var pUp = pos(e);
-      /* Lean stamp: constellation/sky applet removed — tap empty space is a no-op. */
     }
     canvas.addEventListener("pointerup", up);
     canvas.addEventListener("pointercancel", up);
-    var wheelAcc = 0, wheelRaf = 0, wheelXY = null;
     canvas.addEventListener("wheel", function (e) {
       e.preventDefault();
-      intro = false;
+      if (!e.deltaY) return;
+      var now = performance.now();
+      var dir = Math.sign(e.deltaY);
+      if (now - wheelAt > 180 || dir !== wheelDirection) {
+        wheelAmount = 0;
+        wheelStepped = false;
+      }
+      wheelAt = now;
+      wheelDirection = dir;
+      if (wheelStepped) return;
+      var unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? canvas.clientHeight : 1;
+      wheelAmount += Math.abs(e.deltaY) * unit;
+      if (wheelAmount < 18) return;
       var p = pos(e);
-      wheelXY = p;
-      var dyIn = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
-      wheelAcc += dyIn;
-      if (wheelRaf) return;
-      wheelRaf = requestAnimationFrame(function () {
-        wheelRaf = 0;
-        var dy = wheelAcc; wheelAcc = 0;
-        var pt = wheelXY;
-        if (!dy || !pt) return;
-        /* Require a meaningful notch; one event ≈ one slow nudge. */
-        var steps = Math.min(2, Math.max(1, Math.round(Math.abs(dy) / 180)));
-        var dir = dy > 0 ? 1 : -1;
-        for (var i = 0; i < steps; i++) nudgeZoom(dir, pt.x, pt.y);
-      });
+      wheelStepped = stepTier(dir, p.x, p.y);
     }, { passive: false });
   }
   function pointUnder(sx, sy) {
@@ -844,44 +795,35 @@
     };
   }
   function stepTier(dir, sx, sy) {
-    if (Date.now() < tierLock) return;
-    tierLock = Date.now() + 480;
-    gpsSeq++;
-    var pt = pointUnder(sx, sy);
-    if (pt) aim = pt;
-    /* dir>0 = zoom out · dir<0 = zoom in. Outward: globe → solar → galaxy. */
+    if (Date.now() < tierLock) return false;
     if (cityOn) {
-      if (dir > 0) {
-        closeCity();
-        settleTier(3, aim); /* national */
-      } else if (map) {
-        try { map.setZoom(Math.min(19, (map.getZoom() || 16) + 1)); } catch (e) {}
-      }
-      return;
+      if (dir > 0) closeCity();
+      else if (map) map.zoomIn();
+      return true;
     }
-    var next = tierI + (dir > 0 ? -1 : 1);
-    if (next < 0) next = 0;
-    if (next > 4) next = 4;
-    if (next === tierI) return;
-    if (!aim && TIERS[next] && (TIERS[next].id === "national" || TIERS[next].id === "city" || TIERS[next].id === "global")) {
-      say("Zoom on the earth."); return;
-    }
-    if (TIERS[next].id === "city") {
-      if (TIERS[tierI].id !== "national") return;
+    var next = Math.max(0, Math.min(4, tierI + (dir > 0 ? -1 : 1)));
+    if (next === tierI) return false;
+    intro = false;
+    gpsSeq++;
+    aim = pointUnder(sx, sy) || aim || here;
+    if (!aim) return false;
+    if (next === 4) {
       openCity(aim);
-      say("City · " + aim.lat.toFixed(2) + "," + aim.lng.toFixed(2));
+    } else {
+      settleTier(next, aim);
       paintViewBtn();
-      return;
     }
-    settleTier(next, aim);
-    paintViewBtn();
+    return true;
   }
   function settleTier(i, pt) {
     tierI = i;
+    tierLock = Date.now() + 360;
+    freeLook = true;
+    vel.yaw = 0; vel.pitch = 0;
     var f = face(pt || aim);
     fly = {
       t0: performance.now(),
-      ms: 640,
+      ms: 360,
       start: { yaw: cam.yaw, pitch: cam.pitch, dist: cam.dist },
       goal: { yaw: f.yaw, pitch: f.pitch, dist: TIERS[i].dist }
     };
@@ -933,7 +875,7 @@
     var wantCity = open !== false; /* GPS / street-start: always land on map */
     fly.openCity = wantCity;
     fly.pt = here;
-    tierI = 4;
+    paintViewBtn();
     say("GPS " + here.lat.toFixed(4) + "," + here.lng.toFixed(4) + " · tap to recalibrate");
     pullListings();
     syncRadarHud();
@@ -961,28 +903,25 @@
   function openCity(pt) {
     if (!pt || !isFinite(pt.lat) || !isFinite(pt.lng)) return;
     aim = { lat: pt.lat, lng: pt.lng };
-    tierI = 4;
     var el = $("city");
-    if (!el || typeof L === "undefined" || !pt) return;
+    if (!el || typeof L === "undefined") return;
+    tierI = 4;
     cityOn = true;
+    intro = false;
+    fly = null;
     el.classList.add("on");
     if (!map) {
       map = L.map(el, { zoomControl: false, attributionControl: false, minZoom: 12, maxZoom: 19, scrollWheelZoom: true }).setView([pt.lat, pt.lng], 16);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, minZoom: 12 }).addTo(map);
       map.on("zoomend", function () {
-        try {
-          if (map && map.getZoom() <= 12) {
-            closeCity();
-            settleTier(2, aim);
-          }
-        } catch (e) {}
+        if (cityOn && map.getZoom() <= 12) closeCity();
       });
-      var lastTap = 0;
-      map.on("click", function () {
-        var t = Date.now();
-        if (t - lastTap < 320) closeCity();
-        lastTap = t;
-      });
+      el.addEventListener("wheel", function (e) {
+        if (!e.deltaY) return;
+        wheelAt = performance.now();
+        wheelDirection = Math.sign(e.deltaY);
+        wheelStepped = true;
+      }, { passive: true, capture: true });
       var hold = 0, holdPt = null;
       el.addEventListener("contextmenu", function (e) {
         e.preventDefault();
@@ -991,13 +930,17 @@
         if (ll) listAt({ lat: ll.lat, lng: ll.lng });
       });
       el.addEventListener("pointerdown", function (e) {
-        if (e.button) return;
+        if (e.button || !e.isPrimary || e.target.closest(".leaflet-interactive")) {
+          cancelHold();
+          return;
+        }
+        cancelHold();
         holdPt = e;
         hold = setTimeout(function () {
           if (!map || !holdPt) return;
           var ll = map.mouseEventToLatLng(holdPt);
           if (ll) listAt({ lat: ll.lat, lng: ll.lng });
-        }, 1000);
+        }, 500);
       });
       function cancelHold() { if (hold) { clearTimeout(hold); hold = 0; } }
       el.addEventListener("pointerup", cancelHold);
@@ -1021,18 +964,20 @@
     setTimeout(function () { if (map) map.invalidateSize(); paintCityRadar(); }, 80);
   }
   function closeCity() {
+    if (!cityOn) return;
+    var center = map.getCenter();
+    aim = { lat: center.lat, lng: center.lng };
     clearCityRadar();
-    var el = $("city");
-    if (el) el.classList.remove("on");
+    $("city").classList.remove("on");
     cityOn = false;
-    paintViewBtn();
-    if (tierI > 2) tierI = 2;
-    if (aim) {
-      var f = face(aim);
-      cam.yaw = f.yaw;
-      cam.pitch = f.pitch;
-    }
+    var f = face(aim);
+    cam.yaw = f.yaw;
+    cam.pitch = f.pitch;
     cam.dist = TIERS[3].dist;
+    tierI = 3;
+    tierLock = 0;
+    freeLook = true;
+    paintViewBtn();
   }
   function plotIdFor(pt) {
     return "p" + Number(pt.lat).toFixed(5) + "_" + Number(pt.lng).toFixed(5);
@@ -1071,25 +1016,50 @@
     if (!pt || !isFinite(pt.lat) || !isFinite(pt.lng)) return;
     listPt = { lat: pt.lat, lng: pt.lng };
     listAlt = altitudeFromDist(cam.dist);
-    if (!signed()) {
-      needLogin("LOGIN to insert on the map.");
+    if (cityOn) markPlot(listPt);
+    openSheet("Place a test pin",
+      '<p class="note">Saved on this device.</p>' +
+      '<div class="sheet-actions">' +
+      '<button type="button" class="sheet-go primary" data-act="test-pin" data-role="vendor">Vendor</button>' +
+      '<button type="button" class="sheet-go primary" data-act="test-pin" data-role="driver">Driver</button>' +
+      '<button type="button" class="sheet-go primary" data-act="test-pin" data-role="client">Client</button>' +
+      '</div><details class="listing-options"><summary>Listing and plot tools</summary>' +
+      '<button type="button" class="sheet-go" data-act="insert-actor" data-role="vendor">List vendor</button>' +
+      '<button type="button" class="sheet-go" data-act="insert-actor" data-role="delivery_services">List delivery service</button>' +
+      '<button type="button" class="sheet-go" data-act="insert-actor" data-role="driver">List driver</button>' +
+      '<button type="button" class="sheet-go" data-act="insert-actor" data-role="client">List client</button>' +
+      '<button type="button" class="sheet-go" data-act="open-architect">Open Architect</button></details>');
+  }
+  var testRoles = { vendor: "Vendor", driver: "Driver", client: "Client" };
+  function placeTestPin(role) {
+    if (!listPt || !Object.hasOwn(testRoles, role)) return;
+    var pins = loadTestPins();
+    pins.unshift({
+      id: "test-" + crypto.randomUUID(),
+      role: role, name: "Test " + testRoles[role].toLowerCase(),
+      lat: listPt.lat, lng: listPt.lng, test: true
+    });
+    updateTestPins(pins);
+  }
+  function loadTestPins() {
+    try {
+      var pins = JSON.parse(localStorage.getItem("sn:test-pins"));
+      return Array.isArray(pins) ? pins : [];
+    } catch (e) { return []; }
+  }
+  function updateTestPins(pins) {
+    try {
+      localStorage.setItem("sn:test-pins", JSON.stringify(pins.slice(0, 120)));
+    } catch (e) {
+      openSheet("Test pins", '<p class="note">This browser could not save the pins.</p>');
       return;
     }
-    if (cityOn) markPlot(listPt);
-    else if (!cityOn && typeof openCity === "function") {
-      openCity(listPt);
-      setTimeout(function () { markPlot(listPt); }, 120);
+    if (map && plotMark) {
+      map.removeLayer(plotMark);
+      plotMark = null;
     }
-    var coords = Number(pt.lat).toFixed(5) + ", " + Number(pt.lng).toFixed(5);
-    openSheet("INSERT",
-      '<p class="note">Plot ' + coords + '. Insert a role, then verify. Architect stays a separate app.</p>' +
-      '<button type="button" class="sheet-go primary" data-act="insert-actor" data-role="vendor">INSERT VENDOR</button>' +
-      '<button type="button" class="sheet-go" data-act="insert-actor" data-role="delivery_services">INSERT DELIVERY SERVICES</button>' +
-      '<button type="button" class="sheet-go" data-act="insert-actor" data-role="driver">INSERT DELIVERY DRIVER</button>' +
-      '<button type="button" class="sheet-go" data-act="insert-actor" data-role="client">INSERT CLIENT</button>' +
-      '<button type="button" class="sheet-go" data-act="open-architect">OPEN ARCHITECT</button>' +
-      '<button type="button" class="sheet-go" data-act="close">CANCEL</button>');
-    say(coords);
+    paintActorsOnMap();
+    closeSheet();
   }
   function isVendorRole(role) {
     return role === "vendor" || role === "delivery_services";
@@ -1283,10 +1253,13 @@
     var rows = loadActors().concat(FAMOUS_VENDORS.map(function (f) {
       return { id: "fam-" + f.name, role: "vendor", kind: "vendor", name: f.name, lat: f.lat, lng: f.lng, famous: true, verified: true };
     }));
-    rows.forEach(function (a) {
+    rows.concat(loadTestPins()).forEach(function (a) {
       if (!a || !isFinite(a.lat) || !isFinite(a.lng)) return;
       var color = a.role === "driver" ? "#1a3cff" : a.role === "client" ? "#0b6b45" : a.role === "delivery_services" ? "#0ea5e9" : "#ff8a3d";
-      var mark = L.circleMarker([a.lat, a.lng], { radius: 9, color: color, fillColor: color, fillOpacity: 0.9, weight: 2 });
+      var mark = L.circleMarker([a.lat, a.lng], {
+        radius: a.test ? 7 : 9, color: a.test ? "#4df0ff" : color,
+        fillColor: color, fillOpacity: 0.9, weight: 2, dashArray: a.test ? "3 2" : undefined
+      });
       var tipRole = a.role === "delivery_services" ? "DELIVERY SERVICES" : String(a.role || "vendor").toUpperCase();
       mark.bindTooltip(tipRole + " · " + (a.name || ""), { direction: "top" });
       mark.on("click", function (e) {
@@ -1299,6 +1272,11 @@
   }
   function openActorSheet(a) {
     if (!a) return;
+    if (a.test) {
+      openSheet(a.name,
+        '<button type="button" class="sheet-go" data-act="remove-test-pin" data-id="' + escHtml(a.id) + '">Remove pin</button>');
+      return;
+    }
     openSheet(String(a.name || "ACTOR").toUpperCase(),
       '<p class="note">' + String(a.role || a.kind || "actor").toUpperCase() + (a.verified || a.famous ? " · verified" : "") + (a.famous ? " · famous" : "") + " · same map peer talk</p>" +
       '<button type="button" class="sheet-go primary" data-act="start-tx" data-id="' + a.id + '">START TRANSACTION</button>' +
@@ -1311,40 +1289,16 @@
     }));
     return rows.filter(function (a) { return String(a.id) === String(id); })[0] || null;
   }
-  function viewMode() {
-    if (cityOn) return "city";
-    if (tierI >= 3) return "national";
-    return "globe";
-  }
   function goCityFromGlobe() {
-    /* Three-step VIEW inward: globe → national → city (cycle back to globe) */
-    var pt = aim || here || listPt || { lat: 36.434, lng: 28.217 };
-    if (!aim && here) aim = here;
-    if (!aim) aim = pt;
-    var mode = viewMode();
-    if (mode === "globe") {
-      if (cityOn) closeCity();
-      settleTier(3, aim);
-      say("National · " + Number(aim.lat).toFixed(2) + "," + Number(aim.lng).toFixed(2));
-    } else if (mode === "national") {
-      openCity(aim || pt);
-      paintActorsOnMap();
-      say("City · " + Number((aim || pt).lat).toFixed(2) + "," + Number((aim || pt).lng).toFixed(2));
-    } else {
-      closeCity();
-      settleTier(2, aim);
-      say("Globe");
-    }
-    paintViewBtn();
+    stepTier(cityOn ? 1 : -1);
   }
   function paintViewBtn() {
-    var btn = $("sn-view");
-    if (!btn) return;
-    var mode = viewMode();
-    var label = mode === "globe" ? "NATIONAL" : mode === "national" ? "CITY" : "GLOBE";
-    btn.textContent = label;
-    btn.setAttribute("aria-label", "View · next " + label.toLowerCase() + " (globe → national → city)");
-    btn.title = "globe → national → city";
+    var inBtn = $("sn-view"), outBtn = $("sn-view-out");
+    if (inBtn) inBtn.textContent = "Zoom in · " + (cityOn ? "Streets" : TIERS[tierI + 1].name);
+    if (outBtn) {
+      outBtn.disabled = tierI === 0;
+      outBtn.textContent = tierI > 0 ? "Zoom out · " + TIERS[tierI - 1].name : "Zoom out";
+    }
   }
 
   function persistListing(row) {
@@ -3110,8 +3064,8 @@
   var drawerH = 70;
   var drawerDrag = null;
   var cityRadarLayers = [];
-  function maxDrawerH() { return Math.floor(window.innerHeight * (2 / 3)); }
-  function setDrawerHeight(h) {
+  function maxDrawerH() { return Math.max(collapsedDrawerH(), window.innerHeight - 64); }
+  function setDrawerHeight(h, dragging) {
     var d = $("drawer");
     if (!d) return;
     var minH = collapsedDrawerH();
@@ -3119,8 +3073,12 @@
     drawerH = Math.max(minH, Math.min(maxH, Math.round(h)));
     d.style.height = drawerH + "px";
     document.documentElement.style.setProperty("--drawer-h", drawerH + "px");
-    d.classList.toggle("open", drawerH > minH + 8);
+    var open = drawerH > minH + 8;
+    d.classList.toggle("open", open);
+    $("handle").setAttribute("aria-expanded", String(open));
+    $("handle").setAttribute("aria-label", open ? "Collapse sheet" : "Expand sheet");
     layoutChrome();
+    if (dragging) return;
     if (map && typeof map.invalidateSize === "function") {
       try { map.invalidateSize({ animate: false }); } catch (e) {}
     }
@@ -3248,119 +3206,50 @@
     if (task) body += '<div class="sn-now">' + task + "</div>";
     body += exchangeHtml();
     body += txnsHtml();
-    sheet.innerHTML = body || '<p class="note">Talk above · GPS lands you · drag this sheet from any edge.</p>';
-  }
-  function snapDrawer() {
-    var minH = collapsedDrawerH();
-    var maxH = maxDrawerH();
-    var mid = minH + (maxH - minH) * 0.5;
-    setDrawerHeight(drawerH >= mid ? maxH : minH);
+    if (sheet.__snBody !== body) {
+      sheet.__snBody = body;
+      sheet.innerHTML = body;
+    }
   }
   function bindDrawer() {
-    var d = $("drawer"), handle = $("handle"), sheet = $("sheet");
-    if (!d || d.__snDrawer) return;
+    var d = $("drawer"), handle = $("handle");
+    if (!d || !handle || d.__snDrawer) return;
     d.__snDrawer = true;
     setDrawerHeight(collapsedDrawerH());
     loadTxns();
     paintDrawerContent();
     pullTxnsRemote();
-    function eventY(e) {
-      if (e.clientY != null) return e.clientY;
-      if (e.touches && e.touches[0]) return e.touches[0].clientY;
-      if (e.changedTouches && e.changedTouches[0]) return e.changedTouches[0].clientY;
-      return null;
+    function toggleDrawer() {
+      setDrawerHeight(d.classList.contains("open") ? collapsedDrawerH() : maxDrawerH());
     }
-    function eventX(e) {
-      if (e.clientX != null) return e.clientX;
-      if (e.touches && e.touches[0]) return e.touches[0].clientX;
-      if (e.changedTouches && e.changedTouches[0]) return e.changedTouches[0].clientX;
-      return null;
-    }
-    function zoneFor(e) {
-      var r = d.getBoundingClientRect();
-      var x = eventX(e);
-      if (x == null) return "edge";
-      var rel = (x - r.left) / Math.max(1, r.width);
-      if (rel <= 0.22 || rel >= 0.78) return "edge"; /* left or right → always sheet drag */
-      return "mid";
-    }
-    function canScrollSheet() {
-      if (!sheet) return false;
-      return sheet.scrollHeight > sheet.clientHeight + 4;
-    }
-    function atScrollExtreme(dy) {
-      /* dy>0 means finger moved down → content scrolls up intent for sheet-drag retract */
-      if (!sheet) return true;
-      if (dy > 0) return sheet.scrollTop <= 0; /* dragging sheet down/retract only at top */
-      return sheet.scrollTop + sheet.clientHeight >= sheet.scrollHeight - 1;
-    }
-    function onDown(e) {
-      if (e.button && e.button !== 0) return;
-      var y = eventY(e);
-      if (y == null) return;
-      var zone = zoneFor(e);
-      /* Mid only: leave search/mic/buttons alone. L/R ~22% always sheet-drag (even over #q). */
-      if (zone === "mid" && e.target && e.target.closest && e.target.closest("#q,#mic,input,textarea,button.sheet-go,.offer-actions,.accept,.decline,a")) return;
-      var open = drawerH > collapsedDrawerH() + 8;
-      var mode = "sheet";
-      if (zone === "mid" && open && canScrollSheet()) {
-        mode = "maybe"; /* decide on move: scroll vs sheet */
-      }
-      drawerDrag = { y: y, h: drawerH, moved: false, mode: mode, zone: zone, pid: e.pointerId };
-      if (mode === "sheet") {
-        e.preventDefault();
-        try { if (e.pointerId != null) d.setPointerCapture(e.pointerId); } catch (err) {}
-      }
-    }
-    function onMove(e) {
-      if (!drawerDrag) return;
-      if (drawerDrag.pid != null && e.pointerId != null && e.pointerId !== drawerDrag.pid) return;
-      var y = eventY(e);
-      if (y == null) return;
-      var dy = drawerDrag.y - y; /* up = expand */
-      if (Math.abs(dy) < 3 && !drawerDrag.moved) return;
-      if (drawerDrag.mode === "maybe") {
-        if (Math.abs(dy) < 6) return;
-        /* Mid zone: prefer content scroll when overflowing; sheet-drag at extremes or clear vertical sheet intent from edge-like pull. */
-        if (canScrollSheet() && !atScrollExtreme(dy > 0 ? 1 : -1)) {
-          drawerDrag.mode = "scroll";
-          return; /* let #sheet pan-y */
-        }
-        drawerDrag.mode = "sheet";
-        try { if (drawerDrag.pid != null) d.setPointerCapture(drawerDrag.pid); } catch (err) {}
-      }
-      if (drawerDrag.mode === "scroll") return;
-      e.preventDefault();
+    handle.addEventListener("click", function (e) {
+      if (e.detail === 0) toggleDrawer();
+    });
+    handle.addEventListener("pointerdown", function (e) {
+      if (e.button !== 0 || !e.isPrimary) return;
+      drawerDrag = { y: e.clientY, h: drawerH, pid: e.pointerId, moved: false };
+      handle.setPointerCapture(e.pointerId);
+    });
+    handle.addEventListener("pointermove", function (e) {
+      if (!drawerDrag || e.pointerId !== drawerDrag.pid) return;
+      var dy = drawerDrag.y - e.clientY;
+      if (Math.abs(dy) < 6 && !drawerDrag.moved) return;
       drawerDrag.moved = true;
-      setDrawerHeight(drawerDrag.h + dy);
-    }
-    function onUp(e) {
-      if (!drawerDrag) return;
-      if (drawerDrag.pid != null && e.pointerId != null && e.pointerId !== drawerDrag.pid) return;
-      if (drawerDrag.mode === "sheet") {
-        if (!drawerDrag.moved) {
-          var mid = collapsedDrawerH() + (maxDrawerH() - collapsedDrawerH()) * 0.5;
-          setDrawerHeight(drawerH > mid ? collapsedDrawerH() : maxDrawerH());
-        } else {
-          snapDrawer();
-        }
-      }
+      setDrawerHeight(drawerDrag.h + dy, true);
+    });
+    function endDrag(e) {
+      if (!drawerDrag || e.pointerId !== drawerDrag.pid) return;
+      var drag = drawerDrag;
       drawerDrag = null;
+      if (e.type === "pointercancel") setDrawerHeight(drag.h);
+      else if (!drag.moved) toggleDrawer();
+      else setDrawerHeight(e.clientY < drag.y ? maxDrawerH() : collapsedDrawerH());
     }
-    d.addEventListener("pointerdown", onDown, { passive: false });
-    window.addEventListener("pointermove", onMove, { passive: false });
-    window.addEventListener("pointerup", onUp, { passive: false });
-    window.addEventListener("pointercancel", onUp, { passive: false });
-    /* Handle remains a dedicated expand target. */
-    if (handle && !handle.__snDrawer) {
-      handle.__snDrawer = true;
-      handle.addEventListener("pointerdown", function (e) {
-        e.preventDefault();
-        var y = eventY(e);
-        drawerDrag = { y: y, h: drawerH, moved: false, mode: "sheet", zone: "edge", pid: e.pointerId };
-        try { if (e.pointerId != null) handle.setPointerCapture(e.pointerId); } catch (err) {}
-      }, { passive: false });
-    }
+    handle.addEventListener("pointerup", endDrag);
+    handle.addEventListener("pointercancel", endDrag);
+    window.addEventListener("resize", function () {
+      if (d.classList.contains("open")) setDrawerHeight(maxDrawerH());
+    });
   }
   function bindBurger() {
     var btn = $("sn-burger"), menu = $("menu");
@@ -3390,13 +3279,15 @@
       });
     }
     var viewBtn = $("sn-view");
+    var outBtn = $("sn-view-out");
+    if (outBtn) outBtn.addEventListener("click", function () { setOpen(false); stepTier(1); });
     if (viewBtn && !viewBtn.__sn) {
       viewBtn.__sn = true;
       paintViewBtn();
       viewBtn.addEventListener("click", function (e) {
         e.preventDefault(); e.stopPropagation();
         setOpen(false);
-        goCityFromGlobe();
+        stepTier(-1);
       });
     }
   }
@@ -3752,6 +3643,10 @@
       if (act === "order-client-ok") { clientReceived(id); }
       if (act === "order-cancel") { orderCancelKeepPay(id, "Client/peer cancel"); }
       if (act === "order-send") { sendOrderMsg(id); }
+      if (act === "test-pin") { placeTestPin(t.getAttribute("data-role")); }
+      if (act === "remove-test-pin") {
+        updateTestPins(loadTestPins().filter(function (pin) { return pin.id !== id; }));
+      }
       if (act === "insert-actor") { insertActor(t.getAttribute("data-role")); }
       if (act === "save-actor") { saveActor(t.getAttribute("data-role")); }
       if (act === "retry-verify") {
@@ -4005,7 +3900,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4444 = true;
+    window.__SN_4445 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
@@ -4024,7 +3919,7 @@
       txns: function () { return txns.slice(); },
       archiveTransaction: archiveTransaction,
       paintDrawerContent: paintDrawerContent,
-      nudgeZoom: nudgeZoom,
+      nudgeZoom: stepTier,
       drawRoute: drawRoute, architectUrl: architectUrl, openArchitectAt: openArchitectAt,
       goCityFromGlobe: goCityFromGlobe, startTransaction: startTransaction, openPeerMessage: openPeerMessage
     };
