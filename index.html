@@ -4,13 +4,13 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4445"/>
+<meta name="astranov-build" content="4446"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
-<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4445"/>
+<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4446"/>
 <style>
 :root{
   --bg:#02040a; --fg:#e8fbff; --muted:#8ec8d8; --accent:#4df0ff;
@@ -39,7 +39,7 @@ button{cursor:pointer}
 #top{
   position:fixed;z-index:50;top:0;left:0;right:0;
   height:calc(var(--safe-t) + var(--top-row));
-  display:grid;grid-template-columns:var(--ctrl) 1fr minmax(var(--ctrl),auto);align-items:flex-end;gap:6px;
+  display:grid;grid-template-columns:var(--ctrl) minmax(36px,1fr) max-content minmax(30px,1fr) minmax(var(--ctrl),auto);align-items:center;gap:4px;
   padding:0 var(--safe-r) 2px var(--safe-l);pointer-events:none;box-sizing:border-box;
 }
 #top > *{pointer-events:auto}
@@ -84,18 +84,15 @@ button{cursor:pointer}
   font:700 14px/1 system-ui;display:flex;align-items:center;justify-content:center;gap:0;
   box-shadow:0 0 6px rgba(255,80,80,.22);
 }
-#sn-support .em{font-size:11px;line-height:1;margin-left:1px}
-/* Countdown lives on map/globe band only — never over drawer offer price */
-#sn-cd{
-  position:fixed;left:0;right:0;top:0;bottom:var(--drawer-h);
-  z-index:3;display:none;align-items:center;justify-content:center;
-  pointer-events:none;background:transparent;padding-top:calc(var(--safe-t) + var(--top-row));
+#sn-support svg,#sn-power svg{width:22px;height:22px}
+#sn-offer-pay,#sn-level{
+  position:fixed;z-index:44;top:calc(var(--safe-t) + var(--top-row) + 6px);left:50%;
+  transform:translateX(-50%);white-space:nowrap;pointer-events:none;color:#4df0ff;
+  background:rgba(4,14,28,.94);border:1px solid rgba(77,240,255,.36);border-radius:10px;padding:4px 12px;
 }
-#sn-cd.on{display:flex}
-#sn-cd .n{
-  font:800 clamp(72px,22vw,160px)/1 system-ui;color:#4df0ff;letter-spacing:-.06em;
-  text-shadow:0 0 24px rgba(77,240,255,.95),0 0 48px rgba(26,60,255,.7),0 0 80px rgba(26,60,255,.45);
-}
+#sn-offer-pay{font:800 clamp(22px,6vw,46px)/1.1 system-ui;font-variant-numeric:tabular-nums}
+#sn-level{font:700 12px system-ui}
+#sn-offer-time{font-variant-numeric:tabular-nums;color:#7ee9ff}
 .offer-actions{display:flex;gap:10px;margin:12px 0 0;align-items:stretch}
 .offer-actions .decline,.offer-actions .accept{
   flex:1;height:44px;border-radius:10px;font:800 13px/1 system-ui;letter-spacing:.08em;border:1px solid;
@@ -126,10 +123,8 @@ button{cursor:pointer}
 
 /* Radar — under top row only; stays clear of money and drawer */
 #sn-radar{
-  position:fixed;z-index:46;
-  top:calc(var(--safe-t) + var(--top-row) + var(--gap) + var(--ctrl) + var(--radar-gap));
-  right:var(--safe-r);
-  width:var(--radar);height:var(--radar);border-radius:50%;pointer-events:none;overflow:hidden;
+  position:relative;justify-self:center;
+  width:30px;height:30px;border-radius:50%;pointer-events:none;overflow:hidden;
   border:1px solid rgba(77,240,255,.4);
   background:radial-gradient(circle,rgba(4,14,28,.78) 0 58%,transparent 59%);
   box-shadow:inset 0 0 10px rgba(77,240,255,.14);
@@ -196,7 +191,7 @@ button{cursor:pointer}
   height:var(--drawer-h);
   display:flex;flex-direction:column;
   background:rgba(4,14,28,.96);border-top:1px solid rgba(77,240,255,.28);
-  box-shadow:0 -6px 18px rgba(0,0,0,.35);
+  box-shadow:0 -6px 18px rgba(0,0,0,.35);touch-action:pan-x;
 }
 .sn-exch,.sn-txns,.sn-now{margin:0 0 12px}
 .sn-exch h3,.sn-txns h3{margin:8px 0 6px;font:800 11px system-ui;letter-spacing:.14em;color:#7ee9ff}
@@ -220,7 +215,7 @@ button{cursor:pointer}
 #handle .lab{display:none!important}
 #sheet{
   flex:1;min-height:0;overflow:auto;padding:0 10px calc(10px + var(--safe-b));
-  -webkit-overflow-scrolling:touch;touch-action:pan-y;overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;touch-action:pan-x;overscroll-behavior:contain;
 }
 /* No floating instruction/status banners */
 #toast,#line{display:none!important;visibility:hidden!important;pointer-events:none!important;opacity:0!important}
@@ -286,7 +281,6 @@ button{cursor:pointer}
 .offer-card{padding:6px 0 14px;border-bottom:1px solid rgba(77,240,255,.14);margin:0 0 10px;text-align:center}
 .offer-card h3{text-align:center;letter-spacing:.12em;color:#7ee9ff}
 .offer-card .note{text-align:center;max-width:32em;margin-left:auto;margin-right:auto}
-#drawer.open #sheet{touch-action:pan-y}
 .break{margin:6px 0 0;color:#9ad7e8;font:600 13px/1.45 ui-monospace,monospace;white-space:pre-line}
 .note{margin:8px 0;color:var(--muted);font:500 13px/1.4 system-ui}
 h3{margin:4px 0 8px;font:800 13px system-ui;letter-spacing:.12em}
@@ -314,6 +308,35 @@ textarea.field,#sn-support-matter{min-height:88px}
 }
 @keyframes sn-radar-spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.sn-radar{animation:none}}
+.actor-pin{
+  box-sizing:border-box;display:grid;place-items:center;font:20px/1 system-ui;
+  background:#071c2b;border:1px solid #4df0ff;border-radius:50%;box-shadow:0 1px 6px #02040a;
+}
+.actor-pin.test-pin{border-style:dashed}
+.test-item{display:flex;gap:8px;padding:9px 0;border-bottom:1px solid rgba(126,233,255,.24)}
+.test-item img{border-radius:8px;object-fit:cover}
+.test-item .note{margin:3px 0}
+.test-form label{display:block;font:600 13px system-ui}
+.test-times{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.test-times input{min-width:0}
+#sn-resources{
+  justify-self:center;width:clamp(36px,14vw,76px);height:30px;background:#04101c;
+  border:1px solid rgba(77,240,255,.55);border-radius:7px;padding:3px;
+}
+#sn-resources canvas{display:block;width:100%;height:100%}
+#sn-resources.alert{border-color:#ff5a7a;animation:resource-alert .8s alternate infinite}
+@keyframes resource-alert{to{background:#621633;box-shadow:0 0 10px #ff5a7a}}
+@media(prefers-reduced-motion:reduce){#sn-resources.alert{animation:none;background:#621633}}
+#sn-resource-dialog{
+  box-sizing:border-box;width:min(94vw,480px);padding:14px;border:1px solid #4df0ff;
+  border-radius:14px;background:#040e1c;color:#e8fbff;
+}
+#sn-resource-dialog::backdrop{background:rgba(2,4,10,.55)}
+#sn-resource-chart{display:block;width:100%;height:auto;background:#071c2b;border-radius:8px}
+#sn-resource-readings{display:grid;grid-template-columns:1fr auto;gap:9px;font:12px system-ui}
+#sn-resource-readings i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+#sn-resource-readings dd{margin:0;text-align:right;color:#9ad7e8}
+
 </style>
 </head>
 <body>
@@ -323,15 +346,26 @@ textarea.field,#sn-support-matter{min-height:88px}
 
 <header id="top">
   <button type="button" id="sn-burger" aria-label="Menu" aria-expanded="false" aria-controls="menu">☰</button>
+  <button type="button" id="sn-resources" aria-label="Device resources" aria-haspopup="dialog"><canvas id="sn-spark" width="100" height="42" aria-hidden="true"></canvas></button>
   <button type="button" id="logo" aria-label="Force update Astranov.eu">ASTRANOV.EU</button>
+  <div id="sn-radar" aria-hidden="true"><div id="sn-radar-sweep"></div><div id="sn-radar-blips"></div></div>
   <button type="button" id="sn-money" class="on" aria-label="Wallet"><span class="tgt">AV€</span></button>
 </header>
 
-<button type="button" id="sn-power" class="off" aria-label="Offer receive power" title="Hold 3s to arm/disarm">⏻</button>
-<button type="button" id="sn-support" aria-label="Support">🎧<span class="em" aria-hidden="true">🧑</span></button>
+<button type="button" id="sn-power" class="off" aria-label="Receive offers" aria-pressed="false">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 2v9M7 5a8 8 0 1 0 10 0"/></svg>
+</button>
+<button type="button" id="sn-support" aria-label="Support">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 13v-2a8 8 0 0 1 16 0v5a5 5 0 0 1-5 5h-3"/><rect x="3" y="11" width="4" height="6" rx="1"/><rect x="17" y="11" width="4" height="6" rx="1"/></svg>
+</button>
+<div id="sn-offer-pay" hidden></div>
+<div id="sn-level" hidden></div>
 
-<div id="sn-radar" aria-hidden="true"><div id="sn-radar-sweep"></div><div id="sn-radar-blips"></div></div>
-<div id="sn-cd" aria-hidden="true"><span class="n">13</span></div>
+<dialog id="sn-resource-dialog" aria-labelledby="sn-resource-title">
+  <div class="sheet-bar"><b id="sn-resource-title" class="sheet-ttl">Device resources</b><form method="dialog"><button class="sheet-x">Close</button></form></div>
+  <canvas id="sn-resource-chart" width="600" height="200" aria-hidden="true"></canvas>
+  <dl id="sn-resource-readings"></dl>
+</dialog>
 
 <nav id="menu" hidden>
   <button type="button" id="sn-support-menu">SUPPORT DESK</button>
@@ -360,10 +394,10 @@ textarea.field,#sn-support-matter{min-height:88px}
 <div id="toast" role="status"></div>
 <div id="line" role="status"></div>
 
-<script src="/js/vendor/leaflet.js?v=4445"></script>
-<script src="/js/spacenet/partners/types.js?v=4445"></script>
-<script src="/js/spacenet/partners/client.js?v=4445"></script>
-<script src="/js/spacenet/app.js?v=4445"></script>
-<script src="/js/spacenet/auth.js?v=4445"></script>
+<script src="/js/vendor/leaflet.js?v=4446"></script>
+<script src="/js/spacenet/partners/types.js?v=4446"></script>
+<script src="/js/spacenet/partners/client.js?v=4446"></script>
+<script src="/js/spacenet/app.js?v=4446"></script>
+<script src="/js/spacenet/auth.js?v=4446"></script>
 </body>
 </html>

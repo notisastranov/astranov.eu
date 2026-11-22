@@ -1,9 +1,38 @@
-/* SpaceNet 4445 — globe navigation, test pins, and scrollable drawer. */
+/* SpaceNet 4446 — country borders, test checkout, offers, and resource monitor. */
 (function () {
   "use strict";
-  var VER = "4445";
+  var VER = "4446";
   var INTRO_MS = 13000;
-  var LAND = [];
+  var LAND = [], BORDERS = [];
+  function unpackLines(pack) {
+    return pack.trim().split(";").map(function (line) {
+      return line.split(" ").map(function (point) { return point.split(",").map(Number); });
+    });
+  }
+  function loadBorders() {
+    fetch("/js/spacenet/assets/borders.pack?v=" + VER, { cache: "force-cache" })
+      .then(function (r) { if (r.ok) return r.text(); })
+      .then(function (pack) { if (pack) BORDERS = unpackLines(pack); })
+      .catch(function () {});
+  }
+  function drawBorders() {
+    var yaw = cam.yaw + earthSpin(), cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+    ctx.beginPath();
+    BORDERS.forEach(function (line) {
+      var pen = false;
+      line.forEach(function (point) {
+        var vector = vecOf(point[0], point[1], yaw, cp, sp);
+        if (vector.z < 0.04) { pen = false; return; }
+        var p = scrOf(vector);
+        if (pen) ctx.lineTo(p.x, p.y);
+        else ctx.moveTo(p.x, p.y);
+        pen = true;
+      });
+    });
+    ctx.strokeStyle = "rgba(126,233,255,.78)";
+    ctx.lineWidth = 1.15;
+    ctx.stroke();
+  }
   function unpackLand(pack) {
     var parts = String(pack || "").split(";");
     var out = [];
@@ -95,7 +124,6 @@
   var offerCdLeft = 0;
   var offerActiveId = null;
   var pendingOffer = null;
-  var powerCdTimer = null;
   var quoteOpts = { rain: false, floor: false, tip: 0 };
   var STAGES = ["ACCEPT", "PICKUP HANDOFF", "IN TRANSIT", "DELIVERED", "RECEIVED"];
   var view = { cx: 0, cy: 0, scale: 120, w: 1, h: 1 };
@@ -475,6 +503,7 @@
     ctx.strokeStyle = "rgba(86, 128, 156, 0.42)";
     ctx.lineWidth = 0.7;
     for (i = 0; i < LAND.length; i++) drawLand(ctx, LAND[i], cam);
+    if (tierI === 3) drawBorders();
     var night = ctx.createLinearGradient(cx - r, cy, cx + r * 0.35, cy);
     night.addColorStop(0, "rgba(2,6,12,0.16)");
     night.addColorStop(0.55, "rgba(2,6,12,0.08)");
@@ -676,7 +705,6 @@
     tickNews(now);
     if (!cityOn) drawGlobe(now);
     if (skyOn) drawSky(now);
-    paintMonitor(now);
     maybeLayout();
     requestAnimationFrame(loop);
   }
@@ -724,8 +752,7 @@
         var d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
         var ratio = d / pinch;
         if (!pinchStepped && (ratio > 1.12 || ratio < 1 / 1.12)) {
-          pinchStepped = true;
-          stepTier(ratio > 1 ? -1 : 1, (pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2);
+          pinchStepped = stepTier(ratio > 1 ? -1 : 1, (pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2);
         }
         return;
       }
@@ -817,7 +844,7 @@
   }
   function settleTier(i, pt) {
     tierI = i;
-    tierLock = Date.now() + 360;
+    tierLock = Date.now() + (i === 3 ? 750 : 360);
     freeLook = true;
     vel.yaw = 0; vel.pitch = 0;
     var f = face(pt || aim);
@@ -914,7 +941,7 @@
       map = L.map(el, { zoomControl: false, attributionControl: false, minZoom: 12, maxZoom: 19, scrollWheelZoom: true }).setView([pt.lat, pt.lng], 16);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, minZoom: 12 }).addTo(map);
       map.on("zoomend", function () {
-        if (cityOn && map.getZoom() <= 12) closeCity();
+        if (cityOn && !fittingRoute && map.getZoom() <= map.getMinZoom()) closeCity();
       });
       el.addEventListener("wheel", function (e) {
         if (!e.deltaY) return;
@@ -975,7 +1002,7 @@
     cam.pitch = f.pitch;
     cam.dist = TIERS[3].dist;
     tierI = 3;
-    tierLock = 0;
+    tierLock = Date.now() + 450;
     freeLook = true;
     paintViewBtn();
   }
@@ -1031,6 +1058,9 @@
       '<button type="button" class="sheet-go" data-act="open-architect">Open Architect</button></details>');
   }
   var testRoles = { vendor: "Vendor", driver: "Driver", client: "Client" };
+  var actorIcons = { vendor: "🏪", delivery_services: "📦", driver: "🚚", client: "🏠" };
+  var testOrder = null;
+  var testClientId = "";
   function placeTestPin(role) {
     if (!listPt || !Object.hasOwn(testRoles, role)) return;
     var pins = loadTestPins();
@@ -1047,7 +1077,7 @@
       return Array.isArray(pins) ? pins : [];
     } catch (e) { return []; }
   }
-  function updateTestPins(pins) {
+  function updateTestPins(pins, keepSheet) {
     try {
       localStorage.setItem("sn:test-pins", JSON.stringify(pins.slice(0, 120)));
     } catch (e) {
@@ -1059,7 +1089,8 @@
       plotMark = null;
     }
     paintActorsOnMap();
-    closeSheet();
+    if (!keepSheet) closeSheet();
+    return true;
   }
   function isVendorRole(role) {
     return role === "vendor" || role === "delivery_services";
@@ -1255,13 +1286,21 @@
     }));
     rows.concat(loadTestPins()).forEach(function (a) {
       if (!a || !isFinite(a.lat) || !isFinite(a.lng)) return;
-      var color = a.role === "driver" ? "#1a3cff" : a.role === "client" ? "#0b6b45" : a.role === "delivery_services" ? "#0ea5e9" : "#ff8a3d";
-      var mark = L.circleMarker([a.lat, a.lng], {
-        radius: a.test ? 7 : 9, color: a.test ? "#4df0ff" : color,
-        fillColor: color, fillOpacity: 0.9, weight: 2, dashArray: a.test ? "3 2" : undefined
+      var icon = actorIcons[a.role] || actorIcons.vendor;
+      var title = (testRoles[a.role] || "Delivery service") + " · " + a.name;
+      var mark = L.marker([a.lat, a.lng], {
+        title: title, alt: title,
+        icon: L.divIcon({
+          className: "actor-pin" + (a.test ? " test-pin" : ""),
+          html: '<span aria-hidden="true">' + icon + '</span>',
+          iconSize: [32, 32], iconAnchor: [16, 16]
+        })
       });
-      var tipRole = a.role === "delivery_services" ? "DELIVERY SERVICES" : String(a.role || "vendor").toUpperCase();
-      mark.bindTooltip(tipRole + " · " + (a.name || ""), { direction: "top" });
+      mark.bindTooltip(function () {
+        var label = document.createElement("span");
+        label.textContent = title;
+        return label;
+      }, { direction: "top" });
       mark.on("click", function (e) {
         if (e && e.originalEvent) L.DomEvent.stop(e.originalEvent);
         openActorSheet(a);
@@ -1273,8 +1312,12 @@
   function openActorSheet(a) {
     if (!a) return;
     if (a.test) {
-      openSheet(a.name,
-        '<button type="button" class="sheet-go" data-act="remove-test-pin" data-id="' + escHtml(a.id) + '">Remove pin</button>');
+      if (a.role === "vendor") { openVendor(a); return; }
+      var action = a.role === "client"
+        ? '<button type="button" class="sheet-go primary" data-act="test-client" data-id="' + escHtml(a.id) + '">Deliver here</button>'
+        : (testOrder && !testOrder.accepted && testOrder.drivers.some(function (d) { return d.id === a.id; })
+          ? '<button type="button" class="sheet-go primary" data-act="test-driver" data-id="' + escHtml(a.id) + '">Show test offer</button>' : "");
+      openSheet(a.name, action + removeTestPinButton(a));
       return;
     }
     openSheet(String(a.name || "ACTOR").toUpperCase(),
@@ -1294,6 +1337,11 @@
   }
   function paintViewBtn() {
     var inBtn = $("sn-view"), outBtn = $("sn-view-out");
+    var level = $("sn-level");
+    if (level) {
+      level.hidden = tierI !== 3 || !!pendingOffer;
+      level.textContent = "National";
+    }
     if (inBtn) inBtn.textContent = "Zoom in · " + (cityOn ? "Streets" : TIERS[tierI + 1].name);
     if (outBtn) {
       outBtn.disabled = tierI === 0;
@@ -1347,22 +1395,6 @@
     openSheet("ASTRANOV",
       '<p class="note">Astranov Cybernetics Architecture. Founded 12/04/2026. SpaceNet is the live surface.</p>' +
       '<a class="sheet-go primary" href="https://astranov.eu">astranov.eu</a>');
-  }
-  function openFleet() {
-    var dpr = window.devicePixelRatio || 1;
-    var mem = "";
-    try {
-      var m = performance.memory;
-      if (m && m.jsHeapSizeLimit) mem = " · heap " + Math.round((m.usedJSHeapSize / m.jsHeapSizeLimit) * 100) + "%";
-    } catch (e) {}
-    openSheet("MONITOR",
-      '<canvas id="sn-spark-lg" width="320" height="96" style="width:100%;height:96px;display:block;margin:8px 0"></canvas>' +
-      '<p class="note">' + (navigator.platform || "device") + " · " + (navigator.hardwareConcurrency || "?") + " cores" + mem + "</p>");
-    var src = $("sn-spark"), dst = $("sn-spark-lg");
-    if (src && dst) {
-      var dctx = dst.getContext("2d");
-      if (dctx) dctx.drawImage(src, 0, 0, dst.width, dst.height);
-    }
   }
   var supportOn = false;
   var supportTicket = "";
@@ -1451,38 +1483,38 @@
       tone(1760, now + 0.34, 0.28, "triangle");
     } catch (e) {}
   }
-  function setCd(n, on) {
-    var el = $("sn-cd"), num = el && el.querySelector(".n");
-    if (!el || !num) return;
-    if (!on) {
-      el.classList.remove("on");
-      el.setAttribute("aria-hidden", "true");
-      return;
+  function paintOfferHud() {
+    var amount = $("sn-offer-pay");
+    var countdown = $("sn-offer-time");
+    if (amount) {
+      amount.hidden = !pendingOffer;
+      if (pendingOffer) amount.textContent = Number(pendingOffer.fee).toLocaleString("en-GB") + " AV€";
     }
-    num.textContent = String(n);
-    el.classList.add("on");
-    el.setAttribute("aria-hidden", "false");
+    if (countdown) countdown.textContent = offerCdLeft > 0 ? offerCdLeft + " s to accept" : "";
+    paintViewBtn();
   }
   function clearOfferCountdown() {
-    if (offerCdTimer) { clearInterval(offerCdTimer); offerCdTimer = null; }
+    clearInterval(offerCdTimer);
+    offerCdTimer = null;
     offerCdLeft = 0;
-    setCd(0, false);
   }
   function startOfferCountdown(seconds, onZero) {
     clearOfferCountdown();
-    offerCdLeft = Math.max(1, seconds | 0);
-    setCd(offerCdLeft, true);
+    var deadline = Date.now() + seconds * 1000;
+    offerCdLeft = seconds;
+    paintOfferHud();
     playOfferBeep();
     offerCdTimer = setInterval(function () {
-      offerCdLeft -= 1;
-      if (offerCdLeft > 0) {
-        setCd(offerCdLeft, true);
-        if (offerCdLeft === 3 || offerCdLeft === 1) playOfferBeep();
-        return;
+      var remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      if (remaining === offerCdLeft) return;
+      offerCdLeft = remaining;
+      if (remaining === 3 || remaining === 1) playOfferBeep();
+      paintOfferHud();
+      if (remaining === 0) {
+        clearOfferCountdown();
+        onZero();
       }
-      clearOfferCountdown();
-      if (typeof onZero === "function") onZero();
-    }, 1000);
+    }, 200);
   }
   function ensureHopConfirms(job) {
     if (!job) return job;
@@ -1790,7 +1822,7 @@
     var to = job && (job.drop || job.to);
     if (!from || !to || !isFinite(Number(from.lat)) || !isFinite(Number(to.lat))) return;
     if (!cityOn && typeof openCity === "function") openCity(here || from);
-    drawRoute(from, to);
+    drawRoute(from, to, job.driver);
     placeDriverOnRoute(from, to);
   }
   function paintActiveOfferCard(job, mode) {
@@ -1798,71 +1830,73 @@
     var id = "offer-" + job.id;
     var feeN = Number(job.fee != null ? job.fee : job.total);
     var priceHtml = isFinite(feeN)
-      ? '<div class="price">' + Math.round(feeN).toLocaleString("en-GB") + " <small>AV€</small></div>"
+      ? '<div class="price">' + feeN.toLocaleString("en-GB") + " <small>AV€</small></div>"
       : '<div class="price">— <small>AV€</small></div>';
-    var title = String((job.vendor && job.vendor.name) || job.shop || job.name || "OFFER").replace(/[<>]/g, "");
-    var note = String(job.note || job.item || "Vendor → client with driver. Dual-confirm each hop.").replace(/[<>]/g, "");
+    var title = String((job.vendor && job.vendor.name) || job.shop || job.name || "OFFER");
+    var note = escHtml(job.note || job.item || "Vendor → client with driver. Dual-confirm each hop.");
     var body;
     if (mode === "pending") {
-      body = '<div class="offer-actions">' +
+      body = '<p id="sn-offer-time" class="note" role="timer"></p><div class="offer-actions">' +
         '<button type="button" class="decline" data-act="decline" data-id="' + job.id + '">DECLINE</button>' +
         '<button type="button" class="accept" data-act="accept" data-id="' + job.id + '">ACCEPT</button></div>';
+    } else if (job.test) {
+      body = '<button type="button" class="sheet-go primary" data-act="test-stage" data-id="' + escHtml(job.id) + '">' +
+        testDeliveryStages[job.stage] + '</button>';
     } else {
       body = hopHtml(job);
     }
-    var html = '<div class="offer-card" data-offer="' + id + '">' + priceHtml +
-      "<h3>" + title.toUpperCase() + "</h3>" +
+    var html = '<div class="offer-card" data-offer="' + escHtml(id) + '">' +
+      (mode === "pending" ? "" : priceHtml) +
+      "<h3>" + escHtml(title.toUpperCase()) + "</h3>" +
       '<p class="note">' + note + (isFinite(Number(job.km)) ? " · " + Number(job.km).toFixed(1) + " km" : "") + "</p>" +
       body + "</div>";
     upsertTab({ id: id, kind: "offer", title: title.slice(0, 16).toUpperCase(), html: html, min: false, jobId: job.id, mode: mode });
     paintDrawerContent();
+    paintOfferHud();
     openOfferDrawer();
   }
-  function synthOfferPoints(job) {
-    var base = here || { lat: 37.9838, lng: 23.7275 };
-    if (!job.vendor || !isFinite(Number(job.vendor.lat))) {
-      job.vendor = Object.assign({ name: (job.vendor && job.vendor.name) || job.name || "VENDOR", lat: base.lat + 0.012, lng: base.lng - 0.01 }, job.vendor || {});
-    }
-    if (!job.drop || !isFinite(Number(job.drop.lat))) {
-      job.drop = Object.assign({ name: "CLIENT", lat: base.lat - 0.01, lng: base.lng + 0.014 }, job.drop || {});
-    }
-    if (!isFinite(Number(job.km))) {
-      try { job.km = haversineKm(job.vendor, job.drop); } catch (e) { job.km = 2.4; }
-    }
-    if (!isFinite(Number(job.fee))) job.fee = job.fee || 18;
-    return job;
-  }
-  function declineOffer(jobId) {
+  function closeOffer(jobId) {
     clearOfferCountdown();
     offerActiveId = null;
     pendingOffer = null;
     dockTabs = dockTabs.filter(function (t) { return !(t.kind === "offer" && String(t.jobId) === String(jobId)); });
     paintDrawerContent();
-    setDrawerHeight(collapsedDrawerH());
+    paintOfferHud();
     clearDriverMark();
-    say("Declined.");
+    clearRoute();
+    setDrawerHeight(collapsedDrawerH());
+  }
+  function declineOffer(jobId) {
+    if (!pendingOffer || String(pendingOffer.id) !== String(jobId)) return;
+    var queued = pendingOffer;
+    closeOffer(jobId);
+    if (queued.test) {
+      var next = queued.drivers.indexOf(queued.driver) + 1;
+      if (offersArmed() && queued.drivers[next]) showTestOffer(testOrder, queued.drivers[next]);
+      else testOrder = null;
+    }
   }
   function acceptOffer(jobId) {
+    if (!pendingOffer || String(pendingOffer.id) !== String(jobId)) return;
     clearOfferCountdown();
-    var job = jobs.filter(function (j) { return String(j.id) === String(jobId); })[0];
-    if (!job && pendingOffer && String(pendingOffer.id) === String(jobId || pendingOffer.id)) job = pendingOffer;
-    if (!job) {
-      job = synthOfferPoints({
-        id: jobId || ("j" + Date.now().toString(36)),
-        name: "OFFER",
-        fee: 18,
-        stage: 0,
-        confirms: { pickup: { vendor: false, driver: false }, deliver: { driver: false, client: false } },
-        paid: false,
-        t: Date.now(),
-        note: "Accepted · dual-confirm hops live."
-      });
-    } else {
-      synthOfferPoints(job);
-      ensureHopConfirms(job);
+    if (pendingOffer.test) {
+      pendingOffer = null;
+      testOrder.accepted = true;
+      paintActiveOfferCard(testOrder, "active");
+      return;
     }
+    var received = pendingOffer;
+    var job = jobs.filter(function (j) { return String(j.id) === String(jobId); })[0];
+    if (!job && received.jobId) job = jobs.find(function (row) { return row.id === received.jobId; });
+    if (!job) job = received;
+    ensureHopConfirms(job);
     if (!jobs.filter(function (j) { return String(j.id) === String(job.id); }).length) jobs.unshift(job);
     pendingOffer = null;
+    dockTabs = dockTabs.filter(function (tab) { return tab.id !== "offer-" + received.id; });
+    if (received.role === "driver" && received.driver) {
+      job.driver = received.driver;
+      job.driverId = received.driver.id;
+    }
     job.stage = Math.max(job.stage || 0, 0);
     job.accepted = true;
     job.note = "Accepted · dual-confirm hops live.";
@@ -1916,24 +1950,20 @@
     openJobs();
   }
   function throwOffer(job) {
-    job = job || {};
-    var rawId = job.id ? String(job.id) : ("live" + Date.now().toString(36));
-    job = synthOfferPoints(Object.assign({}, job, { id: rawId }));
+    if (!job || !job.vendor || !job.drop || job.fee == null || !Number.isFinite(Number(job.fee))) return;
+    if (![job.vendor.lat, job.vendor.lng, job.drop.lat, job.drop.lng].every(Number.isFinite)) return;
+    if ((testOrder && testOrder.accepted) || (pendingOffer && pendingOffer.test)) return;
+    if (pendingOffer) closeOffer(pendingOffer.id);
+    job = Object.assign({}, job, { id: String(job.id || crypto.randomUUID()) });
     ensureHopConfirms(job);
-    if (!jobs.filter(function (j) { return String(j.id) === String(job.id); }).length) {
-      /* pending offer card only — Accept materializes permanently */
-    }
     offerActiveId = job.id;
     pendingOffer = job;
+    closeJobs();
+    closeSheet();
+    if (!cityOn) openCity(job.vendor);
     paintActiveOfferCard(job, "pending");
-    var from = job.vendor || job.from;
-    var to = job.drop || job.to;
-    if (from && to && isFinite(Number(from.lat)) && isFinite(Number(to.lat))) {
-      if (!cityOn && typeof openCity === "function") openCity(here || from);
-      drawRoute(from, to);
-    } else {
-      fitOfferRoute();
-    }
+    $("sheet").scrollTop = 0;
+    drawRoute(job.vendor, job.drop, job.driver);
     startOfferCountdown(13, function () { declineOffer(job.id); });
   }
   function openOfferDrawer() {
@@ -2124,6 +2154,7 @@
     }
     if (routeLayer && map) fitOfferRoute();
   }
+  var fittingRoute = false;
   function fitOfferRoute() {
     if (!map || typeof L === "undefined") return;
     var topEl = visRect($("top"));
@@ -2132,8 +2163,11 @@
     var top = 56, bot = 80, side = 20;
     if (topEl) top = Math.max(top, Math.round(topEl.bottom + 10));
     if (radar) top = Math.max(top, Math.round(radar.bottom + 8));
+    var offerPay = visRect($("sn-offer-pay"));
+    if (offerPay) top = Math.max(top, Math.round(offerPay.bottom + 8));
     if (drawer) bot = Math.max(bot, Math.round(window.innerHeight - drawer.top + 12));
     else bot = Math.max(bot, Math.round(drawerH || 70) + 16);
+    if (top + bot >= window.innerHeight - 24) return;
     var pts = [];
     try {
       if (routeLayer && routeLayer.getLatLngs) {
@@ -2143,9 +2177,9 @@
         });
       }
     } catch (e) {}
-    if (here && isFinite(here.lat) && isFinite(here.lng)) pts.push([here.lat, here.lng]);
-    if (vendor && isFinite(vendor.lat)) pts.push([vendor.lat, vendor.lng]);
-    if (drop && isFinite(drop.lat)) pts.push([drop.lat, drop.lng]);
+    if (!pts.length && here && isFinite(here.lat) && isFinite(here.lng)) pts.push([here.lat, here.lng]);
+    if (!routeLayer && vendor && isFinite(vendor.lat)) pts.push([vendor.lat, vendor.lng]);
+    if (!routeLayer && drop && isFinite(drop.lat)) pts.push([drop.lat, drop.lng]);
     try {
       if (driverMark && driverMark.getLatLng) {
         var dl = driverMark.getLatLng();
@@ -2154,15 +2188,18 @@
     } catch (e3) {}
     if (pts.length < 1) return;
     try {
+      fittingRoute = true;
       var bounds = L.latLngBounds(pts);
       map.fitBounds(bounds, {
         paddingTopLeft: [side, top],
         paddingBottomRight: [side, bot],
         maxZoom: 16,
-        animate: true
+        animate: false
       });
       if (typeof map.invalidateSize === "function") map.invalidateSize({ animate: false });
-    } catch (e2) {}
+    } finally {
+      fittingRoute = false;
+    }
   }
   function openSheet(title, html) {
     var sh = $("sn-sheet"), card = $("sn-sheet-card");
@@ -2288,7 +2325,7 @@
     }
   }
   function vendorMenu(s) {
-    var base = (s && s.menu && s.menu.length) ? s.menu : [
+    var base = s && s.test ? (s.menu || []) : (s && s.menu && s.menu.length) ? s.menu : [
       { name: "House special", price: "12", note: "Photo · fresh", hours: "11:00–22:00", stock: "in", photo: "" },
       { name: "Daily tray", price: "8", note: "Limited", hours: "12:00–20:00", stock: "in", photo: "" },
       { name: "Drink", price: "3", note: "Cold", hours: "all day", stock: "in", photo: "" }
@@ -2301,7 +2338,8 @@
         note: m.note || m.desc || "",
         hours: m.hours || m.availability || "Today",
         stock: m.stock || "in",
-        photo: m.photo || m.image || ""
+        photo: m.photo || m.image || "",
+        from: m.from, until: m.until
       };
     });
   }
@@ -2320,10 +2358,154 @@
   function openVendor(s) {
     vendor = s;
     cart = { items: {}, comment: cart && cart.comment || "" };
+    if (s.test) { renderTestVendor(); return; }
     if (map && isFinite(s.lat)) map.setView([s.lat, s.lng], 17);
     renderVendorShop();
     var ds = s && (s.vendor_type === "delivery_services" || s.kind === "delivery_services");
     say(s.name + (ds ? " · delivery services · same UX as food · AV€ · 3% fee." : " · profile + menu. Order in AV€ · 3% fee."));
+  }
+  function removeTestPinButton(pin) {
+    return '<button type="button" class="sheet-go" data-act="remove-test-pin" data-id="' + escHtml(pin.id) + '">Remove pin</button>';
+  }
+  function itemAvailable(item) {
+    if (!item || item.stock !== "in") return false;
+    if (!item.from || !item.until || item.from === item.until) return true;
+    var now = new Date();
+    var clock = String(now.getHours()).padStart(2, "0") + ":" + String(now.getMinutes()).padStart(2, "0");
+    return item.from < item.until
+      ? clock >= item.from && clock < item.until
+      : clock >= item.from || clock < item.until;
+  }
+  function renderTestVendor() {
+    if (!vendor || !vendor.test) return;
+    var rows = vendorMenu(vendor).map(function (m) {
+      var available = itemAvailable(m);
+      return '<article class="test-item">' +
+        (m.photo ? '<img width="58" height="58" src="' + escHtml(m.photo) + '" alt=""/>' : "") +
+        '<div><b>' + escHtml(m.name) + '</b><p class="note">' + escHtml(m.note) + '</p>' +
+        '<p class="note">' + m.price + ' AV€ · ' + escHtml(m.hours) + ' · ' + (available ? "Available" : "Unavailable") + '</p>' +
+        '<button type="button" class="sheet-go" aria-label="Remove one ' + escHtml(m.name) + '" data-act="qty-minus" data-i="' + m.i + '"' + (cartQty(m.i) ? "" : " disabled") + '>−</button>' +
+        '<span aria-label="Quantity">' + cartQty(m.i) + '</span> ' +
+        '<button type="button" class="sheet-go" aria-label="Add ' + escHtml(m.name) + ' to cart" data-act="qty-plus" data-i="' + m.i + '"' + (available ? "" : " disabled") + '>+</button></div></article>';
+    }).join("");
+    openSheet(vendor.name + " · Menu",
+      rows + '<button type="button" class="sheet-go" data-act="edit-test-menu">List an item</button>' +
+      '<button type="button" class="sheet-go primary" data-act="test-checkout"' + (cartSubtotal() > 0 ? "" : " disabled") + '>Cart · ' + cartTotal() + ' AV€</button>' +
+      removeTestPinButton(vendor));
+  }
+  async function menuPhoto(file) {
+    if (!file || !file.size) return "";
+    if (!file.type.startsWith("image/") || file.size > 12 * 1024 * 1024) throw new Error("Choose an image under 12 MB.");
+    var image;
+    try {
+      image = await createImageBitmap(file);
+      var scale = Math.min(1, 400 / Math.max(image.width, image.height));
+      var preview = document.createElement("canvas");
+      preview.width = Math.max(1, Math.round(image.width * scale));
+      preview.height = Math.max(1, Math.round(image.height * scale));
+      preview.getContext("2d").drawImage(image, 0, 0, preview.width, preview.height);
+      return preview.toDataURL("image/jpeg", 0.78);
+    } catch (e) {
+      throw new Error("This photo could not be opened. Try a JPEG or PNG.");
+    } finally {
+      if (image) image.close();
+    }
+  }
+  function editTestMenu() {
+    if (!vendor || !vendor.test) return;
+    var vendorId = vendor.id;
+    openSheet("List an item",
+      '<form id="test-item-form" class="test-form">' +
+      '<label>Name<input class="field" name="name" maxlength="80" required></label>' +
+      '<label>Photo<input class="field" name="photo" type="file" accept="image/*"></label>' +
+      '<label>Description<textarea class="field" name="note" maxlength="300"></textarea></label>' +
+      '<label>Price (AV€)<input class="field" name="price" type="number" min="0.01" max="99999" step="0.01" required></label>' +
+      '<label><input name="stock" type="checkbox" checked> Available</label>' +
+      '<div class="test-times"><label>Available from<input class="field" type="time" name="from"></label>' +
+      '<label>Available until<input class="field" type="time" name="until"></label></div>' +
+      '<p class="note">Times use this device’s clock. Leave both blank for all day.</p>' +
+      '<p role="alert" class="note"></p><button class="sheet-go primary">Save item</button>' +
+      '<button type="button" class="sheet-go" data-act="test-menu">Back</button></form>');
+    var form = $("test-item-form");
+    form.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var data = new FormData(form);
+      var alert = form.querySelector('[role="alert"]');
+      var submit = form.querySelector('button:not([type])');
+      var from = data.get("from"), until = data.get("until");
+      var name = data.get("name").trim();
+      if (!name) { alert.textContent = "Enter an item name."; return; }
+      if (!!from !== !!until) { alert.textContent = "Enter both availability times."; return; }
+      submit.disabled = true;
+      try {
+        var photo = await menuPhoto(data.get("photo"));
+        if (!form.isConnected || !vendor || vendor.id !== vendorId) return;
+        var pins = loadTestPins();
+        var pin = pins.find(function (row) { return row.id === vendorId; });
+        if (!pin) throw new Error("This vendor pin was removed.");
+        pin.menu = (pin.menu || []).concat({
+          name: name, photo: photo, note: data.get("note").trim(), price: Number(data.get("price")),
+          stock: data.has("stock") ? "in" : "out", from: from, until: until,
+          hours: from && from !== until ? from + "–" + until : "All day"
+        });
+        if (updateTestPins(pins, true)) {
+          vendor = pin;
+          renderTestVendor();
+        }
+      } catch (error) {
+        alert.textContent = error.message;
+      } finally {
+        submit.disabled = false;
+      }
+    });
+  }
+  function openTestCheckout() {
+    if (!vendor || !vendor.test || !cartSubtotal()) return;
+    var pins = loadTestPins();
+    var clients = pins.filter(function (pin) { return pin.role === "client"; });
+    var drivers = pins.filter(function (pin) { return pin.role === "driver"; });
+    if (!clients.length || !drivers.length) {
+      openSheet("Test checkout", '<p class="note">Place a test client and driver on the map first.</p>');
+      return;
+    }
+    openSheet("Test checkout", '<form id="test-order-form" class="test-form">' +
+      '<label>Deliver to<select name="client" class="field">' + clients.map(function (pin, i) {
+        return '<option value="' + escHtml(pin.id) + '"' + (pin.id === testClientId ? " selected" : "") + '>' +
+          escHtml(pin.name) + ' ' + (i + 1) + ' · ' + pin.lat.toFixed(4) + ', ' + pin.lng.toFixed(4) + '</option>';
+      }).join("") + '</select></label>' +
+      '<p class="note">Cart ' + cartTotal() + ' AV€ · test order, no charge.</p>' +
+      '<p role="alert" class="note"></p>' +
+      '<button class="sheet-go primary">Place test order</button>' +
+      '<button type="button" class="sheet-go" data-act="test-menu">Back to menu</button></form>');
+    $("test-order-form").addEventListener("submit", function (e) {
+      e.preventDefault();
+      var form = e.currentTarget;
+      var lines = vendorMenu(vendor).filter(function (item) { return cartQty(item.i) > 0; });
+      var alert = form.querySelector('[role="alert"]');
+      if (testOrder || pendingOffer) { alert.textContent = "Finish or dismiss the current offer first."; return; }
+      if (!lines.length || lines.some(function (item) { return !itemAvailable(item); })) {
+        alert.textContent = "Check the availability of the items in your cart.";
+        return;
+      }
+      var client = clients.find(function (pin) { return pin.id === form.elements.client.value; });
+      var quote = quoteDelivery(vendor, client, {});
+      testOrder = {
+        id: "test-order-" + crypto.randomUUID(), test: true, stage: 0,
+        vendor: vendor, drop: client, fee: quote.driver, km: quote.km,
+        item: lines.map(function (item) { return cartQty(item.i) + " × " + item.name; }).join(", "),
+        drivers: drivers.sort(function (a, b) { return haversineKm(a, vendor) - haversineKm(b, vendor); })
+      };
+      cart.items = {};
+      if (offersArmed()) showTestOffer(testOrder, testOrder.drivers[0]);
+      else openSheet("Test order queued", '<p class="note">Turn on power to send the offer to the nearest test driver.</p>');
+    });
+  }
+  var testDeliveryStages = ["Confirm pickup", "Confirm delivery", "Client received"];
+  function showTestOffer(order, driver) {
+    closeSheet();
+    order.driver = driver;
+    order.note = order.item + " · " + driver.name + " → " + order.drop.name;
+    throwOffer(order);
   }
   function renderVendorShop() {
     if (!vendor) return;
@@ -2431,7 +2613,7 @@
     job.stage = Math.max(job.stage || 0, 0);
     saveJobs();
     if (offersArmed()) {
-      job.route.vendors.slice(0, 4).forEach(function (v) {
+      job.route.vendors.slice(0, 1).forEach(function (v) {
         throwOffer({
           id: job.id + "-v-" + v.id,
           name: v.name,
@@ -2537,7 +2719,7 @@
     }
     saveJobs();
     if (offersArmed() && picks.length) {
-      picks.forEach(function (d) {
+      picks.slice(0, 1).forEach(function (d) {
         throwOffer({
           id: job.id + "-d-" + d.id,
           name: "DELIVER · " + ((job.vendor && job.vendor.name) || "order"),
@@ -2548,13 +2730,16 @@
           note: "Vendor confirmed · " + (job.driverPay != null ? job.driverPay : job.fee) + " AV€ → you · " + (d.earn < DRIVER_DAY_GOAL ? "needs work (" + Math.round(d.earn) + "/" + DRIVER_DAY_GOAL + ")" : "backup") + " · " + d.km.toFixed(1) + " km",
           jobId: job.id,
           role: "driver",
+          driver: d,
           driverId: driverKey(d)
         });
       });
     }
-    paintActiveOfferCard(job, "active");
-    drawAcceptedRoute(job);
-    openJobs();
+    if (!pendingOffer) {
+      paintActiveOfferCard(job, "active");
+      drawAcceptedRoute(job);
+      openJobs();
+    }
     say("Vendor confirmed · routed to " + (picks[0] ? picks[0].name : "drivers") + (job.route.pickReason ? " (" + job.route.pickReason + ")" : "") + ".");
   }
 
@@ -2633,17 +2818,36 @@
     drawRoute(vendor, drop);
     say("Delivery " + q.total + " AV€ · pay upfront · " + vendor.name);
   }
-  function drawRoute(from, to) {
+  var routeRevision = 0;
+  function clearRoute() {
+    routeRevision++;
+    if (routeLayer && map) {
+      map.removeLayer(routeLayer);
+      fittingRoute = true;
+      try { map.setMinZoom(12); } finally { fittingRoute = false; }
+    }
+    routeLayer = null;
+  }
+  function drawRoute(from, to, driver) {
     if (!map || typeof L === "undefined") return;
-    if (routeLayer) try { map.removeLayer(routeLayer); } catch (e) {}
-    var url = "https://router.project-osrm.org/route/v1/driving/" + from.lng + "," + from.lat + ";" + to.lng + "," + to.lat + "?overview=full&geometries=geojson";
+    clearRoute();
+    map.setMinZoom(2);
+    var revision = routeRevision;
+    var stops = driver ? [driver, from, to] : [from, to];
+    routeLayer = L.polyline(stops.map(function (p) { return [p.lat, p.lng]; }), {
+      color: "#4df0ff", weight: 4, opacity: 0.85, dashArray: "6 5"
+    }).addTo(map);
+    fitOfferRoute();
+    var coords = stops.map(function (p) { return p.lng + "," + p.lat; }).join(";");
+    var url = "https://router.project-osrm.org/route/v1/driving/" + coords + "?overview=full&geometries=geojson";
     fetchJson(url).then(function (j) {
+      if (revision !== routeRevision) return;
       var geo = j && j.routes && j.routes[0] && j.routes[0].geometry;
-      var latlngs;
-      if (geo && geo.coordinates) latlngs = geo.coordinates.map(function (c) { return [c[1], c[0]]; });
-      else latlngs = [[from.lat, from.lng], [to.lat, to.lng]];
-      routeLayer = L.polyline(latlngs, { color: "#4df0ff", weight: 4, opacity: 0.85 }).addTo(map);
-      fitOfferRoute();
+      if (geo && geo.coordinates && geo.coordinates.length > 1) {
+        routeLayer.setLatLngs(geo.coordinates.map(function (c) { return [c[1], c[0]]; }));
+        routeLayer.setStyle({ dashArray: null });
+        fitOfferRoute();
+      }
     });
   }
   function sendJob() {
@@ -2887,68 +3091,102 @@
     if (node) node.textContent = "";
     layoutChrome();
   }
-  var sparkBuf = [];
-  var sparkLast = 0;
-  function paintMonitor(now) {
-    var el = $("sn-spark");
-    if (el) {
-      var sctx = el.getContext("2d");
-      var W = el.width || 120, H = el.height || 28;
-      if (sctx) {
-        if (!sparkLast || now - sparkLast >= 180) {
-          sparkLast = now;
-          var heap = 0;
-          try {
-            var mem = performance.memory;
-            if (mem && mem.jsHeapSizeLimit) heap = mem.usedJSHeapSize / mem.jsHeapSizeLimit;
-          } catch (e) {}
-          var earth = 0.32 + 0.08 * Math.sin(earthSpin());
-          var load = Math.min(1, earth + heap * 0.45 + (cityOn ? 0.08 : 0));
-          var tone = load > 0.72 ? "bad" : load > 0.48 ? "warn" : "ok";
-          sparkBuf.push({ v: load, tone: tone });
-          if (sparkBuf.length > W) sparkBuf.shift();
-        }
-        sctx.clearRect(0, 0, W, H);
-        if (sparkBuf.length) {
-          var last = sparkBuf[sparkBuf.length - 1];
-          var col = last.tone === "bad" ? "#ff5a7a" : last.tone === "warn" ? "#ffd080" : "#4df0ff";
-          sctx.beginPath();
-          for (var i = 0; i < sparkBuf.length; i++) {
-            var x = i * (W / Math.max(1, W - 1));
-            if (sparkBuf.length > 1) x = (i / (sparkBuf.length - 1)) * (W - 1);
-            var y = H - 2 - sparkBuf[i].v * (H - 4);
-            if (i) sctx.lineTo(x, y); else sctx.moveTo(x, y);
-          }
-          sctx.lineTo(W - 1, H);
-          sctx.lineTo(0, H);
-          sctx.closePath();
-          sctx.fillStyle = last.tone === "bad" ? "rgba(255,90,122,0.28)" : last.tone === "warn" ? "rgba(255,208,128,0.28)" : "rgba(77,240,255,0.28)";
-          sctx.fill();
-          sctx.beginPath();
-          for (i = 0; i < sparkBuf.length; i++) {
-            x = sparkBuf.length > 1 ? (i / (sparkBuf.length - 1)) * (W - 1) : 0;
-            y = H - 2 - sparkBuf[i].v * (H - 4);
-            if (i) sctx.lineTo(x, y); else sctx.moveTo(x, y);
-          }
-          sctx.strokeStyle = col;
-          sctx.lineWidth = 1.4;
-          sctx.stroke();
+  function bindMonitor() {
+    var button = $("sn-resources"), dialog = $("sn-resource-dialog");
+    if (!button || !dialog) return;
+    var battery = null, blockedMs = 0, observer = null;
+    if (navigator.getBattery) navigator.getBattery().then(function (value) { battery = value; }).catch(function () {});
+    if (window.PerformanceObserver && (PerformanceObserver.supportedEntryTypes || []).includes("longtask")) {
+      observer = new PerformanceObserver(function (list) {
+        list.getEntries().forEach(function (entry) { blockedMs += entry.duration; });
+      });
+      observer.observe({ type: "longtask" });
+    }
+    var metrics = [
+      { name: "Battery", color: "#7dff9a" },
+      { name: "RAM · browser JS heap", color: "#7ee9ff" },
+      { name: "CPU · page long-task time", color: "#ffd080" },
+      { name: "Network · estimated downlink", color: "#ccb5ff" },
+      { name: "Device temperature", color: "#ff9ba9" }
+    ];
+    var history = [], values = [], alerts = [], lastSample = performance.now();
+    function draw(canvas, overview) {
+      var graph = canvas.getContext("2d"), w = canvas.width, h = canvas.height;
+      graph.clearRect(0, 0, w, h);
+      if (!overview) {
+        graph.strokeStyle = "rgba(126,233,255,.2)";
+        graph.lineWidth = 1;
+        for (var line = 1; line <= 3; line++) {
+          graph.beginPath(); graph.moveTo(0, h * line / 4); graph.lineTo(w, h * line / 4); graph.stroke();
         }
       }
+      var high = alerts.length > 0;
+      (overview ? [{ color: high ? "#ff5a7a" : "#4df0ff" }] : metrics).forEach(function (metric, i) {
+        graph.strokeStyle = metric.color;
+        graph.lineWidth = overview ? 3 : 2;
+        graph.beginPath();
+        var pen = false;
+        history.forEach(function (sample, j) {
+          var value = overview ? sample.overall : sample.lines[i];
+          if (value == null) { pen = false; return; }
+          var x = (w - 4) * j / Math.max(1, history.length - 1) + 2;
+          var y = h - 3 - (h - 6) * Math.min(value, 1);
+          if (pen) graph.lineTo(x, y); else graph.moveTo(x, y);
+          pen = true;
+        });
+        graph.stroke();
+      });
     }
-    var wx = $("sn-wx");
-    if (wx && !wx.__snWx) {
-      wx.__snWx = true;
-      wx.textContent = isNight() ? "NIGHT" : "DAY";
+    function renderDetails() {
+      draw($("sn-resource-chart"), false);
+      $("sn-resource-readings").innerHTML = metrics.map(function (metric, i) {
+        return '<dt><i style="background:' + metric.color + '"></i>' + metric.name + '</dt><dd>' +
+          escHtml(values[i] || "Unavailable") + '</dd>';
+      }).join("");
     }
-    if (wx && here && !wx.__snMet) {
-      wx.__snMet = true;
-      fetch("https://api.open-meteo.com/v1/forecast?latitude=" + here.lat + "&longitude=" + here.lng + "&current=temperature_2m")
-        .then(function (r) { return r.json(); })
-        .then(function (j) {
-          if (j && j.current && isFinite(j.current.temperature_2m)) wx.textContent = Math.round(j.current.temperature_2m) + "°";
-        }).catch(function () {});
+    function sample() {
+      var now = performance.now(), elapsed = now - lastSample;
+      lastSample = now;
+      var heap = performance.memory;
+      var ram = heap && heap.jsHeapSizeLimit > 0 ? heap.usedJSHeapSize / heap.jsHeapSizeLimit : null;
+      var cpu = observer && elapsed > 0 ? Math.min(1, blockedMs / elapsed) : null;
+      var connection = navigator.connection;
+      var downlink = connection && Number.isFinite(connection.downlink) ? connection.downlink : null;
+      var level = battery ? battery.level : null;
+      var offline = !navigator.onLine;
+      blockedMs = 0;
+      if (document.hidden) return;
+      values = [
+        level == null ? "Unavailable" : Math.round(level * 100) + "%" + (battery.charging ? " · charging" : ""),
+        ram == null ? "Unavailable" : Math.round(ram * 100) + "% of JS heap limit",
+        cpu == null ? "Unavailable" : Math.round(cpu * 100) + "% of sample interval",
+        offline ? "Offline" : downlink == null ? "Downlink unavailable" : downlink + " Mbps estimate",
+        "Unavailable in this browser"
+      ];
+      alerts = [];
+      if (level != null && level <= .15 && !battery.charging) alerts.push("Low battery");
+      if (ram != null && ram >= .9) alerts.push("JS heap near limit");
+      if (cpu != null && cpu >= .8) alerts.push("Main thread busy");
+      if (offline) alerts.push("Network offline");
+      var pressure = [ram, cpu, battery && !battery.charging ? 1 - level : null, offline ? 1 : null]
+        .filter(function (value) { return value != null; });
+      history.push({
+        overall: pressure.length ? Math.max.apply(null, pressure) : null,
+        lines: [level, ram, cpu, offline ? 0 : downlink == null ? null : downlink / 10, null]
+      });
+      if (history.length > 60) history.shift();
+      var label = "Device resources" + (alerts.length ? " · " + alerts.join(", ") : "");
+      button.classList.toggle("alert", alerts.length > 0);
+      button.title = label;
+      button.setAttribute("aria-label", label);
+      draw($("sn-spark"), true);
+      if (dialog.open) renderDetails();
     }
+    button.addEventListener("click", function () { renderDetails(); dialog.showModal(); });
+    sample();
+    setInterval(sample, 1000);
+    window.addEventListener("online", sample);
+    window.addEventListener("offline", sample);
   }
   function layoutChrome() {
     var W = window.innerWidth, H = window.innerHeight, pad = 10;
@@ -2968,7 +3206,7 @@
       gps.style.setProperty("top", "auto", "important");
       gps.style.setProperty("bottom", "calc(var(--safe-b) + var(--drawer-h) + var(--gap, 8px))", "important");
     }
-    var radar = $("sn-radar"), money = $("sn-money"), topEl = $("top"), drawer = $("drawer");
+    var money = $("sn-money");
     var powerBtn = $("sn-power"), supportBtn = $("sn-support"), burgerBtn = $("sn-burger");
     var rowGap = 8;
     if (powerBtn && burgerBtn) {
@@ -2988,38 +3226,6 @@
         supportBtn.style.setProperty("top", Math.round(mrr.bottom + rowGap) + "px", "important");
         supportBtn.style.setProperty("bottom", "auto", "important");
       }
-    }
-    if (radar) {
-      var gap = 16;
-      var top = 56;
-      if (topEl) {
-        var tr = topEl.getBoundingClientRect();
-        if (tr && tr.bottom) top = Math.round(tr.bottom + gap);
-      }
-      if (money) {
-        var mr = money.getBoundingClientRect();
-        if (mr && mr.bottom) top = Math.max(top, Math.round(mr.bottom + gap));
-      }
-      if (supportBtn) {
-        var sr = supportBtn.getBoundingClientRect();
-        if (sr && sr.bottom) top = Math.max(top, Math.round(sr.bottom + gap));
-      }
-      if (powerBtn) {
-        var pr = powerBtn.getBoundingClientRect();
-        if (pr && pr.bottom) top = Math.max(top, Math.round(pr.bottom + gap));
-      }
-      var rh = Math.max(40, radar.offsetHeight || 52);
-      if (drawer) {
-        var dr = drawer.getBoundingClientRect();
-        if (dr && dr.top) {
-          var maxTop = Math.round(dr.top - rh - gap);
-          if (isFinite(maxTop)) top = Math.min(top, Math.max(gap, maxTop));
-        }
-      }
-      radar.style.setProperty("top", top + "px", "important");
-      radar.style.setProperty("right", "var(--safe-r)", "important");
-      radar.style.setProperty("left", "auto", "important");
-      radar.style.setProperty("bottom", "auto", "important");
     }
     var desk = $("sn-support-sheet");
     var sup = $("sn-support");
@@ -3164,6 +3370,7 @@
     dockTabs = dockTabs.filter(function (t) { return !(t.kind === "offer" && String(t.jobId) === String(job && job.id)); });
     offerActiveId = null;
     pendingOffer = null;
+    paintOfferHud();
     paintDockTabs();
     paintDrawerContent();
     setDrawerHeight(collapsedDrawerH());
@@ -3223,10 +3430,10 @@
       setDrawerHeight(d.classList.contains("open") ? collapsedDrawerH() : maxDrawerH());
     }
     handle.addEventListener("click", function (e) {
-      if (e.detail === 0) toggleDrawer();
+      if (e.detail === 0 || e.pointerType === "touch") toggleDrawer();
     });
     handle.addEventListener("pointerdown", function (e) {
-      if (e.button !== 0 || !e.isPrimary) return;
+      if (e.pointerType === "touch" || e.button !== 0 || !e.isPrimary) return;
       drawerDrag = { y: e.clientY, h: drawerH, pid: e.pointerId, moved: false };
       handle.setPointerCapture(e.pointerId);
     });
@@ -3247,8 +3454,44 @@
     }
     handle.addEventListener("pointerup", endDrag);
     handle.addEventListener("pointercancel", endDrag);
+    var sheet = $("sheet");
+    var touch = null;
+    d.addEventListener("touchstart", function (e) {
+      if (e.touches.length !== 1) { touch = null; return; }
+      var p = e.touches[0];
+      touch = { x: p.clientX, y: p.clientY, lastY: p.clientY, inSheet: sheet.contains(e.target), moved: false, resized: false };
+    }, { passive: true });
+    d.addEventListener("touchmove", function (e) {
+      if (!touch || e.touches.length !== 1) return;
+      var p = e.touches[0];
+      if (!touch.moved) {
+        var travel = Math.abs(p.clientY - touch.y);
+        if (travel < 7) return;
+        if (Math.abs(p.clientX - touch.x) > travel) { touch = null; return; }
+        touch.moved = true;
+      }
+      e.preventDefault();
+      var dy = touch.lastY - p.clientY;
+      touch.lastY = p.clientY;
+      if (touch.inSheet) {
+        var before = sheet.scrollTop;
+        sheet.scrollTop += dy;
+        dy -= sheet.scrollTop - before;
+      }
+      if (Math.abs(dy) >= 1) {
+        touch.resized = true;
+        setDrawerHeight(drawerH + dy, true);
+      }
+    }, { passive: false });
+    function finishTouch() {
+      if (touch && touch.resized) setDrawerHeight(drawerH);
+      touch = null;
+    }
+    d.addEventListener("touchend", finishTouch);
+    d.addEventListener("touchcancel", finishTouch);
     window.addEventListener("resize", function () {
-      if (d.classList.contains("open")) setDrawerHeight(maxDrawerH());
+      if (pendingOffer || offerActiveId) setDrawerHeight(offerDrawerH());
+      else setDrawerHeight(drawerH);
     });
   }
   function bindBurger() {
@@ -3427,78 +3670,25 @@
     bindBurger();
     bindSearchMic();
     bindDrawer();
+    bindMonitor();
     syncRadarHud();
     var power = $("sn-power");
     if (power && !power.__sn) {
       power.__sn = true; power.hidden = false;
-      var holdP = 0, holdFrom = 0, holdArmed = false;
-      function offersOn() {
-        try { return localStorage.getItem("sn:offers") === "1"; } catch (e) { return false; }
-      }
-      function paintPowerState(on) {
-        power.classList.toggle("on", !!on);
+      function paintPower() {
+        var on = offersArmed();
+        power.classList.toggle("on", on);
         power.classList.toggle("off", !on);
-        power.setAttribute("aria-pressed", on ? "true" : "false");
-        power.setAttribute("aria-label", on ? "Power on" : "Power off");
-        power.title = on ? "Hold 3s to disarm offer receive" : "Hold 3s to arm offer receive";
-        power.textContent = "\u23FB";
+        power.setAttribute("aria-pressed", String(on));
       }
-      function setOffers(on) {
-        try { localStorage.setItem("sn:offers", on ? "1" : "0"); } catch (e) {}
-        paintPowerState(on);
-        clearOfferCountdown();
-        if (powerCdTimer) { clearInterval(powerCdTimer); powerCdTimer = null; }
-        setCd(0, false);
-        if (on) {
-          say("Offer receive ON.");
-          materialize(true);
-          if (jobs.length) {
-            throwOffer(jobs[0]);
-          } else {
-            throwOffer({ id: "live", name: "LIVE OFFER", fee: 24, note: "Offers armed · Decline left · Accept right." });
-          }
-        } else {
-          say("Offer receive OFF.");
-          offerActiveId = null;
-          dockTabs = dockTabs.filter(function (t) { return t.kind !== "offer"; });
-          paintDockTabs();
-          paintDrawerContent();
-          closeJobs();
-          closeSheet();
-          clearDriverMark();
-          materialize(false);
-          setDrawerHeight(collapsedDrawerH());
-        }
-      }
-      paintPowerState(offersOn());
-      power.addEventListener("pointerdown", function (e) {
-        e.preventDefault(); e.stopPropagation();
-        if (holdP) clearInterval(holdP);
-        if (powerCdTimer) { clearInterval(powerCdTimer); powerCdTimer = null; }
-        holdFrom = Date.now();
-        holdArmed = false;
-        var n = 3;
-        setCd(n, true);
-        holdP = setInterval(function () {
-          n -= 1;
-          if (n > 0) { setCd(n, true); return; }
-          clearInterval(holdP); holdP = 0;
-          holdArmed = true;
-          setCd(0, false);
-          setOffers(!offersOn());
-        }, 1000);
+      paintPower();
+      power.addEventListener("click", function () {
+        var on = !offersArmed();
+        try { localStorage.setItem("sn:offers", on ? "1" : "0"); } catch (e) { return; }
+        paintPower();
+        if (on && testOrder && !testOrder.accepted && !pendingOffer) showTestOffer(testOrder, testOrder.drivers[0]);
+        if (!on && pendingOffer) closeOffer(pendingOffer.id);
       });
-      function cancelHold() {
-        if (!holdP) return;
-        clearInterval(holdP); holdP = 0;
-        if (offerCdTimer && offerCdLeft > 0) setCd(offerCdLeft, true);
-        else setCd(0, false);
-        /* single click / short hold = no-op */
-      }
-      power.addEventListener("pointerup", cancelHold);
-      power.addEventListener("pointercancel", cancelHold);
-      power.addEventListener("pointerleave", cancelHold);
-      power.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); });
     }
     var money = $("sn-money");
     if (money && !money.__sn) {
@@ -3532,7 +3722,7 @@
     layoutChrome();
     window.addEventListener("resize", layoutChrome);
     if (window.visualViewport) visualViewport.addEventListener("resize", layoutChrome);
-    var aBtn = $("sn-brand-a"), sBtn = $("sn-brand-s"), spark = $("sn-spark");
+    var aBtn = $("sn-brand-a"), sBtn = $("sn-brand-s");
     if (aBtn && !aBtn.__sn) {
       aBtn.__sn = true;
       aBtn.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); openCompany(); });
@@ -3540,10 +3730,6 @@
     if (sBtn && !sBtn.__sn) {
       sBtn.__sn = true;
       sBtn.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); hardReset(); });
-    }
-    if (spark && !spark.__sn) {
-      spark.__sn = true;
-      spark.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); openFleet(); });
     }
     var support = $("sn-support");
     if (support && !support.__sn) {
@@ -3643,6 +3829,26 @@
       if (act === "order-client-ok") { clientReceived(id); }
       if (act === "order-cancel") { orderCancelKeepPay(id, "Client/peer cancel"); }
       if (act === "order-send") { sendOrderMsg(id); }
+      if (act === "edit-test-menu") editTestMenu();
+      if (act === "test-menu") renderTestVendor();
+      if (act === "test-checkout") openTestCheckout();
+      if (act === "test-client") {
+        testClientId = id;
+        if (vendor && vendor.test && cartSubtotal() > 0) openTestCheckout();
+        else openSheet("Delivery address selected", '<p class="note">Tap a test vendor to add items.</p>');
+      }
+      if (act === "test-driver" && testOrder && !testOrder.accepted && !pendingOffer) {
+        var driver = testOrder.drivers.find(function (row) { return row.id === id; });
+        if (driver && offersArmed()) showTestOffer(testOrder, driver);
+        else if (driver) openSheet("Offers are off", '<p class="note">Turn on power to receive the test offer.</p>');
+      }
+      if (act === "test-stage" && testOrder && testOrder.id === id && testOrder.accepted) {
+        testOrder.stage++;
+        if (testOrder.stage === testDeliveryStages.length) {
+          closeOffer(testOrder.id);
+          testOrder = null;
+        } else paintActiveOfferCard(testOrder, "active");
+      }
       if (act === "test-pin") { placeTestPin(t.getAttribute("data-role")); }
       if (act === "remove-test-pin") {
         updateTestPins(loadTestPins().filter(function (pin) { return pin.id !== id; }));
@@ -3726,16 +3932,19 @@
       if (act === "add-item" || act === "qty-plus") {
         var ix = Number(t.getAttribute("data-i"));
         if (!isFinite(ix)) return;
+        if (vendor && vendor.test && !itemAvailable(vendorMenu(vendor)[ix])) return;
         cart.items[ix] = cartQty(ix) + 1;
-        if (t.getAttribute("data-order")) openOrderScreen(); else renderVendorShop();
+        if (vendor && vendor.test) renderTestVendor();
+        else if (t.getAttribute("data-order")) openOrderScreen(); else renderVendorShop();
       }
       if (act === "qty-minus") {
         var iy = Number(t.getAttribute("data-i"));
         if (!isFinite(iy)) return;
         cart.items[iy] = Math.max(0, cartQty(iy) - 1);
-        if (t.getAttribute("data-order")) openOrderScreen(); else renderVendorShop();
+        if (vendor && vendor.test) renderTestVendor();
+        else if (t.getAttribute("data-order")) openOrderScreen(); else renderVendorShop();
       }
-      if (act === "open-order") openOrderScreen();
+      if (act === "open-order" && (!vendor || !vendor.test)) openOrderScreen();
       if (act === "back-vendor") renderVendorShop();
       if (act === "pay-avc") payCartAvc();
       if (act === "topup") {
@@ -3857,6 +4066,7 @@
 
   function boot() {
     loadLand();
+    loadBorders();
     canvas = $("g");
     if (!canvas) return;
     ctx = canvas.getContext("2d");
@@ -3900,7 +4110,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4445 = true;
+    window.__SN_4446 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
