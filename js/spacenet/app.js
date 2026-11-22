@@ -1,7 +1,7 @@
-/* SpaceNet 4447 — rotating globe, video news, audio mixer, and product gallery. */
+/* SpaceNet 4448 — geographic news tiles, vendor profiles, and test checkout. */
 (function () {
   "use strict";
-  var VER = "4447";
+  var VER = "4448";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -221,18 +221,6 @@
     try { localStorage.setItem("sn:avc", String(n)); } catch (e) {}
     paintMoney();
     return n;
-  }
-  function grantSignupCredit() {
-    try {
-      var u = window.SNAuth && SNAuth.user && SNAuth.user();
-      if (!u || !u.email) return false;
-      var key = "sn:credit:" + String(u.email).toLowerCase();
-      if (localStorage.getItem(key) === "1") return false;
-      localStorage.setItem(key, "1");
-      avcSet(avcGet() + 300);
-      say("Welcome · 300 AV€ testing credit.");
-      return true;
-    } catch (e) { return false; }
   }
   function topUp(rail, eur) {
     if (!signed()) { needLogin("LOGIN to top up AV€."); return; }
@@ -684,13 +672,12 @@
   var newsRefresh = 0;
   var newsGeneration = 0;
   var newsItems = [];
-  var newsIndex = 0;
+  var newsSelection = null;
   var newsPlayer = null;
   var newsPlayerReady = false;
   var newsScriptPending = false;
   var newsScriptRetry = 0;
   var newsFrame = 0;
-  var newsLastAdvance = 0;
 
   function countryAt(point) {
     if (!point) return "";
@@ -714,7 +701,7 @@
     else newsPlayer.mute();
   }
   function prepareNewsPlayer() {
-    if (newsPlayer || !newsItems.length || cityOn || $("sn-news").hidden || !$("sn-news-tile").open) return;
+    if (newsPlayer || !newsSelection || cityOn || $("sn-news").hidden) return;
     if (!window.YT || !YT.Player) {
       if (newsScriptPending || performance.now() < newsScriptRetry) return;
       newsScriptPending = true;
@@ -731,102 +718,190 @@
       return;
     }
     var frame = ++newsFrame;
+    var clip = newsSelection;
     var target = document.createElement("div");
     $("sn-news-preview").replaceChildren(target);
     newsPlayer = new YT.Player(target, {
       host: "https://www.youtube-nocookie.com",
-      videoId: newsItems[newsIndex].id,
+      videoId: clip.playlist ? undefined : clip.id,
       playerVars: { playsinline: 1, autoplay: 0, rel: 0, origin: location.origin },
       events: {
         onReady: function (event) {
           if (frame !== newsFrame) return;
           newsPlayerReady = true;
           applyNewsAudio();
-          event.target.loadVideoById(newsItems[newsIndex].id);
+          if (clip.playlist) event.target.loadPlaylist({ list: clip.id, listType: "playlist" });
+          else event.target.loadVideoById(clip.id);
         },
         onAutoplayBlocked: function () {
           if (frame === newsFrame) $("sn-news-status").textContent = "Tap play in the video to start the preview.";
         },
         onError: function () {
-          if (frame === newsFrame) $("sn-news-status").textContent = "Preview unavailable. Open the clip on YouTube.";
-        },
-        onStateChange: function (event) {
-          if (frame === newsFrame && event.data === 0 && newsItems.length > 1) selectNews((newsIndex + 1) % newsItems.length);
+          if (frame === newsFrame) $("sn-news-status").textContent = "Preview unavailable. Open it on YouTube.";
         }
       }
     });
   }
-  function selectNews(index) {
-    if (!newsItems[index]) return;
-    var clip = newsItems[index];
-    newsIndex = index;
-    newsLastAdvance = performance.now();
-    $("sn-news-open").href = "https://www.youtube.com/watch?v=" + clip.id;
-    $("sn-news-status").textContent = clip.source + " · " + clip.title;
-    $("sn-news-next").disabled = newsItems.length < 2;
-    if (newsPlayerReady) newsPlayer.loadVideoById(clip.id);
-    else prepareNewsPlayer();
+  function openNews(clip) {
+    stopNews();
+    newsSelection = clip;
+    clip.button.setAttribute("aria-expanded", "true");
+    $("sn-news-title").textContent = clip.source + " · " + clip.title;
+    $("sn-news-status").textContent = "";
+    $("sn-news-open").href = "https://www.youtube.com/" + (clip.playlist ? "playlist?list=" : "watch?v=") + clip.id;
+    $("sn-news-player").hidden = false;
+    positionNewsPlayer(clip);
+    prepareNewsPlayer();
   }
   function stopNews() {
+    if (newsSelection) newsSelection.button.setAttribute("aria-expanded", "false");
+    newsSelection = null;
+    $("sn-news-player").hidden = true;
     if (newsPlayer) {
       newsFrame++;
       newsPlayer.destroy();
       newsPlayer = null;
       newsPlayerReady = false;
     }
+    $("sn-news-preview").replaceChildren();
+  }
+  function buildNewsTile(clip) {
+    var pin = document.createElement("div");
+    pin.className = "news-pin";
+    pin.hidden = true;
+    var line = document.createElement("span");
+    line.className = "news-line";
+    line.setAttribute("aria-hidden", "true");
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "news-tile";
+    var place = (clip.location.kind === "publisher" ? "Publisher: " : "") + clip.location.name;
+    button.title = clip.title + " · " + clip.source + " · " + place;
+    button.setAttribute("aria-label", button.title);
+    button.setAttribute("aria-controls", "sn-news-player");
+    button.setAttribute("aria-expanded", "false");
+    if (!clip.playlist) {
+      var image = document.createElement("img");
+      image.src = "https://i.ytimg.com/vi/" + clip.id + "/default.jpg";
+      image.alt = "";
+      button.append(image);
+    }
+    var label = document.createElement("span");
+    label.textContent = clip.location.kind === "publisher" ? clip.source : clip.location.name;
+    button.append(label);
+    button.addEventListener("click", function () {
+      if (newsSelection === clip) stopNews();
+      else openNews(clip);
+    });
+    pin.append(line, button);
+    return Object.assign(clip, { pin: pin, line: line, button: button, box: null });
+  }
+  function validNewsClip(clip) {
+    var location = clip && clip.location;
+    return location && Number.isFinite(location.lat) && Math.abs(location.lat) <= 90 &&
+      Number.isFinite(location.lng) && Math.abs(location.lng) <= 180 &&
+      (clip.playlist ? /^UU[\w-]{22}$/ : /^[\w-]{11}$/).test(clip.id);
   }
   function loadNews(country) {
     var generation = ++newsGeneration;
-    var previous = newsItems[newsIndex] && newsItems[newsIndex].id;
     fetchJson("/api/news" + (country ? "?country=" + encodeURIComponent(country) : ""))
       .then(function (feed) {
         if (generation !== newsGeneration) return;
-        newsItems = ((feed && feed.items) || []).filter(function (clip) { return /^[\w-]{11}$/.test(clip.id); });
-        var exact = newsItems.findIndex(function (clip) { return clip.id === previous; });
-        var region = feed && feed.country;
-        var regionName = region && Intl.DisplayNames ? new Intl.DisplayNames([navigator.language], { type: "region" }).of(region) : region;
-        $("sn-news-label").textContent = regionName ? regionName + " news" : "World news";
-        $("sn-news-open").hidden = !newsItems.length;
-        $("sn-news-next").hidden = newsItems.length < 2;
-        $("sn-news-preview").hidden = !newsItems.length;
-        if (!newsItems.length) {
-          newsRefresh = performance.now() + 30000;
-          stopNews();
-          $("sn-news-status").textContent = "Recent clips are unavailable. Retrying shortly.";
-        } else if (exact >= 0 && newsPlayer) {
-          newsIndex = exact;
-          $("sn-news-status").textContent = newsItems[exact].source + " · " + newsItems[exact].title;
-        } else selectNews(Math.max(exact, 0));
+        var clips = Array.isArray(feed && feed.items) ? feed.items.filter(validNewsClip) : [];
+        var cause = $("sn-news-empty");
+        cause.hidden = !!clips.length;
+        if (!clips.length || feed.fallback) newsRefresh = performance.now() + 30000;
+        var previous = new Map(newsItems.map(function (clip) { return [clip.id, clip]; }));
+        var next = clips.map(function (clip) {
+          return previous.get(clip.id) || buildNewsTile(clip);
+        });
+        if (newsSelection && !next.includes(newsSelection)) stopNews();
+        var pins = $("sn-news-pins");
+        previous.forEach(function (clip) { if (!next.includes(clip)) clip.pin.remove(); });
+        next.forEach(function (clip) { if (!clip.pin.isConnected) pins.append(clip.pin); });
+        newsItems = next;
       });
+  }
+  function clampNews(value, min, max) {
+    return Math.max(min, Math.min(value, max));
+  }
+  function positionNewsPlayer(clip) {
+    if (!clip.box) return;
+    var panel = $("sn-news-player");
+    var box = clip.box;
+    var width = panel.offsetWidth, height = panel.offsetHeight;
+    var bottom = Math.max(56, view.h - drawerH - 7);
+    var left = clampNews(box.x + box.w + 8, 8, view.w - width - 8);
+    if (box.x > width + 16 && left < box.x + box.w) left = box.x - width - 8;
+    var top = clampNews(box.y + box.h + 6, 48, bottom - height);
+    if (top < box.y + box.h && box.y - height > 48) top = box.y - height - 6;
+    panel.style.transform = "translate3d(" + left + "px," + top + "px,0)";
+  }
+  function layoutNewsTiles() {
+    var occupied = [];
+    var tileW = 82, tileH = 36, floor = view.h - drawerH - tileH - 8;
+    var candidates = [[20, -26], [-102, -26], [20, 14], [-102, 14], [20, -65], [-102, -65]];
+    var tiles = newsSelection ? [newsSelection].concat(newsItems.filter(function (clip) { return clip !== newsSelection; })) : newsItems;
+    tiles.forEach(function (clip) {
+      var anchor = clip.location;
+      var point = project(anchor.lat, anchor.lng, cam);
+      clip.box = null;
+      if (point && point.x >= 0 && point.x <= view.w && point.y >= 0 && point.y <= view.h - drawerH && floor >= 92 && occupied.length < 6) {
+        for (var i = 0; i < candidates.length; i++) {
+          var x = clampNews(point.x + candidates[i][0], 48, view.w - tileW - 8);
+          var y = clampNews(point.y + candidates[i][1], 54, floor);
+          if (point.x >= x - 4 && point.x <= x + tileW + 4 && point.y >= y - 4 && point.y <= y + tileH + 4) continue;
+          var box = { x: x, y: y, w: tileW, h: tileH };
+          if (occupied.some(function (b) {
+            return x < b.x + b.w + 5 && x + tileW + 5 > b.x && y < b.y + b.h + 5 && y + tileH + 5 > b.y;
+          })) continue;
+          clip.box = box;
+          occupied.push(box);
+          var dx = clampNews(point.x, x, x + tileW) - point.x;
+          var dy = clampNews(point.y, y, y + tileH) - point.y;
+          clip.button.style.transform = "translate3d(" + x + "px," + y + "px,0)";
+          clip.line.style.width = Math.hypot(dx, dy) + "px";
+          clip.line.style.transform = "translate3d(" + point.x + "px," + point.y + "px,0) rotate(" + Math.atan2(dy, dx) + "rad)";
+          break;
+        }
+      }
+      clip.pin.hidden = !clip.box;
+    });
+    if (newsSelection) {
+      if (newsSelection.box) positionNewsPlayer(newsSelection);
+      else stopNews();
+    }
   }
   function tickNews(now) {
     var deck = $("sn-news");
-    if (!deck || now < newsRegionCheck) return;
-    newsRegionCheck = now + 900;
     var show = !cityOn && (tierI === 2 || tierI === 3) && !document.hidden;
     deck.hidden = !show;
-    if (!show) { stopNews(); return; }
-    var country = tierI === 3 ? countryAt(pointUnder()) : "";
-    if (country !== newsCountry || now >= newsRefresh) {
-      newsCountry = country;
-      newsRefresh = now + 180000;
-      loadNews(country);
+    if (!show) {
+      if (newsSelection) stopNews();
+      return;
     }
-    if (newsItems.length && !newsPlayer) prepareNewsPlayer();
-    if ($("sn-news-tile").open && newsItems.length > 1 && now - newsLastAdvance > 45000) selectNews((newsIndex + 1) % newsItems.length);
+    if (now >= newsRegionCheck) {
+      newsRegionCheck = now + 900;
+      var country = tierI === 3 ? countryAt(pointUnder()) : "";
+      if (country !== newsCountry || now >= newsRefresh) {
+        newsCountry = country;
+        newsRefresh = now + 180000;
+        loadNews(country);
+      }
+    }
+    if (newsItems.length) layoutNewsTiles();
   }
   function bindNews() {
-    $("sn-news-tile").addEventListener("toggle", function (event) {
-      if (event.currentTarget.open) prepareNewsPlayer();
-      else stopNews();
+    $("sn-news-close").addEventListener("click", function () {
+      var tile = newsSelection && newsSelection.button;
+      stopNews();
+      if (tile) tile.focus();
     });
-    $("sn-news-next").addEventListener("click", function () { selectNews((newsIndex + 1) % newsItems.length); });
     fetchJson("/js/spacenet/assets/news-regions.json?v=" + VER).then(function (regions) {
       if (Array.isArray(regions)) newsRegions = regions;
     });
     document.addEventListener("visibilitychange", function () {
-      if (document.hidden && newsPlayerReady) newsPlayer.pauseVideo();
-      if (!document.hidden && newsPlayerReady && !cityOn) newsPlayer.playVideo();
+      if (document.hidden) stopNews();
     });
   }
   function loop(now) {
@@ -1201,6 +1276,7 @@
     pins.unshift({
       id: "test-" + crypto.randomUUID(),
       role: role, name: "Test " + testRoles[role].toLowerCase(),
+      brandIndex: role === "vendor" ? pins.filter(function (pin) { return pin.role === "vendor"; }).length : undefined,
       lat: listPt.lat, lng: listPt.lng, test: true
     });
     updateTestPins(pins);
@@ -1411,22 +1487,91 @@
     closeSheet();
     say("Peer message to " + actor.name + " saved on-device.");
   }
+  var testVendorBrands = [
+    { logo: "pizzeria", photo: "pizza" }, { logo: "cafe", photo: "coffee" }, { logo: "taproom", photo: "beer" }
+  ];
+  function vendorBrand(row) {
+    var name = row.name || "Vendor";
+    var hash = Array.from(row.id || name).reduce(function (n, ch) { return (n * 31 + ch.codePointAt(0)) >>> 0; }, 0);
+    var seed = row.brandIndex == null ? hash : row.brandIndex;
+    var preset = testVendorBrands[seed % testVendorBrands.length];
+    if (row.test) return {
+      logo: row.logo || "/js/spacenet/assets/vendors/" + preset.logo + ".webp",
+      photo: "/js/spacenet/assets/products/" + preset.photo + ".webp",
+      phone: row.phone == null ? "+1 202-555-01" + String(seed % 100).padStart(2, "0") : row.phone
+    };
+    var logo = row.logo || row.photo || row.image || "";
+    return { logo: /^https:\/\//i.test(logo) ? logo : "", phone: row.phone || "", hash: hash };
+  }
+  function vendorLogo(row) {
+    var brand = vendorBrand(row);
+    if (brand.logo && /^(https:\/\/|\/js\/spacenet\/assets\/|data:image\/jpeg;base64,)/.test(brand.logo)) {
+      return '<img class="vendor-logo" src="' + escHtml(brand.logo) + '" alt="">';
+    }
+    var initials = (row.name || "Vendor").trim().split(/\s+/).slice(0, 2).map(function (word) { return Array.from(word)[0] || ""; }).join("");
+    return '<span class="vendor-logo vendor-initials" style="--vendor-hue:' + (brand.hash % 360) + '">' + escHtml(initials.toUpperCase()) + '</span>';
+  }
+  function vendorContact(row) {
+    var phone = vendorBrand(row).phone;
+    return '<div class="vendor-contact">' + vendorLogo(row) + '<div><b>' + escHtml(row.name) + '</b><br>' +
+      (phone ? '<a href="tel:' + escHtml(phone.replace(/[^+\d]/g, "")) + '">' + escHtml(phone) + '</a>' : '<span>Phone unavailable</span>') +
+      (row.test && row.phone == null ? ' <small>Test number</small>' : '') + '</div></div>';
+  }
+  function editTestVendorProfile() {
+    var current = vendor;
+    if (!current || !current.test) return;
+    openSheet("Vendor profile", '<form id="test-vendor-profile" class="test-form">' +
+      '<label>Vendor name<input class="field" required maxlength="80" name="name" value="' + escHtml(current.name) + '"></label>' +
+      '<label>Contact number<input class="field" type="tel" maxlength="35" name="phone" value="' + escHtml(vendorBrand(current).phone) + '"></label>' +
+      '<label>Logo<input class="field" type="file" accept="image/*" name="logo"></label>' +
+      '<p class="note" role="alert"></p><button class="sheet-go primary">Save profile</button> ' +
+      '<button type="button" class="sheet-go" data-act="test-menu">Back</button></form>');
+    $("test-vendor-profile").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var form = e.currentTarget;
+      var data = new FormData(form);
+      var button = form.querySelector("button");
+      var name = data.get("name").trim(), phone = data.get("phone").trim();
+      if (!name || (phone && !/^\+?[0-9 ()-]{7,35}$/.test(phone))) {
+        form.querySelector('[role="alert"]').textContent = "Enter a vendor name and a valid contact number.";
+        return;
+      }
+      button.disabled = true;
+      try {
+        var logo = await menuPhoto(data.get("logo"));
+        if (!form.isConnected) return;
+        var pins = loadTestPins(), pin = pins.find(function (row) { return row.id === current.id; });
+        if (!pin) return;
+        pin.name = name;
+        if (phone !== vendorBrand(current).phone) pin.phone = phone;
+        if (logo) pin.logo = logo;
+        if (updateTestPins(pins, true)) {
+          vendor = pin;
+          renderTestVendor();
+        }
+      } catch (error) {
+        form.querySelector('[role="alert"]').textContent = error.message;
+      } finally {
+        button.disabled = false;
+      }
+    });
+  }
   function paintActorsOnMap() {
     if (!map || typeof L === "undefined") return;
     actorMarks.forEach(function (m) { try { map.removeLayer(m); } catch (e) {} });
     actorMarks = [];
-    var rows = loadActors().concat(FAMOUS_VENDORS.map(function (f) {
-      return { id: "fam-" + f.name, role: "vendor", kind: "vendor", name: f.name, lat: f.lat, lng: f.lng, famous: true, verified: true };
-    }));
+    var rows = loadActors().filter(function (actor) {
+      return !isVendorRole(actor.role) || !shopMarks.some(function (mark) { return mark.options.vendorId === actor.id; });
+    });
     rows.concat(loadTestPins()).forEach(function (a) {
       if (!a || !isFinite(a.lat) || !isFinite(a.lng)) return;
-      var icon = actorIcons[a.role] || actorIcons.vendor;
+      var icon = isVendorRole(a.role) ? vendorLogo(a) : '<span aria-hidden="true">' + (actorIcons[a.role] || actorIcons.vendor) + '</span>';
       var title = (testRoles[a.role] || "Delivery service") + " · " + a.name;
       var mark = L.marker([a.lat, a.lng], {
         title: title, alt: title,
         icon: L.divIcon({
           className: "actor-pin" + (a.test ? " test-pin" : ""),
-          html: '<span aria-hidden="true">' + icon + '</span>',
+          html: icon,
           iconSize: [32, 32], iconAnchor: [16, 16]
         })
       });
@@ -1437,7 +1582,17 @@
       }, { direction: "top" });
       mark.on("click", function (e) {
         if (e && e.originalEvent) L.DomEvent.stop(e.originalEvent);
-        openActorSheet(a);
+        if (isVendorRole(a.role)) {
+          if (a.test) {
+            var photo = document.createElement("img");
+            photo.className = "vendor-map-photo";
+            photo.src = vendorBrand(a).photo;
+            photo.alt = a.name + " test image";
+            L.popup({ autoPan: false, className: "vendor-map-popup", offset: [0, -13] })
+              .setLatLng([a.lat, a.lng]).setContent(photo).openOn(map);
+          }
+          openVendor(a);
+        } else openActorSheet(a);
       });
       mark.addTo(map);
       actorMarks.push(mark);
@@ -2335,6 +2490,8 @@
       lng: lng,
       kind: row.kind || tags.amenity || tags.shop || "shop",
       phone: row.phone || tags.phone || tags["contact:phone"] || "",
+      logo: row.logo || row.photo || row.image || "",
+      menu: Array.isArray(row.menu) ? row.menu : undefined,
       src: row.src || "osm"
     };
   }
@@ -2419,11 +2576,18 @@
     var list = uniqPlaces((shops || []).concat(FAMOUS_VENDORS));
     list.forEach(function (s) {
       if (!isFinite(s.lat) || !isFinite(s.lng)) return;
-      var mark = L.circleMarker([s.lat, s.lng], { radius: 8, color: s.famous ? "#ff8a3d" : "#7ee9ff", fillColor: "#0a2030", fillOpacity: 0.95, weight: 2 });
-      mark.bindTooltip(s.name || "shop", { direction: "top" });
+      var mark = L.marker([s.lat, s.lng], {
+        vendorId: s.id, title: s.name || "Vendor",
+        icon: L.divIcon({ className: "actor-pin", html: vendorLogo(s), iconSize: [32, 32], iconAnchor: [16, 16] })
+      });
+      mark.bindTooltip(function () {
+        var name = document.createElement("span");
+        name.textContent = s.name || "Vendor";
+        return name;
+      }, { direction: "top" });
       mark.on("click", function (e) {
         if (e && e.originalEvent) L.DomEvent.stop(e.originalEvent);
-        openActorSheet({ id: s.id || ("shop-" + s.name), role: "vendor", kind: "vendor", name: s.name, lat: s.lat, lng: s.lng, phone: s.phone, menu: s.menu, famous: !!s.famous, verified: true });
+        openVendor(s);
       });
       mark.addTo(map);
       shopMarks.push(mark);
@@ -2590,6 +2754,7 @@
     }).join("");
     openSheet(vendor.name + " · Menu",
       rows + '<button type="button" class="sheet-go" data-act="edit-test-menu">List an item</button>' +
+      vendorContact(vendor) + '<button type="button" class="sheet-go" data-act="edit-test-vendor">Edit vendor</button>' +
       '<button type="button" class="sheet-go primary" data-act="test-checkout"' + (cartSubtotal() > 0 ? "" : " disabled") + '>Cart · ' + cartTotal() + ' AV€</button>' +
       removeTestPinButton(vendor));
   }
@@ -2702,8 +2867,57 @@
       }
     });
   }
+  var testCredit = null;
+  var testCreditToken = "";
+  var testSubmitting = false;
+  async function testCheckoutRequest(body) {
+    var token = authToken();
+    if (!token) return { error: "auth_required" };
+    try {
+      var response = await fetch("/api/test-checkout", {
+        method: body ? "POST" : "GET",
+        headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+        body: body ? JSON.stringify(body) : undefined
+      });
+      var result = await response.json();
+      if (token !== authToken()) return { error: "auth_changed" };
+      if (Number.isInteger(result.balance_cents)) {
+        testCredit = result.balance_cents;
+        testCreditToken = token;
+        paintTestCredit();
+      }
+      return result;
+    } catch (e) {
+      return { error: "test_checkout_unavailable" };
+    }
+  }
+  function testCoinText(cents) {
+    return (cents / 100).toLocaleString(undefined, { maximumFractionDigits: 2 }) + " AV€";
+  }
+  function paintTestCredit() {
+    var label = $("sn-test-credit");
+    if (label) label.textContent = testCreditToken === authToken() && testCredit != null
+      ? "Test credit: " + testCoinText(testCredit) : "Test credit unavailable";
+  }
+  function testOrderKey(payload) {
+    var json = JSON.stringify(payload), token = authToken();
+    var key = "sn:test-submit";
+    var user = window.SNAuth && SNAuth.user && SNAuth.user();
+    var account = user && (user.id || user.email);
+    try {
+      var previous = JSON.parse(sessionStorage.getItem(key) || "null");
+      if (account && previous && previous.account === account && previous.json === json) return previous.id;
+    } catch (e) {}
+    var id = crypto.randomUUID();
+    if (token && account) {
+      try { sessionStorage.setItem(key, JSON.stringify({ account: account, json: json, id: id })); } catch (e) {}
+    }
+    return id;
+  }
   function openTestCheckout() {
     if (!vendor || !vendor.test || !cartSubtotal()) return;
+    var shop = vendor;
+    var paidTest = signed();
     var pins = loadTestPins();
     var clients = pins.filter(function (pin) { return pin.role === "client"; });
     var drivers = pins.filter(function (pin) { return pin.role === "driver"; });
@@ -2715,30 +2929,75 @@
       '<label>Deliver to<select name="client" class="field">' + clients.map(function (pin, i) {
         return '<option value="' + escHtml(pin.id) + '"' + (pin.id === testClientId ? " selected" : "") + '>' +
           escHtml(pin.name) + ' ' + (i + 1) + ' · ' + pin.lat.toFixed(4) + ', ' + pin.lng.toFixed(4) + '</option>';
-      }).join("") + '</select></label>' +
-      '<p class="note">Cart ' + cartTotal() + ' AV€ · test order, no charge.</p>' +
+      }).join("") + '</select></label><p class="note" id="sn-test-total"></p>' +
+      (paidTest ? '<p class="note" id="sn-test-credit">Loading test credit…</p>' :
+        '<p class="note">Guest simulation. Sign in to submit and pay with test credits.</p>') +
       '<p role="alert" class="note"></p>' +
-      '<button class="sheet-go primary">Place test order</button>' +
+      '<button class="sheet-go primary">' + (paidTest ? "Pay and place test order" : "Place test order") + '</button>' +
       '<button type="button" class="sheet-go" data-act="test-menu">Back to menu</button></form>');
-    $("test-order-form").addEventListener("submit", function (e) {
+    var form = $("test-order-form");
+    var selectedQuote;
+    function showTotal() {
+      var client = clients.find(function (pin) { return pin.id === form.elements.client.value; });
+      if (!client) return;
+      selectedQuote = quoteDelivery(shop, client, {});
+      var delivery = selectedQuote.total;
+      $("sn-test-total").textContent = "Cart " + cartTotal() + " AV€ + delivery " + delivery +
+        " AV€ = " + testCoinText(Math.round((cartTotal() + delivery) * 100));
+    }
+    form.elements.client.addEventListener("change", showTotal);
+    showTotal();
+    if (paidTest) testCheckoutRequest().then(paintTestCredit);
+    form.addEventListener("submit", async function (e) {
       e.preventDefault();
-      var form = e.currentTarget;
-      var lines = vendorMenu(vendor).filter(function (item) { return cartQty(item.i) > 0; });
+      if (vendor !== shop) return;
       var alert = form.querySelector('[role="alert"]');
-      if (testOrder || pendingOffer) { alert.textContent = "Finish or dismiss the current offer first."; return; }
+      var button = form.querySelector('button:not([type])');
+      var lines = vendorMenu(shop).filter(function (item) { return cartQty(item.i) > 0; });
+      if (testOrder || pendingOffer || testSubmitting || button.disabled) {
+        alert.textContent = "Finish or dismiss the current offer first.";
+        return;
+      }
       if (!lines.length || lines.some(function (item) { return !itemAvailable(item); })) {
         alert.textContent = "Check the availability of the items in your cart.";
         return;
       }
       var client = clients.find(function (pin) { return pin.id === form.elements.client.value; });
-      var quote = quoteDelivery(vendor, client, {});
+      if (!client) return;
+      var quote = selectedQuote;
+      var items = lines.map(function (item) {
+        return { name: item.name, qty: cartQty(item.i), unit_cents: Math.round(item.price * 100) };
+      });
+      var orderId = crypto.randomUUID();
+      if (paidTest) {
+        var payload = {
+          vendor: { id: shop.id, name: shop.name, lat: shop.lat, lng: shop.lng },
+          drop: { id: client.id, name: client.name, lat: client.lat, lng: client.lng },
+          items: items,
+          delivery_cents: Math.round(quote.driver * 100)
+        };
+        orderId = testOrderKey(payload);
+        button.disabled = true;
+        testSubmitting = true;
+        alert.textContent = "";
+        var result = await testCheckoutRequest({ order_id: orderId, payload: payload });
+        button.disabled = false;
+        testSubmitting = false;
+        if (!result.id) {
+          alert.textContent = result.error === "insufficient_test_credit" ? "Not enough test credit for this order." :
+            result.error === "auth_required" || result.error === "auth_changed" ? "Sign in again to use test credit." :
+            "Order confirmation unavailable. Retry to check the same order.";
+          return;
+        }
+        try { sessionStorage.removeItem("sn:test-submit"); } catch (err) {}
+      }
+      if (form.isConnected && vendor === shop) cart.items = {};
       testOrder = {
-        id: "test-order-" + crypto.randomUUID(), test: true, stage: 0,
-        vendor: vendor, drop: client, fee: quote.driver, km: quote.km,
-        item: lines.map(function (item) { return cartQty(item.i) + " × " + item.name; }).join(", "),
-        drivers: drivers.sort(function (a, b) { return haversineKm(a, vendor) - haversineKm(b, vendor); })
+        id: "test-order-" + orderId, test: true, stage: 0,
+        vendor: shop, drop: client, fee: quote.driver, km: quote.km,
+        item: items.map(function (item) { return item.qty + " × " + item.name; }).join(", "),
+        drivers: drivers.sort(function (a, b) { return haversineKm(a, shop) - haversineKm(b, shop); })
       };
-      cart.items = {};
       if (offersArmed()) showTestOffer(testOrder, testOrder.drivers[0]);
       else openSheet("Test order queued", '<p class="note">Turn on power to send the offer to the nearest test driver.</p>');
     });
@@ -2784,7 +3043,7 @@
           '<button type="button" class="sheet-go" data-act="peer-video" data-id="' + actorId + '">VIDEO</button>' +
           (phone ? '<a class="sheet-go" href="tel:' + phone.replace(/[^\d+]/g, "") + '">CALL</a>' : "") +
         "</div></div>" +
-      '<b class="menu-ttl">' + (ds ? "DELIVERY SKUS" : "MENU") + "</b>" + rows +
+      '<b class="menu-ttl">' + (ds ? "DELIVERY SKUS" : "MENU") + "</b>" + rows + vendorContact(s) +
       '<div class="checkout">' +
         '<p class="note">Subtotal ' + sub + " AV€ · fee 3% " + fee + " AV€ · <b>" + tot + " AV€</b> (only fee)</p>" +
         '<button type="button" class="sheet-go primary" data-act="open-order"' + (sub > 0 ? "" : " disabled") + ">CHECKOUT AV€</button>" +
@@ -3951,7 +4210,8 @@
           openSheet("AV€", '<p class="note">Your coins after LOGIN. Pool is owner only.</p><button type="button" class="sheet-go primary" data-act="needlogin">LOGIN</button>');
           return;
         }
-        var html = '<p class="note">' + Math.round(avcGet()).toLocaleString("en-GB") + " AV€ on this account. All txs in AV€. Fee 3% forever — only fee. New signups get 300 AV€ test credit.</p>";
+        var html = '<p class="note">' + Math.round(avcGet()).toLocaleString("en-GB") +
+          ' AV€ in wallet</p><p id="sn-test-credit" class="note">Loading test credit…</p>';
         if (ownerMail()) html += '<p class="note">Pool ' + Math.round(poolGet()).toLocaleString("en-GB") + " AV€ · owner only.</p>";
         html += '<input id="sn-add-eur" inputmode="decimal" placeholder="Euro to top up → AV€" />' +
           '<button type="button" class="sheet-go primary" data-act="topup" data-rail="paypal">TOP UP · PAYPAL</button>' +
@@ -3959,6 +4219,7 @@
           '<button type="button" class="sheet-go" data-act="topup" data-rail="revolut">TOP UP · REVOLUT</button>' +
           '<button type="button" class="sheet-go" data-act="withdraw">WITHDRAW</button>';
         openSheet("AV€", html);
+        testCheckoutRequest().then(paintTestCredit);
       });
     }
     paintMoney();
@@ -4082,6 +4343,7 @@
       if (act === "order-cancel") { orderCancelKeepPay(id, "Client/peer cancel"); }
       if (act === "order-send") { sendOrderMsg(id); }
       if (act === "edit-test-menu") editTestMenu();
+      if (act === "edit-test-vendor") editTestVendorProfile();
       if (act === "test-menu") renderTestVendor();
       if (act === "test-checkout") openTestCheckout();
       if (act === "test-client") {
@@ -4185,7 +4447,7 @@
         var ix = Number(t.getAttribute("data-i"));
         if (!isFinite(ix)) return;
         if (vendor && vendor.test && !itemAvailable(vendorMenu(vendor)[ix])) return;
-        cart.items[ix] = cartQty(ix) + 1;
+        cart.items[ix] = Math.min(99, cartQty(ix) + 1);
         if (vendor && vendor.test) renderTestVendor();
         else if (t.getAttribute("data-order")) openOrderScreen(); else renderVendorShop();
       }
@@ -4335,7 +4597,7 @@
     paintMoney();
     setInterval(paintMoney, 4000);
     paintViewBtn();
-    if (signed()) grantSignupCredit();
+    if (signed()) testCheckoutRequest();
     bindSky();
     loadJobs();
     var pay = new URLSearchParams(location.search).get("paypal");
@@ -4362,7 +4624,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4447 = true;
+    window.__SN_4448 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
