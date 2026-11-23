@@ -1,24 +1,24 @@
-/* SpaceNet SW 4452 — one entity. Tree lock. */
-var CACHE = "sn-shell-4452";
-var VER = "4452";
+/* SpaceNet SW 4453 — one entity. Tree lock. */
+var CACHE = "sn-shell-4453";
+var VER = "4453";
 var SHELL = [
   "/",
   "/index.html",
-  "/js/spacenet/app.js?v=4452",
-  "/js/spacenet/land.pack?v=4452",
-  "/js/spacenet/assets/borders.pack?v=4452",
-  "/js/spacenet/assets/news-regions.json?v=4452",
+  "/js/spacenet/app.js?v=4453",
+  "/js/spacenet/land.pack?v=4453",
+  "/js/spacenet/assets/borders.pack?v=4453",
+  "/js/spacenet/assets/news-regions.json?v=4453",
   "/js/spacenet/assets/products/pizza.webp",
   "/js/spacenet/assets/products/coffee.webp",
   "/js/spacenet/assets/products/beer.webp",
   "/js/spacenet/assets/vendors/pizzeria.webp",
   "/js/spacenet/assets/vendors/cafe.webp",
   "/js/spacenet/assets/vendors/taproom.webp",
-  "/js/spacenet/auth.js?v=4452",
-  "/js/spacenet/partners/types.js?v=4452",
-  "/js/spacenet/partners/client.js?v=4452",
-  "/js/vendor/leaflet.js?v=4452",
-  "/js/vendor/leaflet.css?v=4452",
+  "/js/spacenet/auth.js?v=4453",
+  "/js/spacenet/partners/types.js?v=4453",
+  "/js/spacenet/partners/client.js?v=4453",
+  "/js/vendor/leaflet.js?v=4453",
+  "/js/vendor/leaflet.css?v=4453",
   "/icon-192.png",
   "/manifest.webmanifest"
 ];
@@ -47,7 +47,7 @@ self.addEventListener("install", function (e) {
 self.addEventListener("activate", function (e) {
   e.waitUntil(
     caches.keys().then(function (keys) {
-      return Promise.all(keys.filter(function (k) { return k !== CACHE; }).map(function (k) { return caches.delete(k); }));
+      return Promise.all(keys.filter(function (k) { return k !== CACHE && /^sn-shell-/.test(k); }).map(function (k) { return caches.delete(k); }));
     }).then(function () { return self.clients.claim(); }).then(function () {
       return self.clients.matchAll({ type: "window" }).then(function (clients) {
         /* never navigate a running page (mid-run &t= reload): tell it the version, the page decides */
@@ -61,8 +61,9 @@ self.addEventListener("activate", function (e) {
 self.addEventListener("fetch", function (e) {
   var url = new URL(e.request.url);
   if (url.origin !== location.origin) return;
+  if (e.request.headers.has("Authorization") || e.request.cache === "no-store" || url.pathname === "/api/version") return;
   if (isOverlay(url.pathname)) {
-    e.respondWith(new Response("/* TREE LOCK 4452: overlay blocked */", { headers: { "Content-Type": "application/javascript" }, status: 200 }));
+    e.respondWith(new Response("/* TREE LOCK 4453: overlay blocked */", { headers: { "Content-Type": "application/javascript" }, status: 200 }));
     return;
   }
   if (e.request.mode === "navigate" || url.pathname === "/" || url.pathname === "/index.html") {
@@ -75,7 +76,7 @@ self.addEventListener("fetch", function (e) {
   var pv = /[?&]v=(\d{4,})/.exec(url.search);
   if (pv && Number(pv[1]) > Number(VER)) { e.respondWith(fetch(e.request, { cache: "no-store" })); return; }
   e.respondWith(fetch(e.request).then(function (res) {
-    if (res && res.ok && e.request.method === "GET") {
+    if (res && res.ok && e.request.method === "GET" && !/\b(?:no-store|private)\b/i.test(res.headers.get("Cache-Control") || "")) {
       var copy = res.clone();
       caches.open(CACHE).then(function (c) { c.put(e.request, copy); }).catch(function () {});
     }

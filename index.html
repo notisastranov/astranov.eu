@@ -4,13 +4,13 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4452"/>
+<meta name="astranov-build" content="4453"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
-<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4452"/>
+<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4453"/>
 <style>
 :root{
   --bg:#02040a; --fg:#e8fbff; --muted:#8ec8d8; --accent:#4df0ff;
@@ -50,8 +50,8 @@ button{cursor:pointer}
 }
 #sn-burger[aria-expanded="true"]{background:#1a3cff;color:#fff;border-color:#1a3cff}
 #logo{
-  justify-self:center;border:0;background:transparent;color:#4df0ff;
-  font:800 13px/1 system-ui;letter-spacing:.16em;padding:6px 2px;white-space:nowrap;
+  justify-self:center;border:1px solid rgba(77,240,255,.45);border-radius:10px;background:#000;color:#4df0ff;
+  font:800 12px/1 system-ui;letter-spacing:.12em;padding:8px 6px;white-space:nowrap;
   text-shadow:none;
 }
 #sn-money{
@@ -393,6 +393,10 @@ textarea.field,#sn-support-matter{min-height:88px}
 .news-tile img{width:27px;height:24px;object-fit:cover;border-radius:3px}
 .news-tile span{overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
 .news-tile[aria-expanded="true"]{background:#12304c;border-color:#c4faff}
+#sn-news.news-global .news-line::before{display:none}
+.news-pin.radar-hit .news-line{background:#aaffc1;box-shadow:0 0 6px #7dff9a}
+.news-pin.radar-hit .news-tile{border-color:#aaffc1;box-shadow:0 0 8px #7dff9a}
+#sn-news.news-global #sn-news-preview{min-height:200px}
 #sn-news-player{
   position:absolute;left:0;top:0;pointer-events:auto;width:min(238px,calc(100vw - 16px));box-sizing:border-box;
   padding:5px;border:1px solid rgba(77,240,255,.65);border-radius:9px;background:#040e1c;
@@ -434,6 +438,16 @@ textarea.field,#sn-support-matter{min-height:88px}
 .drawer-cart-line .sheet-go,.drawer-cart-links .sheet-go{margin:0}
 .drawer-cart-links .sheet-go{min-height:23px;padding:1px 8px;font-size:11px}
 .profile-section{padding:11px 8px;border-bottom:1px solid rgba(126,233,255,.23)}
+.home-title{display:flex;justify-content:space-between;align-items:center;padding:5px 8px}
+.home-title h2{font:750 17px system-ui;margin:0}
+.home-account{display:flex;align-items:center;gap:9px;padding:4px 8px}
+.home-account-id{overflow-wrap:anywhere}
+.home-build{display:flex;gap:12px;color:#9ad7e8;font-size:13px}
+.home-build b{color:#e8fbff}
+.home-roles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
+.home-roles .sheet-go{justify-content:space-between;margin:0}
+.home-roles button[aria-pressed="true"]{border-color:#7dff9a;color:#d6ffe1}
+.home-roles small{color:#9ad7e8;font-size:10px}
 .profile-section h3{color:#7ee9ff}
 .profile-entry{padding:6px 0;font-size:13px;color:#e8fbff}
 .profile-entry p{margin:0;overflow-wrap:anywhere;white-space:pre-wrap}
@@ -458,7 +472,7 @@ textarea.field,#sn-support-matter{min-height:88px}
 <header id="top">
   <button type="button" id="sn-burger" aria-label="Menu" aria-expanded="false" aria-controls="menu">☰</button>
   <button type="button" id="sn-resources" aria-label="Device resources" aria-haspopup="dialog"><canvas id="sn-spark" width="100" height="42" aria-hidden="true"></canvas></button>
-  <button type="button" id="logo" aria-label="Force update Astranov.eu">ASTRANOV.EU</button>
+  <button type="button" id="logo" aria-label="Astranov.eu Home" aria-controls="sheet" aria-expanded="false">ASTRANOV.EU</button>
   <div id="sn-radar" aria-hidden="true"><div id="sn-radar-sweep"></div><div id="sn-radar-blips"></div></div>
   <span id="sn-radar-status" role="status"></span>
   <button type="button" id="sn-money" class="on" aria-label="Wallet"><span class="tgt">AV€</span></button>
@@ -530,10 +544,10 @@ textarea.field,#sn-support-matter{min-height:88px}
 <div id="toast" role="status"></div>
 <div id="line" role="status"></div>
 
-<script src="/js/vendor/leaflet.js?v=4452"></script>
-<script src="/js/spacenet/partners/types.js?v=4452"></script>
-<script src="/js/spacenet/partners/client.js?v=4452"></script>
-<script src="/js/spacenet/app.js?v=4452"></script>
-<script src="/js/spacenet/auth.js?v=4452"></script>
+<script src="/js/vendor/leaflet.js?v=4453"></script>
+<script src="/js/spacenet/partners/types.js?v=4453"></script>
+<script src="/js/spacenet/partners/client.js?v=4453"></script>
+<script src="/js/spacenet/app.js?v=4453"></script>
+<script src="/js/spacenet/auth.js?v=4453"></script>
 </body>
 </html>

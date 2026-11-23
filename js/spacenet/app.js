@@ -1,7 +1,7 @@
-/* SpaceNet 4452 — drawer-first map actions and pinned vendor cart. */
+/* SpaceNet 4453 — current event radar and video above the globe. */
 (function () {
   "use strict";
-  var VER = "4452";
+  var VER = "4453";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -63,19 +63,8 @@
     { name: "N AMERICA", lat: 45, lng: -100 },
     { name: "S AMERICA", lat: -15, lng: -60 }
   ];
-  var SITES = [
-    { lat: 36.44, lng: 28.23, c: "#c8f4ff", n: "RHODES" },
-    { lat: 37.98, lng: 23.73, c: "#b8ead8", n: "ATHENS" },
-    { lat: 51.50, lng: -0.12, c: "#d0e8ff", n: "LONDON" },
-    { lat: 40.71, lng: -74.01, c: "#ffe0a8", n: "NEW YORK" },
-    { lat: 35.68, lng: 139.69, c: "#ffd0e8", n: "TOKYO" },
-    { lat: -1.29, lng: 36.82, c: "#ffc89a", n: "NAIROBI" },
-    { lat: 1.35, lng: 103.82, c: "#c8e8ff", n: "SINGAPORE" },
-    { lat: -33.87, lng: 151.21, c: "#c8f0d0", n: "SYDNEY" },
-    { lat: 55.75, lng: 37.62, c: "#ddd0ff", n: "MOSCOW" },
-    { lat: -23.55, lng: -46.63, c: "#ffd0b0", n: "SAO PAULO" }
-  ];
-  var cam = { yaw: 0.49, pitch: 0.35, dist: 1.85 };
+  var globalGlobeDistance = 2.10;
+  var cam = { yaw: 0.49, pitch: 0.35, dist: globalGlobeDistance };
   var vel = { yaw: 0, pitch: 0 };
   var fly = null;
   var here = null;
@@ -166,7 +155,7 @@
   var TIERS = [
     { id: "galaxy", dist: 9.2, name: "Galaxy" },
     { id: "solar", dist: 5.4, name: "Solar system" },
-    { id: "global", dist: 1.85, name: "Globe" },
+    { id: "global", dist: globalGlobeDistance, name: "Globe" },
     { id: "national", dist: 0.72, name: "National" },
     { id: "city", dist: 0.72, name: "City" }
   ];
@@ -293,10 +282,17 @@
     var panel = visRect($("panel"));
     if (isl) top = Math.max(top, isl.bottom + 12);
     if (panel) bot = Math.min(bot, panel.top - 12);
-    if (bot - top < 120) { top = 16; bot = h - 16; }
-    var cx = w / 2;
+    var globeWidth = w;
+    if (tierI === 2) {
+      var stage = globalNewsStage(w, h);
+      top = Math.max(top, stage.globeTop);
+      bot = Math.min(bot, h - drawerH - 10);
+      globeWidth = stage.globeWidth;
+    }
+    if (bot - top < 80) { top = 16; bot = h - 16; }
+    var cx = globeWidth / 2;
     var cy = (top + bot) / 2;
-    var base = Math.max(120, Math.min((bot - top) * 0.46, w * 0.46));
+    var base = Math.max(tierI === 2 ? 48 : 120, Math.min((bot - top) * 0.46, globeWidth * 0.46));
     var zoom = 1.85 / Math.max(0.55, cam.dist || 1.85);
     var scale = base * zoom;
     view = { w: w, h: h, cx: cx, cy: cy, scale: scale, top: top, bot: bot };
@@ -432,9 +428,10 @@
     newsItems.forEach(function (clip) {
       var location = clip.location;
       if (location.kind === "story") {
-        targets.push({ lat: location.lat, lng: location.lng, label: "News · " + location.name });
+        targets.push({ lat: location.lat, lng: location.lng, label: "News · " + location.name, clip: clip });
       }
     });
+    if (tierI === 2) return targets;
     nearbyPosts.forEach(function (post) {
       if (post && (post.note || post.text || post.title) && Number.isFinite(post.lat) && Number.isFinite(post.lng)) {
         targets.push({ lat: post.lat, lng: post.lng, label: "Post · " + (post.name || post.title || "Map update") });
@@ -488,6 +485,9 @@
     radar.longitude = radarTurn(found.lng);
     radar.until = now + radarHoldMs;
     showRadarDetection(found);
+    if (tierI === 2 && found.clip && (view.h - drawerH >= 405 || (view.w >= 620 && view.h - drawerH >= 310)) && (!newsSelection || (!newsSelection.manual && now - newsOpenedAt >= 18000))) {
+      openNews(found.clip, false);
+    }
   }
   function traceRadarMeridian(longitude, color, width) {
     ctx.beginPath();
@@ -519,6 +519,26 @@
       }
       traceRadarMeridian(radar.longitude, "rgba(120,230,255,.87)", 1.6);
     }
+    ctx.restore();
+  }
+  function drawGlobeEventPoints() {
+    ctx.save();
+    ctx.fillStyle = "#91f5ff";
+    ctx.shadowColor = "#4df0ff";
+    ctx.shadowBlur = 10;
+    var seen = new Set();
+    newsItems.forEach(function (clip) {
+      var loc = clip.location;
+      if (loc.kind !== "story") return;
+      var key = loc.lat + "," + loc.lng;
+      if (seen.has(key)) return;
+      seen.add(key);
+      var point = project(loc.lat, loc.lng, cam);
+      if (!point) return;
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 3, 0, Math.PI * 2);
+      ctx.fill();
+    });
     ctx.restore();
   }
   function drawRadarTarget() {
@@ -625,15 +645,7 @@
     ctx.fillStyle = night;
     ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
     drawGlobeRadar(now);
-    for (i = 0; i < SITES.length; i++) {
-      p = project(SITES[i].lat, SITES[i].lng, cam);
-      if (!p) continue;
-      var pulse = 0.4 + 0.6 * Math.abs(Math.sin(now / 480 + i));
-      ctx.beginPath(); ctx.arc(p.x, p.y, 2.2 + pulse, 0, Math.PI * 2);
-      ctx.fillStyle = SITES[i].c; ctx.globalAlpha = 0.45 + 0.5 * pulse; ctx.fill(); ctx.globalAlpha = 1;
-      ctx.beginPath(); ctx.arc(p.x, p.y, 7 + pulse * 4, 0, Math.PI * 2);
-      ctx.strokeStyle = SITES[i].c; ctx.globalAlpha = 0.28; ctx.stroke(); ctx.globalAlpha = 1;
-    }
+    if (tierI === 2) drawGlobeEventPoints();
     if (here) {
       p = project(here.lat, here.lng, cam);
       if (p) {
@@ -770,7 +782,7 @@
       return;
     }
     if (intro) {
-      if (cam.dist < 1.7 || cam.dist > 2.05) cam.dist = 1.85;
+      cam.dist = globalGlobeDistance;
       return;
     }
     if (!drag && (Math.abs(vel.yaw) > 0.00004 || Math.abs(vel.pitch) > 0.00004)) {
@@ -790,6 +802,7 @@
   var newsGeneration = 0;
   var newsItems = [];
   var newsSelection = null;
+  var newsOpenedAt = 0;
   var newsPlayer = null;
   var newsPlayerReady = false;
   var newsScriptPending = false;
@@ -859,9 +872,11 @@
       }
     });
   }
-  function openNews(clip) {
+  function openNews(clip, manual) {
     stopNews();
     newsSelection = clip;
+    clip.manual = manual;
+    newsOpenedAt = performance.now();
     clip.button.setAttribute("aria-expanded", "true");
     $("sn-news-title").textContent = clip.source + " · " + clip.title;
     $("sn-news-status").textContent = "";
@@ -908,7 +923,7 @@
     button.append(label);
     button.addEventListener("click", function () {
       if (newsSelection === clip) stopNews();
-      else openNews(clip);
+      else openNews(clip, true);
     });
     pin.append(line, button);
     return Object.assign(clip, { pin: pin, line: line, button: button, box: null });
@@ -919,12 +934,13 @@
       Number.isFinite(location.lng) && Math.abs(location.lng) <= 180 &&
       (clip.playlist ? /^UU[\w-]{22}$/ : /^[\w-]{11}$/).test(clip.id);
   }
-  function loadNews(country) {
+  function loadNews(country, global) {
     var generation = ++newsGeneration;
-    fetchJson("/api/news" + (country ? "?country=" + encodeURIComponent(country) : ""))
+    fetchJson("/api/news" + (global ? "?events=1" : country ? "?country=" + encodeURIComponent(country) : ""))
       .then(function (feed) {
         if (generation !== newsGeneration) return;
         var clips = Array.isArray(feed && feed.items) ? feed.items.filter(validNewsClip) : [];
+        if (global) clips = clips.filter(function (clip) { return clip.location.kind === "story"; });
         var cause = $("sn-news-empty");
         cause.hidden = !!clips.length;
         if (!clips.length || feed.fallback) newsRefresh = performance.now() + 30000;
@@ -942,11 +958,25 @@
   function clampNews(value, min, max) {
     return Math.max(min, Math.min(value, max));
   }
+  function globalNewsStage(w, h) {
+    var panel = $("sn-news-player");
+    var height = panel.hidden ? 0 : panel.offsetHeight;
+    var width = panel.hidden ? 0 : panel.offsetWidth;
+    var top = 58;
+    var side = !!height && w >= 620 && h - drawerH - top - height < 210;
+    return { top: top, side: side, globeTop: top + (side ? 45 : height + 53), globeWidth: side ? w - width - 24 : w };
+  }
   function positionNewsPlayer(clip) {
     if (!clip.box) return;
     var panel = $("sn-news-player");
     var box = clip.box;
     var width = panel.offsetWidth, height = panel.offsetHeight;
+    if (tierI === 2) {
+      var stage = globalNewsStage(view.w, view.h);
+      var x = stage.side ? view.w - width - 8 : clampNews(box.x + box.w / 2 - width / 2, 8, view.w - width - 8);
+      panel.style.transform = "translate3d(" + x + "px," + stage.top + "px,0)";
+      return;
+    }
     var bottom = Math.max(56, view.h - drawerH - 7);
     var left = clampNews(box.x + box.w + 8, 8, view.w - width - 8);
     if (box.x > width + 16 && left < box.x + box.w) left = box.x - width - 8;
@@ -957,22 +987,30 @@
   function layoutNewsTiles() {
     var occupied = [];
     var tileW = 82, tileH = 36, floor = view.h - drawerH - tileH - 8;
+    var global = tierI === 2;
+    var rail = view.cy - view.scale - tileH - 14;
+    var railWidth = global ? globalNewsStage(view.w, view.h).globeWidth : view.w;
+    var offsets = [-41, 47, -129, 135, -217, 223];
     var candidates = [[20, -26], [-102, -26], [20, 14], [-102, 14], [20, -65], [-102, -65]];
     var tiles = newsSelection ? [newsSelection].concat(newsItems.filter(function (clip) { return clip !== newsSelection; })) : newsItems;
     tiles.forEach(function (clip) {
       var anchor = clip.location;
       var point = project(anchor.lat, anchor.lng, cam);
       clip.box = null;
+      if (global && anchor.kind !== "story") point = null;
       if (point && point.x >= 0 && point.x <= view.w && point.y >= 0 && point.y <= view.h - drawerH && floor >= 92 && occupied.length < 6) {
         for (var i = 0; i < candidates.length; i++) {
-          var x = clampNews(point.x + candidates[i][0], 48, view.w - tileW - 8);
-          var y = clampNews(point.y + candidates[i][1], 54, floor);
+          var x = global ? clampNews(point.x + offsets[i], 8, railWidth - tileW - 8)
+            : clampNews(point.x + candidates[i][0], 48, view.w - tileW - 8);
+          var y = global ? rail : clampNews(point.y + candidates[i][1], 54, floor);
+          if (y < 50 || y > floor) continue;
           if (point.x >= x - 4 && point.x <= x + tileW + 4 && point.y >= y - 4 && point.y <= y + tileH + 4) continue;
           var box = { x: x, y: y, w: tileW, h: tileH };
           if (occupied.some(function (b) {
             return x < b.x + b.w + 5 && x + tileW + 5 > b.x && y < b.y + b.h + 5 && y + tileH + 5 > b.y;
           })) continue;
           clip.box = box;
+          clip.pin.classList.toggle("radar-hit", !!globeRadar.target && globeRadar.target.clip === clip);
           occupied.push(box);
           var dx = clampNews(point.x, x, x + tileW) - point.x;
           var dy = clampNews(point.y, y, y + tileH) - point.y;
@@ -999,11 +1037,19 @@
     }
     if (now >= newsRegionCheck) {
       newsRegionCheck = now + 900;
-      var country = tierI === 3 ? countryAt(pointUnder()) : "";
-      if (country !== newsCountry || now >= newsRefresh) {
-        newsCountry = country;
-        newsRefresh = now + 180000;
-        loadNews(country);
+      var global = tierI === 2;
+      var country = global ? "" : countryAt(pointUnder());
+      var mode = global ? "global" : "national:" + country;
+      if (mode !== newsCountry || now >= newsRefresh) {
+        if (mode !== newsCountry && newsCountry !== null) {
+          stopNews();
+          newsItems = [];
+          $("sn-news-pins").replaceChildren();
+        }
+        newsCountry = mode;
+        deck.classList.toggle("news-global", global);
+        newsRefresh = now + (global ? 90000 : 180000);
+        loadNews(country, global);
       }
     }
     if (newsItems.length) layoutNewsTiles();
@@ -1374,6 +1420,8 @@
   var drawerPlacement = "";
   var drawerBeforePlacement = null;
   function showDrawerPlacement(title, content) {
+    drawerHome = false;
+    $("logo").setAttribute("aria-expanded", "false");
     if (!drawerPlacement) drawerBeforePlacement = { height: drawerH, scroll: $("sheet").scrollTop };
     drawerPlacement = '<section class="drawer-profile drawer-placement">' +
       '<header><h2>' + escHtml(title) + '</h2><button class="sheet-x" type="button" data-act="placement-close" aria-label="Close map actions">×</button></header>' +
@@ -1836,6 +1884,8 @@
       '<button type="button" class="sheet-go" data-act="profile-transactions">Transaction history</button></section>' + '</article>';
   }
   function showDrawerProfile(actor, menu) {
+    drawerHome = false;
+    $("logo").setAttribute("aria-expanded", "false");
     var changed = !drawerProfile || profileId(actor) !== profileId(drawerProfile.actor);
     clearDrawerPlacement();
     drawerProfile = { actor: actor, menu: menu };
@@ -1945,23 +1995,30 @@
       else say("Listed on this device.");
     }).catch(function () { say("Listed on this device."); });
   }
-  function hardReset() {
-    say("Force update…");
-    try { sessionStorage.clear(); } catch (e) {}
-    var go = function () { location.href = "/?v=" + VER + "&t=" + Date.now(); };
-    var wipeCaches = function () {
-      if (!window.caches || !caches.keys) return Promise.resolve();
-      return caches.keys().then(function (keys) {
-        return Promise.all(keys.map(function (k) { return caches.delete(k); }));
-      }).catch(function () {});
-    };
-    var wipeSW = function () {
-      if (!navigator.serviceWorker || !navigator.serviceWorker.getRegistrations) return Promise.resolve();
-      return navigator.serviceWorker.getRegistrations().then(function (rs) {
-        return Promise.all(rs.map(function (r) { return r.unregister(); }));
-      }).catch(function () {});
-    };
-    Promise.resolve().then(wipeCaches).then(wipeSW).then(go).catch(go);
+  async function clearSpaceNetCache() {
+    if (!window.caches || !caches.keys) return 0;
+    var keys = (await caches.keys()).filter(function (key) { return /^sn-shell-/.test(key); });
+    await Promise.all(keys.map(function (key) { return caches.delete(key); }));
+    return keys.length;
+  }
+  async function hardReset() {
+    homeStatus = "Updating SpaceNet…";
+    if (drawerHome) paintDrawerContent();
+    try { await clearSpaceNetCache(); } catch (e) {}
+    try {
+      if (navigator.serviceWorker) {
+        var regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.filter(function (reg) {
+          return [reg.active, reg.waiting, reg.installing].some(function (worker) {
+            return worker && new URL(worker.scriptURL).pathname === "/sw.js";
+          });
+        }).map(function (reg) { return reg.unregister(); }));
+      }
+    } catch (e) {}
+    var updated = new URL(location.href);
+    updated.searchParams.set("v", homeVersion || VER);
+    updated.searchParams.set("t", Date.now());
+    location.replace(updated.href);
   }
   function openCompany() {
     openSheet("ASTRANOV",
@@ -2603,6 +2660,8 @@
     job = Object.assign({}, job, { id: String(job.id || crypto.randomUUID()) });
     ensureHopConfirms(job);
     offerActiveId = job.id;
+    drawerHome = false;
+    $("logo").setAttribute("aria-expanded", "false");
     pendingOffer = job;
     closeJobs();
     closeSheet();
@@ -4587,9 +4646,10 @@
     if (!sheet) return;
     var task = currentTaskHtml();
     var body = "";
-    var profile = drawerPlacement || offerActiveId ? null : drawerProfile;
+    var profile = drawerHome || drawerPlacement || offerActiveId ? null : drawerProfile;
     paintDrawerCart(profile);
-    if (drawerPlacement) body = drawerPlacement;
+    if (drawerHome) body = homeMarkup();
+    else if (drawerPlacement) body = drawerPlacement;
     else if (profile) body = profileMarkup(profile);
     else {
       if (task) body += '<div class="sn-now">' + task + "</div>";
@@ -4837,13 +4897,71 @@
       });
     }
   }
+  var drawerHome = false;
+  var homeVersion = "";
+  var homeStatus = "";
+  var homeLoading = false;
+  var homeRoleLabels = {
+    client: "User", vendor: "Vendor", driver: "Delivery driver",
+    ambassador: "Ambassador", partner: "Partner", owner: "Owner", admin: "Admin"
+  };
+  function homeMarkup() {
+    var auth = window.SNAuth;
+    var account = checkoutAccount() && auth.user();
+    var assigned = account && Array.isArray(account.roles) ? account.roles : [];
+    var active = account && auth.activeRoles ? auth.activeRoles() : {};
+    var photo = account ? profileImage(account.photo) : "";
+    var roleList = ["client", "vendor", "driver", "ambassador", "partner", "owner"];
+    return '<article class="drawer-profile home-panel"><header class="home-title">' +
+      '<h2>SpaceNet Home</h2><button type="button" class="sheet-x" data-act="home-close" aria-label="Close Home">×</button></header>' +
+      '<div class="home-account"><div class="profile-avatar">' +
+      (photo ? '<img src="' + escHtml(photo) + '" alt="">' : '<span aria-hidden="true">' + (account ? "👤" : "◎") + '</span>') +
+      '</div><div><b>' + escHtml(account ? account.name || account.email : "Guest") + '</b>' +
+      (account ? '<p class="note">ID <span class="home-account-id">' + escHtml(account.id || "Unavailable") + '</span></p>' +
+        '<p class="note">Account roles · ' + escHtml(assigned.map(function (role) { return homeRoleLabels[role]; }).filter(Boolean).join(", ") || "User") + '</p>'
+        : '<button type="button" class="sheet-go" data-act="home-account">Sign in</button>') + '</div></div>' +
+      (account ? '<section class="profile-section"><h3>Role availability</h3><div class="home-roles">' + roleList.map(function (role) {
+        var allowed = role === "client" || role === "vendor" || role === "driver" || assigned.includes(role);
+        return '<button type="button" class="sheet-go" data-act="home-role" data-role="' + role + '" aria-pressed="' + !!active[role] + '"' +
+          (allowed ? '' : ' disabled') + '><span>' + homeRoleLabels[role] + '</span><small>' +
+          (allowed ? active[role] ? 'On' : 'Off' : 'Unassigned') + '</small></button>';
+      }).join("") + '</div></section>' : '') +
+      '<section class="profile-section"><h3>Version</h3>' +
+      '<div class="home-build"><span>Loaded <b>' + escHtml(VER) + '</b></span>' +
+      '<span>Latest <b>' + escHtml(homeVersion || (homeLoading ? 'Checking…' : 'Unavailable')) + '</b></span></div>' +
+      '<button type="button" class="sheet-go primary" data-act="home-update">Force update</button>' +
+      '<button type="button" class="sheet-go" data-act="home-clear-cache">Clear cache</button>' +
+      '<p class="note" role="status">' + escHtml(homeStatus) + '</p></section>' +
+      '<section class="profile-section"><h3>Account</h3>' +
+      (account ? '<button type="button" class="sheet-go" data-act="home-account">Manage account</button>' : '') +
+      '<button type="button" class="sheet-go" data-act="profile-transactions">Transactions</button></section></article>';
+  }
+  async function checkHomeVersion() {
+    if (homeLoading) return;
+    homeLoading = true;
+    paintDrawerContent();
+    var data = await fetchJson("/api/version?home=" + Date.now(), { cache: "no-store" });
+    homeVersion = data && /^\d{4,}$/.test(data.latest) ? String(data.latest) : "";
+    homeLoading = false;
+    if (drawerHome) paintDrawerContent();
+  }
+  function openHomeDrawer() {
+    clearDrawerPlacement();
+    if ($("sn-sheet").classList.contains("on")) closeSheet();
+    drawerHome = !drawerHome;
+    $("logo").setAttribute("aria-expanded", String(drawerHome));
+    paintDrawerContent();
+    $("sheet").scrollTop = 0;
+    setDrawerHeight(drawerHome ? Math.max(offerDrawerH(), drawerH) : collapsedDrawerH());
+    if (drawerHome) checkHomeVersion();
+  }
   function bindLogo() {
     var logo = $("logo");
     if (!logo || logo.__sn) return;
     logo.__sn = true;
     logo.addEventListener("click", function (e) {
       e.preventDefault(); e.stopPropagation();
-      hardReset();
+      openHomeDrawer();
     });
   }
   function bindSearchMic() {
@@ -5119,6 +5237,22 @@
       if (act === "order-client-ok") { clientReceived(id); }
       if (act === "order-cancel") { orderCancelKeepPay(id, "Client/peer cancel"); }
       if (act === "order-send") { sendOrderMsg(id); }
+      if (act === "home-close") openHomeDrawer();
+      if (act === "home-account" && window.SNAuth && SNAuth.open) SNAuth.open();
+      if (act === "home-role" && window.SNAuth && SNAuth.toggleRole) {
+        SNAuth.toggleRole(t.getAttribute("data-role"));
+        paintDrawerContent();
+      }
+      if (act === "home-update") hardReset();
+      if (act === "home-clear-cache") {
+        homeStatus = "Clearing SpaceNet cache…";
+        paintDrawerContent();
+        clearSpaceNetCache().then(function () {
+          homeStatus = "SpaceNet cache cleared.";
+        }).catch(function () {
+          homeStatus = "SpaceNet cache could not be cleared.";
+        }).then(paintDrawerContent);
+      }
       if (act === "placement-close") dismissDrawerPlacement();
       if (act === "profile-jump") jumpToProfileSection(id);
       if (act === "profile-close") {
@@ -5392,7 +5526,7 @@
     seedStars();
     cam.yaw = (20 * Math.PI) / 180 - earthSpin();
     cam.pitch = 0.22;
-    cam.dist = 1.85;
+    cam.dist = globalGlobeDistance;
     bindGlobe();
     loadVerify();
     shops = uniqPlaces((shops || []).concat(FAMOUS_VENDORS));
@@ -5432,7 +5566,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4452 = true;
+    window.__SN_4453 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },

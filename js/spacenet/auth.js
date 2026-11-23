@@ -56,11 +56,65 @@
   function challenge(ver) {
     return crypto.subtle.digest("SHA-256", new TextEncoder().encode(ver)).then(b64url);
   }
+  function assignedRoles(u) {
+    var meta = u.app_metadata || {};
+    var values = Array.isArray(meta.roles) ? meta.roles.slice() : [];
+    if (meta.role) values.push(meta.role);
+    if (u.email_confirmed_at && String(u.email).toLowerCase() === "notisastranov@gmail.com") values.push("owner");
+    var roles = values.map(function (role) {
+      if (role === "delivery_driver") return "driver";
+      if (role === "super_admin") return "admin";
+      if (role === "user") return "client";
+      return role;
+    });
+    return Array.from(new Set(roles.filter(function (role) {
+      return ["client", "vendor", "driver", "ambassador", "partner", "owner", "admin"].includes(role);
+    })));
+  }
+  function activeRoles() {
+    var account = user();
+    if (!account || !account.email) return {};
+    var key = "sn:roles:" + (account.id || account.email.toLowerCase());
+    var saved;
+    try {
+      var raw = read(key, "");
+      saved = raw ? JSON.parse(raw) : {};
+      if (!raw) {
+        var legacy = JSON.parse(localStorage.getItem("sn:roles") || "null");
+        if (legacy) {
+          ["client", "vendor", "driver"].forEach(function (role) {
+            if (typeof legacy[role] === "boolean") saved[role] = legacy[role];
+          });
+          localStorage.setItem(key, JSON.stringify(saved));
+          localStorage.removeItem("sn:roles");
+        }
+      }
+    } catch (e) { saved = {}; }
+    var activity = {};
+    ["client", "vendor", "driver", "ambassador", "partner", "owner"].forEach(function (role) {
+      var granted = Array.isArray(account.roles) && account.roles.includes(role);
+      if (["client", "vendor", "driver"].includes(role) || granted) {
+        activity[role] = saved && typeof saved[role] === "boolean" ? saved[role] : granted || role === "client";
+      }
+    });
+    return activity;
+  }
+  function toggleRole(role) {
+    var account = user();
+    if (!account || !account.email) return false;
+    var preferences = activeRoles();
+    if (!Object.hasOwn(preferences, role)) return false;
+    preferences[role] = !preferences[role];
+    write("sn:roles:" + (account.id || account.email.toLowerCase()), JSON.stringify(preferences));
+    if (window.SN && SN.paintDrawerContent) SN.paintDrawerContent();
+    return true;
+  }
   function saveUser(u) {
     if (!u) return;
     var row = {
       id: u.id || u.sub || "",
       email: u.email || "",
+      roles: assignedRoles(u),
       name: (u.user_metadata && (u.user_metadata.full_name || u.user_metadata.name)) || u.name || "",
       photo: (u.user_metadata && (u.user_metadata.avatar_url || u.user_metadata.picture)) || u.picture || "",
       phone: u.phone || (u.user_metadata && u.user_metadata.phone) || read("sn:phone", "") || "",
@@ -365,11 +419,7 @@
       else if (inNow && window.SN && SN.avcGet) mine = Math.round(SN.avcGet()).toLocaleString("en-GB") + " ⭐";
       else mine = "0.00 ⭐";
     } catch (e) { mine = inNow ? "" : "0.00 ⭐"; }
-    var roles = { client: false, driver: false, vendor: false };
-    try {
-      var saved = JSON.parse(localStorage.getItem("sn:roles") || "null");
-      if (saved && typeof saved === "object") roles = saved;
-    } catch (e) {}
+    var roles = activeRoles();
     function roleBtn(id, label, glyph) {
       var on = !!roles[id];
       return '<button type="button" class="go role ' + id + (on ? " on" : "") + '" data-act="role-set" data-role="' + id + '"><i>' + glyph + "</i><b>" + label + "</b><em>" + (on ? "ON" : "OFF") + "</em></button>";
@@ -416,13 +466,7 @@
           if (!user() || !user().email) { google(); return; }
           var role = b.getAttribute("data-role") || "";
           if (role !== "client" && role !== "vendor" && role !== "driver") return;
-          var now = { client: false, driver: false, vendor: false };
-          try { now = JSON.parse(localStorage.getItem("sn:roles") || "null") || now; } catch (err) {}
-          now[role] = !now[role];
-          if (window.SN && SN.setRoleOn) SN.setRoleOn(role, !!now[role]);
-          else {
-            try { localStorage.setItem("sn:roles", JSON.stringify(now)); } catch (err2) {}
-          }
+          toggleRole(role);
           fillBody();
           return;
         }
@@ -451,7 +495,7 @@
       applyReturn().then(function () { paintMe(); });
     });
   }
-  window.SNAuth = { google: google, mailIn: mailIn, mailUp: mailUp, password: password, setPassword: setPassword, remember: remember, session: session, youtube: youtube, yt: yt, x: x, out: out, savePhone: savePhone, user: user, token: token, boot: boot, paint: paintMe, open: openMe };
+  window.SNAuth = { activeRoles: activeRoles, toggleRole: toggleRole, google: google, mailIn: mailIn, mailUp: mailUp, password: password, setPassword: setPassword, remember: remember, session: session, youtube: youtube, yt: yt, x: x, out: out, savePhone: savePhone, user: user, token: token, boot: boot, paint: paintMe, open: openMe };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
 })();
