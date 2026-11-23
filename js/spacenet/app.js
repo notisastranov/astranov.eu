@@ -1,7 +1,7 @@
-/* SpaceNet 4453 — current event radar and video above the globe. */
+/* SpaceNet 4454 — steady globe framing and illuminated event borders. */
 (function () {
   "use strict";
-  var VER = "4453";
+  var VER = "4454";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -282,17 +282,10 @@
     var panel = visRect($("panel"));
     if (isl) top = Math.max(top, isl.bottom + 12);
     if (panel) bot = Math.min(bot, panel.top - 12);
-    var globeWidth = w;
-    if (tierI === 2) {
-      var stage = globalNewsStage(w, h);
-      top = Math.max(top, stage.globeTop);
-      bot = Math.min(bot, h - drawerH - 10);
-      globeWidth = stage.globeWidth;
-    }
     if (bot - top < 80) { top = 16; bot = h - 16; }
-    var cx = globeWidth / 2;
+    var cx = w / 2;
     var cy = (top + bot) / 2;
-    var base = Math.max(tierI === 2 ? 48 : 120, Math.min((bot - top) * 0.46, globeWidth * 0.46));
+    var base = Math.max(tierI === 2 ? 48 : 120, Math.min((bot - top) * 0.46, w * 0.46));
     var zoom = 1.85 / Math.max(0.55, cam.dist || 1.85);
     var scale = base * zoom;
     view = { w: w, h: h, cx: cx, cy: cy, scale: scale, top: top, bot: bot };
@@ -485,9 +478,7 @@
     radar.longitude = radarTurn(found.lng);
     radar.until = now + radarHoldMs;
     showRadarDetection(found);
-    if (tierI === 2 && found.clip && (view.h - drawerH >= 405 || (view.w >= 620 && view.h - drawerH >= 310)) && (!newsSelection || (!newsSelection.manual && now - newsOpenedAt >= 18000))) {
-      openNews(found.clip, false);
-    }
+    if (found.clip) found.country = eventCountry(found);
   }
   function traceRadarMeridian(longitude, color, width) {
     ctx.beginPath();
@@ -541,9 +532,10 @@
     });
     ctx.restore();
   }
-  function drawRadarTarget() {
+  function drawRadarTarget(now) {
     var target = globeRadar.target;
     if (!target) return;
+    drawEventOutline(target, now);
     var point = project(target.lat, target.lng, cam);
     if (!point) return;
     ctx.save();
@@ -654,7 +646,7 @@
         ctx.strokeStyle = "rgba(232,251,255,0.8)"; ctx.lineWidth = 1.2; ctx.stroke();
       }
     }
-    drawRadarTarget();
+    drawRadarTarget(now);
     ctx.restore();
     ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.strokeStyle = "rgba(140, 210, 230, 0.35)"; ctx.lineWidth = 1.2; ctx.stroke();
@@ -802,26 +794,65 @@
   var newsGeneration = 0;
   var newsItems = [];
   var newsSelection = null;
-  var newsOpenedAt = 0;
   var newsPlayer = null;
   var newsPlayerReady = false;
   var newsScriptPending = false;
   var newsScriptRetry = 0;
   var newsFrame = 0;
 
+  var eventOutlines = [];
+  var reduceRadarMotion = matchMedia("(prefers-reduced-motion: reduce)");
+  function insideCountryRing(point, ring) {
+    var inside = false;
+    for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      var a = ring[i], b = ring[j];
+      if ((a[1] > point.lat) !== (b[1] > point.lat) &&
+          point.lng < (b[0] - a[0]) * (point.lat - a[1]) / (b[1] - a[1]) + a[0]) inside = !inside;
+    }
+    return inside;
+  }
   function countryAt(point) {
     if (!point) return "";
     return (newsRegions.find(function (region) {
-      return region[1].some(function (ring) {
-        var inside = false;
-        for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-          var a = ring[i], b = ring[j];
-          if ((a[1] > point.lat) !== (b[1] > point.lat) &&
-              point.lng < (b[0] - a[0]) * (point.lat - a[1]) / (b[1] - a[1]) + a[0]) inside = !inside;
-        }
-        return inside;
-      });
+      return region[1].some(function (ring) { return insideCountryRing(point, ring); });
     }) || [""])[0];
+  }
+  function eventCountry(point) {
+    return eventOutlines.find(function (country) {
+      return country[1].some(function (polygon) {
+        var box = polygon[0], rings = polygon[1];
+        return point.lng >= box[0] && point.lat >= box[1] && point.lng <= box[2] && point.lat <= box[3] &&
+          insideCountryRing(point, rings[0]) &&
+          !rings.slice(1).some(function (ring) { return insideCountryRing(point, ring); });
+      });
+    });
+  }
+  function drawEventOutline(target, now) {
+    if (!target.country) return;
+    var pulse = reduceRadarMotion.matches ? 1 : .6 + .4 * Math.sin((now - globeRadar.until + radarHoldMs) * .009);
+    ctx.save();
+    ctx.shadowColor = "#7dff9a";
+    ctx.shadowBlur = 5 + pulse * 10;
+    ctx.strokeStyle = "#9effb8";
+    ctx.globalAlpha = Math.max(.35, pulse);
+    ctx.lineWidth = 1.5 + pulse * 1.3;
+    var yaw = cam.yaw + earthSpin(), cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+    ctx.beginPath();
+    target.country[1].forEach(function (polygon) {
+      polygon[1].forEach(function (ring) {
+        var pen = false;
+        ring.forEach(function (lonLat) {
+          var vector = vecOf(lonLat[1], lonLat[0], yaw, cp, sp);
+          if (vector.z < .04) { pen = false; return; }
+          var p = scrOf(vector);
+          if (pen) ctx.lineTo(p.x, p.y);
+          else ctx.moveTo(p.x, p.y);
+          pen = true;
+        });
+      });
+    });
+    ctx.stroke();
+    ctx.restore();
   }
   function applyNewsAudio() {
     if (!newsPlayerReady || !newsPlayer) return;
@@ -872,11 +903,9 @@
       }
     });
   }
-  function openNews(clip, manual) {
+  function openNews(clip) {
     stopNews();
     newsSelection = clip;
-    clip.manual = manual;
-    newsOpenedAt = performance.now();
     clip.button.setAttribute("aria-expanded", "true");
     $("sn-news-title").textContent = clip.source + " · " + clip.title;
     $("sn-news-status").textContent = "";
@@ -923,7 +952,7 @@
     button.append(label);
     button.addEventListener("click", function () {
       if (newsSelection === clip) stopNews();
-      else openNews(clip, true);
+      else openNews(clip);
     });
     pin.append(line, button);
     return Object.assign(clip, { pin: pin, line: line, button: button, box: null });
@@ -958,25 +987,11 @@
   function clampNews(value, min, max) {
     return Math.max(min, Math.min(value, max));
   }
-  function globalNewsStage(w, h) {
-    var panel = $("sn-news-player");
-    var height = panel.hidden ? 0 : panel.offsetHeight;
-    var width = panel.hidden ? 0 : panel.offsetWidth;
-    var top = 58;
-    var side = !!height && w >= 620 && h - drawerH - top - height < 210;
-    return { top: top, side: side, globeTop: top + (side ? 45 : height + 53), globeWidth: side ? w - width - 24 : w };
-  }
   function positionNewsPlayer(clip) {
     if (!clip.box) return;
     var panel = $("sn-news-player");
     var box = clip.box;
     var width = panel.offsetWidth, height = panel.offsetHeight;
-    if (tierI === 2) {
-      var stage = globalNewsStage(view.w, view.h);
-      var x = stage.side ? view.w - width - 8 : clampNews(box.x + box.w / 2 - width / 2, 8, view.w - width - 8);
-      panel.style.transform = "translate3d(" + x + "px," + stage.top + "px,0)";
-      return;
-    }
     var bottom = Math.max(56, view.h - drawerH - 7);
     var left = clampNews(box.x + box.w + 8, 8, view.w - width - 8);
     if (box.x > width + 16 && left < box.x + box.w) left = box.x - width - 8;
@@ -988,21 +1003,20 @@
     var occupied = [];
     var tileW = 82, tileH = 36, floor = view.h - drawerH - tileH - 8;
     var global = tierI === 2;
-    var rail = view.cy - view.scale - tileH - 14;
-    var railWidth = global ? globalNewsStage(view.w, view.h).globeWidth : view.w;
-    var offsets = [-41, 47, -129, 135, -217, 223];
-    var candidates = [[20, -26], [-102, -26], [20, 14], [-102, 14], [20, -65], [-102, -65]];
-    var tiles = newsSelection ? [newsSelection].concat(newsItems.filter(function (clip) { return clip !== newsSelection; })) : newsItems;
+    var candidates = global
+      ? [[-41, -53], [21, -25], [-103, -25], [24, -65], [-106, -65]]
+      : [[20, -26], [-102, -26], [20, 14], [-102, 14], [20, -65], [-102, -65]];
+    var focus = newsSelection || (globeRadar.target && globeRadar.target.clip);
+    var tiles = focus && newsItems.includes(focus) ? [focus].concat(newsItems.filter(function (clip) { return clip !== focus; })) : newsItems;
     tiles.forEach(function (clip) {
       var anchor = clip.location;
       var point = project(anchor.lat, anchor.lng, cam);
       clip.box = null;
       if (global && anchor.kind !== "story") point = null;
-      if (point && point.x >= 0 && point.x <= view.w && point.y >= 0 && point.y <= view.h - drawerH && floor >= 92 && occupied.length < 6) {
+      if (point && point.x >= 0 && point.x <= view.w && point.y >= 0 && point.y <= view.h - drawerH && floor >= 92 && occupied.length < (global ? 4 : 6)) {
         for (var i = 0; i < candidates.length; i++) {
-          var x = global ? clampNews(point.x + offsets[i], 8, railWidth - tileW - 8)
-            : clampNews(point.x + candidates[i][0], 48, view.w - tileW - 8);
-          var y = global ? rail : clampNews(point.y + candidates[i][1], 54, floor);
+          var x = clampNews(point.x + candidates[i][0], 8, view.w - tileW - 8);
+          var y = clampNews(point.y + candidates[i][1], 54, floor);
           if (y < 50 || y > floor) continue;
           if (point.x >= x - 4 && point.x <= x + tileW + 4 && point.y >= y - 4 && point.y <= y + tileH + 4) continue;
           var box = { x: x, y: y, w: tileW, h: tileH };
@@ -1059,6 +1073,11 @@
       var tile = newsSelection && newsSelection.button;
       stopNews();
       if (tile) tile.focus();
+    });
+    fetchJson("/js/spacenet/assets/country-outlines.json?v=" + VER).then(function (rows) {
+      if (!Array.isArray(rows)) return;
+      eventOutlines = rows;
+      if (globeRadar.target && globeRadar.target.clip) globeRadar.target.country = eventCountry(globeRadar.target);
     });
     fetchJson("/js/spacenet/assets/news-regions.json?v=" + VER).then(function (regions) {
       if (Array.isArray(regions)) newsRegions = regions;
@@ -5566,7 +5585,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4453 = true;
+    window.__SN_4454 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
