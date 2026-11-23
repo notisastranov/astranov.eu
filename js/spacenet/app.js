@@ -1,7 +1,7 @@
-/* SpaceNet 4449 — delivery choices, drawer momentum, power hold, and browser readings. */
+/* SpaceNet 4450 — vendor, driver, and client profiles in the map drawer. */
 (function () {
   "use strict";
-  var VER = "4449";
+  var VER = "4450";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -1525,36 +1525,39 @@
       (row.test && row.phone == null ? ' <small>Test number</small>' : '') + '</div></div>';
   }
   function editTestVendorProfile() {
-    var current = vendor;
+    var current = drawerProfile && drawerProfile.actor;
     if (!current || !current.test) return;
-    openSheet("Vendor profile", '<form id="test-vendor-profile" class="test-form">' +
-      '<label>Vendor name<input class="field" required maxlength="80" name="name" value="' + escHtml(current.name) + '"></label>' +
-      '<label>Contact number<input class="field" type="tel" maxlength="35" name="phone" value="' + escHtml(vendorBrand(current).phone) + '"></label>' +
-      '<label>Logo<input class="field" type="file" accept="image/*" name="logo"></label>' +
+    var isVendor = current.role === "vendor";
+    openSheet(isVendor ? "Vendor profile" : "Edit profile", '<form id="test-vendor-profile" class="test-form">' +
+      '<label>' + (isVendor ? 'Vendor name' : 'Name') + '<input class="field" required maxlength="80" name="name" value="' + escHtml(current.name) + '"></label>' +
+      (isVendor ? '<label>Contact number<input class="field" type="tel" maxlength="35" name="phone" value="' + escHtml(vendorBrand(current).phone) + '"></label>' : '') +
+      '<label>' + (isVendor ? 'Logo' : 'Profile picture') + '<input class="field" type="file" accept="image/*" name="logo"></label>' +
+      '<label>Cover photo<input class="field" type="file" accept="image/*" name="cover"></label>' +
       '<p class="note" role="alert"></p><button class="sheet-go primary">Save profile</button> ' +
-      '<button type="button" class="sheet-go" data-act="test-menu">Back</button></form>');
+      '<button type="button" class="sheet-go" data-act="close">Back</button></form>');
     $("test-vendor-profile").addEventListener("submit", async function (e) {
       e.preventDefault();
       var form = e.currentTarget;
       var data = new FormData(form);
       var button = form.querySelector("button");
-      var name = data.get("name").trim(), phone = data.get("phone").trim();
+      var name = data.get("name").trim(), phone = String(data.get("phone") || "").trim();
       if (!name || (phone && !/^\+?[0-9 ()-]{7,35}$/.test(phone))) {
         form.querySelector('[role="alert"]').textContent = "Enter a vendor name and a valid contact number.";
         return;
       }
       button.disabled = true;
       try {
-        var logo = await menuPhoto(data.get("logo"));
+        var photos = await Promise.all([menuPhoto(data.get("logo")), menuPhoto(data.get("cover"))]);
         if (!form.isConnected) return;
         var pins = loadTestPins(), pin = pins.find(function (row) { return row.id === current.id; });
         if (!pin) return;
         pin.name = name;
-        if (phone !== vendorBrand(current).phone) pin.phone = phone;
-        if (logo) pin.logo = logo;
+        if (isVendor && phone !== vendorBrand(current).phone) pin.phone = phone;
+        if (photos[0]) pin[isVendor ? "logo" : "profile"] = photos[0];
+        if (photos[1]) pin.cover = photos[1];
         if (updateTestPins(pins, true)) {
-          vendor = pin;
-          renderTestVendor();
+          if (isVendor && vendor && profileId(vendor) === profileId(pin)) { vendor = pin; renderTestVendor(); }
+          else openActorSheet(pin);
         }
       } catch (error) {
         form.querySelector('[role="alert"]').textContent = error.message;
@@ -1591,42 +1594,154 @@
       mark.on("click", function (e) {
         if (pickingDestination) { nameDestination(e.latlng); return; }
         if (e && e.originalEvent) L.DomEvent.stop(e.originalEvent);
-        if (isVendorRole(a.role)) {
-          if (a.test) {
-            var photo = document.createElement("img");
-            photo.className = "vendor-map-photo";
-            photo.src = vendorBrand(a).photo;
-            photo.alt = a.name + " test image";
-            L.popup({ autoPan: false, className: "vendor-map-popup", offset: [0, -13] })
-              .setLatLng([a.lat, a.lng]).setContent(photo).openOn(map);
-          }
-          openVendor(a);
-        } else openActorSheet(a);
+        openActorSheet(a);
       });
       mark.addTo(map);
       actorMarks.push(mark);
     });
   }
+  var drawerProfile = null;
+  var nearbyPosts = [];
+  var postsArea = "", postsFreshUntil = 0, postsRequest = 0;
+  function profileId(actor) {
+    return String(actor.id || (actor.name + ":" + actor.lat + "," + actor.lng));
+  }
+  function profileRole(actor) {
+    if (actor.role === "delivery_services" || actor.kind === "delivery_services") return "Delivery service";
+    if (actor.role === "driver" || actor.kind === "driver") return "Driver";
+    if (actor.role === "client" || actor.kind === "drop" || actor.savedDelivery) return "Client";
+    return "Vendor";
+  }
+  function profileImage(value) {
+    return typeof value === "string" && /^(https:\/\/|\/js\/spacenet\/assets\/|data:image\/jpeg;base64,)/i.test(value) ? value : "";
+  }
+  function profileRows(key, actor) {
+    try {
+      var rows = JSON.parse(localStorage.getItem(key) || "[]");
+      return Array.isArray(rows) ? rows.filter(function (row) { return row && row.profile === profileId(actor); }) : [];
+    } catch (e) { return []; }
+  }
+  function profileUpdates(actor) {
+    var remote = nearbyPosts.filter(function (post) {
+      return String(post.peer || "") === profileId(actor) || (actor.peer && post.peer === actor.peer);
+    });
+    var posts = (Array.isArray(actor.posts) ? actor.posts : []).concat(remote, profileRows("sn:profile-posts", actor));
+    return posts.filter(function (post) { return post && (post.text || post.note || post.title); })
+      .sort(function (a, b) { return new Date(b.t || 0) - new Date(a.t || 0); }).slice(0, 12);
+  }
+  function profileHistory(actor) {
+    var account = checkoutAccount();
+    if (!account) return [];
+    var id = profileId(actor);
+    return loadAccountRows("profile-history", account).concat(loadAccountRows("txns", account)).filter(function (row) {
+      var payload = row.payload || {};
+      return [payload.vendor_id, payload.driver_id, payload.client_location_id].some(function (value) { return value && String(value) === id; });
+    }).slice(0, 10);
+  }
+  function profileMessages(actor) {
+    var account = checkoutAccount();
+    return account ? loadAccountRows("profile-messages", account).filter(function (row) { return row.profile === profileId(actor); }).slice(0, 10) : [];
+  }
+  function profileMarkup(profile) {
+    var actor = profile.actor, role = profileRole(actor);
+    var isVendor = role === "Vendor" || role === "Delivery service";
+    var avatar = profileImage(actor.profile || actor.avatar || actor.avatar_url || actor.photo);
+    var cover = profileImage(actor.cover || (actor.test && isVendor ? vendorBrand(actor).photo : ""));
+    var posts = profileUpdates(actor);
+    return '<article class="drawer-profile">' +
+      '<div class="profile-cover" data-role="' + escHtml(role) + '">' +
+        (cover ? '<img src="' + escHtml(cover) + '" alt="">' : '') +
+        '<button type="button" class="sheet-x" data-act="profile-close" aria-label="Close profile">×</button></div>' +
+      '<div class="profile-identity"><div class="profile-avatar">' +
+        (avatar ? '<img src="' + escHtml(avatar) + '" alt="">' : isVendor ? vendorLogo(actor) :
+          '<span aria-hidden="true">' + (role === "Driver" ? "🚚" : "🏠") + '</span>') +
+      '</div><div><h2>' + escHtml(actor.name || role) + '</h2><p class="note">' + escHtml(role) +
+      (actor.test ? ' · Test profile' : actor.verified ? ' · Verified' : '') + '</p></div></div>' +
+      '<section class="profile-section"><h3>Menu</h3>' + profile.menu + '</section>' +
+      '<section class="profile-section"><h3>Posts</h3>' +
+      posts.map(function (post) {
+        return '<div class="profile-entry"><p>' + escHtml(post.text || post.note || post.title) + '</p>' +
+          (post.t && Number.isFinite(new Date(post.t).getTime()) ? '<time>' + escHtml(transactionDate(post.t)) + '</time>' : '') + '</div>';
+      }).join("") +
+      (posts.length ? '' : '<p class="note">No posts yet.</p>') +
+      (actor.test ? '<form data-profile-action="post"><label class="profile-label">New test post<textarea class="field" name="text" maxlength="500" required></textarea></label>' +
+        '<button type="submit" class="sheet-go">Post</button><p class="note" role="status"></p></form>' : '') + '</section>' +
+      '<section class="profile-section"><h3>History</h3>' +
+      (profileHistory(actor).map(function (row) {
+        return '<div class="profile-entry"><p>' + escHtml(row.summary) + '</p><time>' +
+          escHtml(transactionDate(row.completed_at || row.created_at)) + '</time></div>';
+      }).join("") || '<p class="note">' + (checkoutAccount() ? 'No transactions with this profile on this device.' : 'Sign in to see your own history.') + '</p>') +
+      '<button type="button" class="sheet-go" data-act="profile-transactions">Transaction history</button></section>' +
+      '<section class="profile-section"><h3>Messaging</h3>' +
+      (profileMessages(actor).map(function (entry) {
+        return '<div class="profile-entry"><p>' + escHtml(entry.text) + '</p><time>' +
+          escHtml(transactionDate(entry.created_at)) + '</time></div>';
+      }).join("") || '<p class="note">No messages yet.</p>') +
+      (checkoutAccount()
+        ? '<form data-profile-action="message"><label class="profile-label">Message<textarea class="field" name="text" maxlength="1000" required></textarea></label>' +
+          '<button type="submit" class="sheet-go primary">Save message on this device</button><p class="note" role="status"></p></form>'
+        : '<button type="button" class="sheet-go" data-act="profile-sign-in">Sign in to message</button>') + '</section></article>';
+  }
+  function showDrawerProfile(actor, menu) {
+    var changed = !drawerProfile || profileId(actor) !== profileId(drawerProfile.actor);
+    drawerProfile = { actor: actor, menu: menu };
+    if ($("sn-sheet").classList.contains("on")) closeSheet();
+    else paintDrawerContent();
+    if (changed) $("sheet").scrollTop = 0;
+    if (changed || drawerH <= collapsedDrawerH()) setDrawerHeight(offerDrawerH());
+    loadProfilePosts(actor);
+  }
+  function loadProfilePosts(actor) {
+    if (actor.test || actor.savedDelivery || !Number.isFinite(actor.lat) || !Number.isFinite(actor.lng)) return;
+    var area = actor.lat.toFixed(2) + "," + actor.lng.toFixed(2);
+    if (postsArea === area && Date.now() < postsFreshUntil) return;
+    if (postsArea !== area) nearbyPosts = [];
+    postsArea = area;
+    postsFreshUntil = Date.now() + 60000;
+    var request = ++postsRequest;
+    fetchJson("/api/space?lat=" + actor.lat.toFixed(2) + "&lng=" + actor.lng.toFixed(2)).then(function (data) {
+      if (request !== postsRequest) return;
+      nearbyPosts = data && Array.isArray(data.posts) ? data.posts : [];
+      if (!data || data.ok === false) postsFreshUntil = 0;
+      paintDrawerContent();
+    });
+  }
+  function submitProfileEntry(event) {
+    var form = event.target;
+    if (!form.matches("[data-profile-action]") || !drawerProfile) return;
+    event.preventDefault();
+    var text = form.elements.text.value.trim();
+    if (!text) return;
+    var actor = drawerProfile.actor;
+    var entry = { profile: profileId(actor), text: text, created_at: new Date().toISOString() };
+    var saved;
+    if (form.dataset.profileAction === "post" && actor.test) {
+      entry.t = Date.now();
+      try {
+        var posts = JSON.parse(localStorage.getItem("sn:profile-posts") || "[]");
+        localStorage.setItem("sn:profile-posts", JSON.stringify([entry].concat(posts).slice(0, 200)));
+        saved = true;
+      } catch (e) { saved = false; }
+    } else if (form.dataset.profileAction === "message" && checkoutAccount()) {
+      var account = checkoutAccount();
+      saved = writeAccountRows("profile-messages", account, [entry].concat(loadAccountRows("profile-messages", account)).slice(0, 200));
+    }
+    if (saved) { form.reset(); paintDrawerContent(); }
+    else form.querySelector('[role="status"]').textContent = "This entry could not be saved.";
+  }
   function openActorSheet(a) {
     if (!a) return;
-    if (a.savedDelivery) {
-      openSheet(a.name, '<button type="button" class="sheet-go primary" data-act="test-client" data-id="' + escHtml(a.id) + '">Deliver here</button>');
-      return;
-    }
-    if (a.test) {
-      if (a.role === "vendor") { openVendor(a); return; }
-      var action = a.role === "client"
-        ? '<button type="button" class="sheet-go primary" data-act="test-client" data-id="' + escHtml(a.id) + '">Deliver here</button>'
-        : (testOrder && !testOrder.accepted && testOrder.drivers.some(function (d) { return d.id === a.id; })
-          ? '<button type="button" class="sheet-go primary" data-act="test-driver" data-id="' + escHtml(a.id) + '">Show test offer</button>' : "");
-      openSheet(a.name, action + removeTestPinButton(a));
-      return;
-    }
-    openSheet(String(a.name || "ACTOR").toUpperCase(),
-      '<p class="note">' + String(a.role || a.kind || "actor").toUpperCase() + (a.verified || a.famous ? " · verified" : "") + (a.famous ? " · famous" : "") + " · same map peer talk</p>" +
-      '<button type="button" class="sheet-go primary" data-act="start-tx" data-id="' + a.id + '">START TRANSACTION</button>' +
-      '<button type="button" class="sheet-go" data-act="peer-msg" data-id="' + a.id + '">MESSAGE PEER</button>' +
-      '<button type="button" class="sheet-go" data-act="close">HIDE</button>');
+    var role = profileRole(a);
+    if (role === "Vendor" || role === "Delivery service") { openVendor(a); return; }
+    var id = escHtml(a.id);
+    var menu = role === "Client"
+      ? '<button type="button" class="sheet-go primary" data-act="test-client" data-id="' + id + '">Deliver here</button>'
+      : a.test
+        ? (testOrder && !testOrder.accepted && testOrder.drivers.some(function (d) { return d.id === a.id; })
+          ? '<button type="button" class="sheet-go primary" data-act="test-driver" data-id="' + id + '">Show test offer</button>'
+          : '<p class="note">No offer for this driver.</p>')
+        : '<button type="button" class="sheet-go primary" data-act="start-tx" data-id="' + id + '">Start delivery</button>';
+    showDrawerProfile(a, menu + (a.test ? '<button type="button" class="sheet-go" data-act="edit-test-vendor">Edit profile</button>' + removeTestPinButton(a) : ""));
   }
   function findActor(id) {
     var rows = loadActors().concat(FAMOUS_VENDORS.map(function (f) {
@@ -2250,6 +2365,15 @@
     if (pendingOffer.test) {
       pendingOffer = null;
       testOrder.accepted = true;
+      var account = checkoutAccount();
+      if (account && testOrder.driver) {
+        var recent = loadAccountRows("profile-history", account);
+        var record = recent.find(function (row) { return "test-order-" + row.order_id === testOrder.id; });
+        if (record) {
+          record.payload.driver_id = profileId(testOrder.driver);
+          writeAccountRows("profile-history", account, recent);
+        }
+      }
       paintActiveOfferCard(testOrder, "active");
       return;
     }
@@ -2504,6 +2628,7 @@
       kind: row.kind || tags.amenity || tags.shop || "shop",
       phone: row.phone || tags.phone || tags["contact:phone"] || "",
       logo: row.logo || row.photo || row.image || "",
+      cover: row.cover, profile: row.profile, peer: row.peer, posts: row.posts,
       menu: Array.isArray(row.menu) ? row.menu : undefined,
       src: row.src || "osm"
     };
@@ -2766,7 +2891,7 @@
         '<span aria-label="Quantity">' + cartQty(m.i) + '</span> ' +
         '<button type="button" class="sheet-go" aria-label="Add ' + escHtml(m.name) + ' to cart" data-act="qty-plus" data-i="' + m.i + '"' + (available ? "" : " disabled") + '>+</button></div></article>';
     }).join("");
-    openSheet(vendor.name + " · Menu",
+    showDrawerProfile(vendor,
       rows + '<button type="button" class="sheet-go" data-act="edit-test-menu">List an item</button>' +
       vendorContact(vendor) + '<button type="button" class="sheet-go" data-act="edit-test-vendor">Edit vendor</button>' +
       '<button type="button" class="sheet-go primary" data-act="test-checkout"' + (cartSubtotal() > 0 ? "" : " disabled") + '>Cart · ' + cartSubtotal() + ' AV€</button>' +
@@ -2929,6 +3054,7 @@
     return id;
   }
   var pickingDestination = false;
+  var destinationDrawerHeight = 0;
   function checkoutAccount() {
     var account = window.SNAuth && SNAuth.user && SNAuth.user();
     return signed() && authToken() && account ? String(account.id || account.email) : "";
@@ -3008,10 +3134,14 @@
     if (!cityOn) openCity(vendor);
     map.closePopup();
     pickingDestination = true;
+    destinationDrawerHeight = drawerH;
+    setDrawerHeight(collapsedDrawerH());
     $("sn-location-pick").hidden = false;
     $("city").classList.add("picking-destination");
   }
   function endDestinationPick() {
+    if (pickingDestination && destinationDrawerHeight) setDrawerHeight(destinationDrawerHeight);
+    destinationDrawerHeight = 0;
     pickingDestination = false;
     $("sn-location-pick").hidden = true;
     $("city").classList.remove("picking-destination");
@@ -3121,6 +3251,16 @@
         return;
       }
       try { sessionStorage.removeItem("sn:test-submit"); } catch (err) {}
+      var account = checkoutAccount();
+      if (account) {
+        var recent = loadAccountRows("profile-history", account);
+        writeAccountRows("profile-history", account, [{
+          order_id: orderId,
+          summary: "Test order · " + shop.name + " → " + client.name,
+          created_at: new Date().toISOString(),
+          payload: { vendor_id: profileId(shop), client_location_id: client.id }
+        }].concat(recent).slice(0, 200));
+      }
       if (form.isConnected && vendor === shop) cart.items = {};
       testOrder = {
         id: "test-order-" + orderId, test: true, stage: 0,
@@ -3143,11 +3283,6 @@
     if (!vendor) return;
     var s = vendor;
     var ds = s.vendor_type === "delivery_services" || s.kind === "delivery_services";
-    var km = here ? haversineKm(here, s).toFixed(1) : "—";
-    var addr = s.address || s.raw || (Number(s.lat).toFixed(4) + ", " + Number(s.lng).toFixed(4));
-    var phone = s.phone ? String(s.phone) : "";
-    var pic = s.photo || s.image || "";
-    var actorId = s.id || ("shop-" + s.name);
     var menu = vendorMenu(s);
     var rows = menu.map(function (m) {
       var q = cartQty(m.i);
@@ -3161,24 +3296,10 @@
         '<button type="button" data-act="qty-plus" data-i="' + m.i + '">+</button></div></div></div>';
     }).join("");
     var sub = cartSubtotal();
-    var html =
-      '<div class="vendor-banner">' +
-        (pic ? '<img class="vendor-pic" src="' + String(pic).replace(/"/g, "") + '" alt=""/>' : '<div class="vendor-pic ph">' + (ds ? "🚚" : "🏪") + "</div>") +
-        '<div class="vendor-who"><b>' + String(s.name || "VENDOR").replace(/[<>]/g, "") + "</b>" +
-        '<span>' + String(addr).replace(/[<>]/g, "") + "</span>" +
-        (phone ? '<span>' + String(phone).replace(/[<>]/g, "") + "</span>" : "") +
-        '<span>' + (ds ? "delivery_services" : (s.kind || "vendor")) + " · " + km + " km</span></div>" +
-        '<div class="vendor-comms">' +
-          '<button type="button" class="sheet-go" data-act="peer-msg" data-id="' + actorId + '">MESSAGE</button>' +
-          '<button type="button" class="sheet-go" data-act="peer-video" data-id="' + actorId + '">VIDEO</button>' +
-          (phone ? '<a class="sheet-go" href="tel:' + phone.replace(/[^\d+]/g, "") + '">CALL</a>' : "") +
-        "</div></div>" +
-      '<b class="menu-ttl">' + (ds ? "DELIVERY SKUS" : "MENU") + "</b>" + rows + vendorContact(s) +
-      '<div class="checkout">' +
-        '<p class="note">Cart subtotal ' + sub + " AV€</p>" +
-        '<button type="button" class="sheet-go primary" data-act="open-order"' + (sub > 0 ? "" : " disabled") + ">CHECKOUT AV€</button>" +
-        '<button type="button" class="sheet-go" data-act="close">HIDE</button></div>';
-    openSheet(String(s.name || "VENDOR").toUpperCase(), html);
+    showDrawerProfile(s, rows + vendorContact(s) +
+      '<div class="checkout"><p class="note">Cart subtotal ' + sub + ' AV€</p>' +
+      '<button type="button" class="sheet-go primary" data-act="open-order"' + (sub > 0 ? "" : " disabled") +
+      '>CHECKOUT AV€</button></div>');
   }
   function openOrderScreen() {
     if (!vendor) return;
@@ -4070,7 +4191,8 @@
       client_id: "pay-" + job.id, kind: "order_payment", status: "paid",
       summary: (job.vendor && job.vendor.name) || "Order",
       amount_avc: amount, created_at: new Date(job.t).toISOString(),
-      payload: { order_id: job.id, platform_fee: platformFee, delivery_fee: job.fee }
+      payload: { order_id: job.id, platform_fee: platformFee, delivery_fee: job.fee,
+        vendor_id: job.vendor && profileId(job.vendor), client_location_id: job.drop && job.drop.id }
     });
   }
   function archiveTransaction(job, exchange) {
@@ -4088,6 +4210,9 @@
         stage: job && job.stage,
         km: job && job.km,
         vendor: job && job.vendor && job.vendor.name,
+        vendor_id: job && job.vendor && profileId(job.vendor),
+        driver_id: job && (job.driverId || (job.driver && job.driver.id)),
+        client_location_id: job && job.drop && job.drop.id,
         drop: job && (job.drop || job.to)
       },
       exchange: (exchange || activeExchange || []).slice(-24),
@@ -4282,12 +4407,22 @@
     if (!sheet) return;
     var task = currentTaskHtml();
     var body = "";
-    if (task) body += '<div class="sn-now">' + task + "</div>";
-    body += exchangeHtml();
-    body += txnsHtml();
-    if (sheet.__snBody !== body) {
+    if (drawerProfile && !offerActiveId) body = profileMarkup(drawerProfile);
+    else {
+      if (task) body += '<div class="sn-now">' + task + "</div>";
+      body += exchangeHtml();
+      body += txnsHtml();
+    }
+    var profileKey = drawerProfile && !offerActiveId ? profileId(drawerProfile.actor) + ":" + checkoutAccount() : "";
+    if (sheet.__snBody !== body || sheet.__snProfileKey !== profileKey) {
+      var entry = sheet.__snProfileKey === profileKey && sheet.querySelector("form:focus-within[data-profile-action]");
+      sheet.__snProfileKey = profileKey;
+      var typed = entry && entry.elements.text.value;
+      var action = entry && entry.dataset.profileAction;
       sheet.__snBody = body;
       sheet.innerHTML = body;
+      var replacement = action && sheet.querySelector('[data-profile-action="' + action + '"] textarea');
+      if (replacement) { replacement.value = typed; replacement.focus({ preventScroll: true }); }
     }
   }
   function bindPower() {
@@ -4399,6 +4534,7 @@
     handle.addEventListener("pointerup", endDrag);
     handle.addEventListener("pointercancel", endDrag);
     var sheet = $("sheet");
+    sheet.addEventListener("submit", submitProfileEntry);
     var touch = null, coastFrame = 0;
     cancelDrawerCoast = function () {
       if (coastFrame) cancelAnimationFrame(coastFrame);
@@ -4800,6 +4936,14 @@
       if (act === "order-client-ok") { clientReceived(id); }
       if (act === "order-cancel") { orderCancelKeepPay(id, "Client/peer cancel"); }
       if (act === "order-send") { sendOrderMsg(id); }
+      if (act === "profile-close") {
+        drawerProfile = null;
+        paintDrawerContent();
+        $("sheet").scrollTop = 0;
+        setDrawerHeight(collapsedDrawerH());
+      }
+      if (act === "profile-transactions") openTransactionHistory();
+      if (act === "profile-sign-in" && window.SNAuth && SNAuth.open) SNAuth.open();
       if (act === "edit-test-menu") editTestMenu();
       if (act === "edit-test-vendor") editTestVendorProfile();
       if (act === "test-menu") renderTestVendor();
@@ -4833,6 +4977,10 @@
       }
       if (act === "test-pin") { placeTestPin(t.getAttribute("data-role")); }
       if (act === "remove-test-pin") {
+        if (drawerProfile && profileId(drawerProfile.actor) === id) {
+          drawerProfile = null;
+          setDrawerHeight(collapsedDrawerH());
+        }
         updateTestPins(loadTestPins().filter(function (pin) { return pin.id !== id; }));
       }
       if (act === "insert-actor") { insertActor(t.getAttribute("data-role")); }
@@ -5099,7 +5247,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4449 = true;
+    window.__SN_4450 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
@@ -5124,6 +5272,7 @@
     };
     window.addEventListener("spacenet:signed-in", function () {
       if (cityOn) paintActorsOnMap();
+      paintDrawerContent();
       restoreCheckoutAfterAuth();
       pullTxnsRemote();
       flushTransactions();
