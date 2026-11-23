@@ -4,13 +4,13 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4451"/>
+<meta name="astranov-build" content="4452"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
-<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4451"/>
+<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4452"/>
 <style>
 :root{
   --bg:#02040a; --fg:#e8fbff; --muted:#8ec8d8; --accent:#4df0ff;
@@ -405,16 +405,34 @@ textarea.field,#sn-support-matter{min-height:88px}
 #sn-news .sheet-go,#sn-news .sheet-x{min-height:24px;padding:2px 6px;font-size:10px}
 #sn-news-empty{position:absolute;right:var(--safe-r);bottom:calc(var(--drawer-h) + 53px);background:#040e1c;padding:4px 7px;border-radius:5px;font-size:11px}
 .drawer-profile{width:min(100%,640px);margin:auto;padding-bottom:10px}
-.profile-cover{position:relative;height:clamp(90px,20vw,156px);border-radius:11px;overflow:hidden;background:linear-gradient(125deg,#10264b,#084253,#040e1c)}
+.profile-cover{position:relative;min-height:132px;border-radius:11px;overflow:hidden;background:linear-gradient(125deg,#10264b,#084253,#040e1c);display:flex;align-items:flex-end}
 .profile-cover[data-role="Driver"]{background:linear-gradient(125deg,#10264b,#2a316d,#040e1c)}
 .profile-cover[data-role="Client"]{background:linear-gradient(125deg,#10264b,#135144,#040e1c)}
-.profile-cover>img{width:100%;height:100%;object-fit:cover}
-.profile-cover>.sheet-x{position:absolute;top:6px;right:6px}
-.profile-identity{position:relative;display:flex;align-items:flex-end;gap:10px;padding:0 8px;margin-top:-19px}
-.profile-identity h2{margin:0;font:750 17px/1.25 system-ui}
+.profile-cover>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.profile-cover>.sheet-x{position:absolute;top:6px;right:6px;z-index:1}
+.profile-identity{position:relative;display:flex;align-items:flex-end;gap:10px;width:100%;padding:32px 44px 10px 10px;background:linear-gradient(transparent,rgba(4,14,28,.96))}
+.profile-identity h2{margin:0;font:750 17px/1.25 system-ui;overflow-wrap:anywhere}
 .profile-identity .note{margin:1px 0 0}
-.profile-avatar{flex:none;width:64px;height:64px;border-radius:50%;border:3px solid #040e1c;background:#10264b;display:grid;place-items:center;overflow:hidden;font-size:25px}
+.profile-avatar{flex:none;width:55px;height:55px;border-radius:50%;border:3px solid #040e1c;background:#10264b;display:grid;place-items:center;overflow:hidden;font-size:25px}
 .profile-avatar img,.profile-avatar .vendor-logo{width:100%;height:100%;object-fit:cover;font-size:21px}
+.profile-contact{margin:2px 0 0;font:600 12px/1.35 system-ui;color:#b7dae5}
+.profile-contact a{color:#7ee9ff}
+.profile-contact small{color:var(--muted)}
+.profile-menu-item{align-items:center}
+.profile-menu-item img{flex:none;width:44px;height:44px}
+.profile-item-copy{flex:1;min-width:0;overflow-wrap:anywhere}
+.profile-item-qty{display:flex;align-items:center;gap:4px;flex:none;white-space:nowrap;font-size:12px}
+.profile-item-qty .sheet-go{height:32px;min-width:30px;margin:0;padding:0 5px}
+.drawer-placement header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.drawer-placement h2{margin:4px 0;font:750 16px system-ui}
+#sn-drawer-cart{flex:none;border-top:1px solid rgba(126,233,255,.3);background:#04101c;padding:3px max(10px,var(--safe-r)) calc(3px + var(--safe-b)) max(10px,var(--safe-l))}
+#sn-drawer-cart[hidden],#drawer.has-cart #search{display:none}
+#drawer.has-cart:not(.open) #sheet{padding:0}
+.drawer-cart-line,.drawer-cart-links{display:flex;align-items:center;justify-content:space-between;gap:8px;width:min(100%,640px);margin:auto}
+.drawer-cart-line>span{font:650 13px system-ui}
+.drawer-cart-links{justify-content:flex-end}
+.drawer-cart-line .sheet-go,.drawer-cart-links .sheet-go{margin:0}
+.drawer-cart-links .sheet-go{min-height:23px;padding:1px 8px;font-size:11px}
 .profile-section{padding:11px 8px;border-bottom:1px solid rgba(126,233,255,.23)}
 .profile-section h3{color:#7ee9ff}
 .profile-entry{padding:6px 0;font-size:13px;color:#e8fbff}
@@ -503,6 +521,7 @@ textarea.field,#sn-support-matter{min-height:88px}
     <button type="button" id="mic" aria-label="Handsfree mic">🎤</button>
   </form>
   <div id="sheet"></div>
+  <div id="sn-drawer-cart" hidden></div>
 </div>
 
 <div id="sn-sheet"><div id="sn-sheet-card" class="card"></div></div>
@@ -511,10 +530,10 @@ textarea.field,#sn-support-matter{min-height:88px}
 <div id="toast" role="status"></div>
 <div id="line" role="status"></div>
 
-<script src="/js/vendor/leaflet.js?v=4451"></script>
-<script src="/js/spacenet/partners/types.js?v=4451"></script>
-<script src="/js/spacenet/partners/client.js?v=4451"></script>
-<script src="/js/spacenet/app.js?v=4451"></script>
-<script src="/js/spacenet/auth.js?v=4451"></script>
+<script src="/js/vendor/leaflet.js?v=4452"></script>
+<script src="/js/spacenet/partners/types.js?v=4452"></script>
+<script src="/js/spacenet/partners/client.js?v=4452"></script>
+<script src="/js/spacenet/app.js?v=4452"></script>
+<script src="/js/spacenet/auth.js?v=4452"></script>
 </body>
 </html>

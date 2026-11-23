@@ -1,7 +1,7 @@
-/* SpaceNet 4451 — globe radar with geographic detections. */
+/* SpaceNet 4452 — drawer-first map actions and pinned vendor cart. */
 (function () {
   "use strict";
-  var VER = "4451";
+  var VER = "4452";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -1371,12 +1371,39 @@
     say("Opening Architect…");
     try { location.assign(url); } catch (e) { location.href = url; }
   }
+  var drawerPlacement = "";
+  var drawerBeforePlacement = null;
+  function showDrawerPlacement(title, content) {
+    if (!drawerPlacement) drawerBeforePlacement = { height: drawerH, scroll: $("sheet").scrollTop };
+    drawerPlacement = '<section class="drawer-profile drawer-placement">' +
+      '<header><h2>' + escHtml(title) + '</h2><button class="sheet-x" type="button" data-act="placement-close" aria-label="Close map actions">×</button></header>' +
+      content + '</section>';
+    if ($("sn-sheet").classList.contains("on")) closeSheet();
+    else paintDrawerContent();
+    $("sheet").scrollTop = 0;
+    setDrawerHeight(Math.max(offerDrawerH(), drawerH));
+  }
+  function clearDrawerPlacement() {
+    drawerPlacement = "";
+    drawerBeforePlacement = null;
+    if (map && plotMark) {
+      map.removeLayer(plotMark);
+      plotMark = null;
+    }
+  }
+  function dismissDrawerPlacement() {
+    var previous = drawerBeforePlacement;
+    clearDrawerPlacement();
+    paintDrawerContent();
+    setDrawerHeight(previous ? previous.height : collapsedDrawerH());
+    $("sheet").scrollTop = previous ? previous.scroll : 0;
+  }
   function listAt(pt) {
     if (!pt || !isFinite(pt.lat) || !isFinite(pt.lng)) return;
     listPt = { lat: pt.lat, lng: pt.lng };
     listAlt = altitudeFromDist(cam.dist);
     if (cityOn) markPlot(listPt);
-    openSheet("Place a test pin",
+    showDrawerPlacement("Place a test pin",
       '<p class="note">Saved on this device.</p>' +
       '<div class="sheet-actions">' +
       '<button type="button" class="sheet-go primary" data-act="test-pin" data-role="vendor">Vendor</button>' +
@@ -1403,7 +1430,8 @@
       lat: listPt.lat, lng: listPt.lng, test: true,
       accountId: role === "client" ? checkoutAccount() : undefined
     });
-    updateTestPins(pins);
+    if (!updateTestPins(pins, true)) return;
+    dismissDrawerPlacement();
   }
   function loadTestPins() {
     try {
@@ -1415,7 +1443,8 @@
     try {
       localStorage.setItem("sn:test-pins", JSON.stringify(pins.slice(0, 120)));
     } catch (e) {
-      openSheet("Test pins", '<p class="note">This browser could not save the pins.</p>');
+      if (drawerPlacement) showDrawerPlacement("Test pins", '<p class="note">This browser could not save the pins.</p>');
+      else openSheet("Test pins", '<p class="note">This browser could not save the pins.</p>');
       return;
     }
     if (map && plotMark) {
@@ -1438,14 +1467,14 @@
     var ph = role === "delivery_services"
       ? "Courier / platform city office name"
       : (role === "vendor" ? "Shop / Google Business name" : role === "driver" ? "Driver name" : "Client / house name");
-    openSheet("NAME · " + label,
+    showDrawerPlacement("NAME · " + label,
       '<p class="note">' + (role === "delivery_services"
         ? "Same UX as restaurant vendors — sells delivery, not products. DoorDash/DH list as this type."
         : ("Name this " + role + " at " + listPt.lat.toFixed(5) + ", " + listPt.lng.toFixed(5))) + "</p>" +
       '<input id="sn-actor-name" class="field" placeholder="' + ph + '" />' +
       (isVendorRole(role) ? '<input id="sn-actor-gbp" class="field" placeholder="Google Business Profile URL or place id" />' : "") +
       '<button type="button" class="sheet-go primary" data-act="save-actor" data-role="' + role + '">SAVE · VERIFY</button>' +
-      '<button type="button" class="sheet-go" data-act="close">CANCEL</button>');
+      '<button type="button" class="sheet-go" data-act="placement-close">CANCEL</button>');
     nameEl = $("sn-actor-name");
     if (nameEl) nameEl.focus();
   }
@@ -1472,11 +1501,11 @@
     };
     var ok = verifyActor(actor);
     if (!ok.ok) {
-      openSheet("VERIFY · " + (role === "delivery_services" ? "DELIVERY SERVICES" : role.toUpperCase()),
+      showDrawerPlacement("VERIFY · " + (role === "delivery_services" ? "DELIVERY SERVICES" : role.toUpperCase()),
         '<p class="note">' + ok.msg + "</p>" +
         (isVendorRole(role) ? '<input id="sn-actor-gbp" class="field" placeholder="Google Business Profile URL" value="' + String(gbpVal).replace(/"/g, "") + '" />' : "") +
         '<button type="button" class="sheet-go primary" data-act="retry-verify" data-role="' + role + '" data-name="' + name.replace(/"/g, "") + '">RETRY VERIFY</button>' +
-        '<button type="button" class="sheet-go" data-act="close">CANCEL</button>');
+        '<button type="button" class="sheet-go" data-act="placement-close">CANCEL</button>');
       return;
     }
     actor.verified = true;
@@ -1504,6 +1533,7 @@
     persistListing({ id: actor.id, kind: role, name: actor.name, lat: actor.lat, lng: actor.lng, gbp: actor.gbp, vendor_type: actor.vendor_type });
     paintActorsOnMap();
     paintShopsOnMap();
+    clearDrawerPlacement();
     closeSheet();
     say((role === "delivery_services" ? "DELIVERY SERVICES" : role.toUpperCase()) + " verified · tap pin to start a transaction.");
     startTransaction(actor);
@@ -1638,9 +1668,9 @@
   }
   function vendorContact(row) {
     var phone = vendorBrand(row).phone;
-    return '<div class="vendor-contact">' + vendorLogo(row) + '<div><b>' + escHtml(row.name) + '</b><br>' +
-      (phone ? '<a href="tel:' + escHtml(phone.replace(/[^+\d]/g, "")) + '">' + escHtml(phone) + '</a>' : '<span>Phone unavailable</span>') +
-      (row.test && row.phone == null ? ' <small>Test number</small>' : '') + '</div></div>';
+    return '<p class="profile-contact">' +
+      (phone ? '<a href="tel:' + escHtml(phone.replace(/[^+\d]/g, "")) + '">' + escHtml(phone) + '</a>' : 'Phone unavailable') +
+      (row.test && row.phone == null ? ' <small>Test number</small>' : '') + '</p>';
   }
   function editTestVendorProfile() {
     var current = drawerProfile && drawerProfile.actor;
@@ -1760,21 +1790,26 @@
     var account = checkoutAccount();
     return account ? loadAccountRows("profile-messages", account).filter(function (row) { return row.profile === profileId(actor); }).slice(0, 10) : [];
   }
+  function profileIsVendor(actor) {
+    var role = profileRole(actor);
+    return role === "Vendor" || role === "Delivery service";
+  }
   function profileMarkup(profile) {
     var actor = profile.actor, role = profileRole(actor);
-    var isVendor = role === "Vendor" || role === "Delivery service";
+    var isVendor = profileIsVendor(actor);
     var avatar = profileImage(actor.profile || actor.avatar || actor.avatar_url || actor.photo);
     var cover = profileImage(actor.cover || (actor.test && isVendor ? vendorBrand(actor).photo : ""));
     var posts = profileUpdates(actor);
     return '<article class="drawer-profile">' +
       '<div class="profile-cover" data-role="' + escHtml(role) + '">' +
         (cover ? '<img src="' + escHtml(cover) + '" alt="">' : '') +
-        '<button type="button" class="sheet-x" data-act="profile-close" aria-label="Close profile">×</button></div>' +
+        '<button type="button" class="sheet-x" data-act="profile-close" aria-label="Close profile">×</button>' +
       '<div class="profile-identity"><div class="profile-avatar">' +
         (avatar ? '<img src="' + escHtml(avatar) + '" alt="">' : isVendor ? vendorLogo(actor) :
           '<span aria-hidden="true">' + (role === "Driver" ? "🚚" : "🏠") + '</span>') +
       '</div><div><h2>' + escHtml(actor.name || role) + '</h2><p class="note">' + escHtml(role) +
-      (actor.test ? ' · Test profile' : actor.verified ? ' · Verified' : '') + '</p></div></div>' +
+      (actor.test ? ' · Test profile' : actor.verified ? ' · Verified' : '') + '</p>' +
+      (isVendor ? vendorContact(actor) : '') + '</div></div></div>' +
       '<section class="profile-section"><h3>Menu</h3>' + profile.menu + '</section>' +
       '<section class="profile-section"><h3>Posts</h3>' +
       posts.map(function (post) {
@@ -1784,13 +1819,7 @@
       (posts.length ? '' : '<p class="note">No posts yet.</p>') +
       (actor.test ? '<form data-profile-action="post"><label class="profile-label">New test post<textarea class="field" name="text" maxlength="500" required></textarea></label>' +
         '<button type="submit" class="sheet-go">Post</button><p class="note" role="status"></p></form>' : '') + '</section>' +
-      '<section class="profile-section"><h3>History</h3>' +
-      (profileHistory(actor).map(function (row) {
-        return '<div class="profile-entry"><p>' + escHtml(row.summary) + '</p><time>' +
-          escHtml(transactionDate(row.completed_at || row.created_at)) + '</time></div>';
-      }).join("") || '<p class="note">' + (checkoutAccount() ? 'No transactions with this profile on this device.' : 'Sign in to see your own history.') + '</p>') +
-      '<button type="button" class="sheet-go" data-act="profile-transactions">Transaction history</button></section>' +
-      '<section class="profile-section"><h3>Messaging</h3>' +
+      '<section class="profile-section" id="profile-messaging"><h3>Messaging</h3>' +
       (profileMessages(actor).map(function (entry) {
         return '<div class="profile-entry"><p>' + escHtml(entry.text) + '</p><time>' +
           escHtml(transactionDate(entry.created_at)) + '</time></div>';
@@ -1798,10 +1827,17 @@
       (checkoutAccount()
         ? '<form data-profile-action="message"><label class="profile-label">Message<textarea class="field" name="text" maxlength="1000" required></textarea></label>' +
           '<button type="submit" class="sheet-go primary">Save message on this device</button><p class="note" role="status"></p></form>'
-        : '<button type="button" class="sheet-go" data-act="profile-sign-in">Sign in to message</button>') + '</section></article>';
+        : '<button type="button" class="sheet-go" data-act="profile-sign-in">Sign in to message</button>') + '</section>' +
+      '<section class="profile-section" id="profile-history"><h3>History</h3>' +
+      (profileHistory(actor).map(function (row) {
+        return '<div class="profile-entry"><p>' + escHtml(row.summary) + '</p><time>' +
+          escHtml(transactionDate(row.completed_at || row.created_at)) + '</time></div>';
+      }).join("") || '<p class="note">' + (checkoutAccount() ? 'No transactions with this profile on this device.' : 'Sign in to see your own history.') + '</p>') +
+      '<button type="button" class="sheet-go" data-act="profile-transactions">Transaction history</button></section>' + '</article>';
   }
   function showDrawerProfile(actor, menu) {
     var changed = !drawerProfile || profileId(actor) !== profileId(drawerProfile.actor);
+    clearDrawerPlacement();
     drawerProfile = { actor: actor, menu: menu };
     if ($("sn-sheet").classList.contains("on")) closeSheet();
     else paintDrawerContent();
@@ -2582,7 +2618,10 @@
   function offerDrawerH() {
     return Math.max(collapsedDrawerH(), Math.min(maxDrawerH(), Math.round(window.innerHeight * (2 / 3))));
   }
-  function collapsedDrawerH() { return 70; }
+  function collapsedDrawerH() {
+    var footer = $("sn-drawer-cart");
+    return footer && !footer.hidden ? Math.max(70, footer.offsetHeight + 34) : 70;
+  }
 
   function setSupport(on) {
     supportOn = !!on;
@@ -3001,18 +3040,15 @@
     if (!vendor || !vendor.test) return;
     var rows = vendorMenu(vendor).map(function (m) {
       var available = itemAvailable(m);
-      return '<article class="test-item">' +
+      return '<article class="test-item profile-menu-item">' +
         (m.photo ? '<img width="58" height="58" src="' + escHtml(m.photo) + '" alt=""/>' : "") +
-        '<div><b>' + escHtml(m.name) + '</b><p class="note">' + escHtml(m.note) + '</p>' +
+        '<div class="profile-item-copy"><b>' + escHtml(m.name) + '</b><p class="note">' + escHtml(m.note) + '</p>' +
         '<p class="note">' + m.price + ' AV€ · ' + escHtml(m.hours) + ' · ' + (available ? "Available" : "Unavailable") + '</p>' +
-        '<button type="button" class="sheet-go" aria-label="Remove one ' + escHtml(m.name) + '" data-act="qty-minus" data-i="' + m.i + '"' + (cartQty(m.i) ? "" : " disabled") + '>−</button>' +
-        '<span aria-label="Quantity">' + cartQty(m.i) + '</span> ' +
-        '<button type="button" class="sheet-go" aria-label="Add ' + escHtml(m.name) + ' to cart" data-act="qty-plus" data-i="' + m.i + '"' + (available ? "" : " disabled") + '>+</button></div></article>';
+        '</div>' + menuQuantity(m, available) + '</article>';
     }).join("");
     showDrawerProfile(vendor,
       rows + '<button type="button" class="sheet-go" data-act="edit-test-menu">List an item</button>' +
-      vendorContact(vendor) + '<button type="button" class="sheet-go" data-act="edit-test-vendor">Edit vendor</button>' +
-      '<button type="button" class="sheet-go primary" data-act="test-checkout"' + (cartSubtotal() > 0 ? "" : " disabled") + '>Cart · ' + cartSubtotal() + ' AV€</button>' +
+      '<button type="button" class="sheet-go" data-act="edit-test-vendor">Edit vendor</button>' +
       removeTestPinButton(vendor));
   }
   async function menuPhoto(file) {
@@ -3397,27 +3433,25 @@
     order.note = order.item + " · " + driver.name + " → " + order.drop.name;
     throwOffer(order);
   }
+  function menuQuantity(item, available) {
+    var qty = cartQty(item.i);
+    return '<div class="profile-item-qty">' +
+      '<button type="button" class="sheet-go" aria-label="Remove one ' + escHtml(item.name) + '" data-act="qty-minus" data-i="' + item.i + '"' + (qty ? "" : " disabled") + '>−</button>' +
+      '<span aria-label="Quantity">' + qty + '</span>' +
+      '<button type="button" class="sheet-go" aria-label="Add ' + escHtml(item.name) + ' to cart" data-act="qty-plus" data-i="' + item.i + '"' + (available ? "" : " disabled") + '>+</button></div>';
+  }
   function renderVendorShop() {
     if (!vendor) return;
-    var s = vendor;
-    var ds = s.vendor_type === "delivery_services" || s.kind === "delivery_services";
-    var menu = vendorMenu(s);
-    var rows = menu.map(function (m) {
-      var q = cartQty(m.i);
-      return '<div class="menu-row" data-i="' + m.i + '">' +
-        (m.photo ? '<img class="menu-pic" src="' + String(m.photo).replace(/"/g, "") + '" alt=""/>' : '<div class="menu-pic ph">' + (ds ? "🚚" : "🍽") + "</div>") +
-        '<div class="menu-body"><b>' + String(m.name).replace(/[<>]/g, "") + "</b>" +
-        '<span class="menu-meta">' + m.price + " AV€ · " + String(m.hours).replace(/[<>]/g, "") + " · " + (m.stock === "in" ? "available" : "low") + "</span>" +
-        (m.note ? '<span class="menu-desc">' + String(m.note).replace(/[<>]/g, "") + "</span>" : "") +
-        '<div class="qty"><button type="button" data-act="qty-minus" data-i="' + m.i + '">−</button>' +
-        '<em>' + q + "</em>" +
-        '<button type="button" data-act="qty-plus" data-i="' + m.i + '">+</button></div></div></div>';
+    var rows = vendorMenu(vendor).map(function (item) {
+      var photo = profileImage(item.photo);
+      return '<article class="test-item profile-menu-item">' +
+        (photo ? '<img width="58" height="58" src="' + escHtml(photo) + '" alt="">' : '') +
+        '<div class="profile-item-copy"><b>' + escHtml(item.name) + '</b><p class="note">' +
+        escHtml(item.price) + ' AV€ · ' + escHtml(item.hours) + '</p>' +
+        (item.note ? '<p class="note">' + escHtml(item.note) + '</p>' : '') +
+        '</div>' + menuQuantity(item, true) + '</article>';
     }).join("");
-    var sub = cartSubtotal();
-    showDrawerProfile(s, rows + vendorContact(s) +
-      '<div class="checkout"><p class="note">Cart subtotal ' + sub + ' AV€</p>' +
-      '<button type="button" class="sheet-go primary" data-act="open-order"' + (sub > 0 ? "" : " disabled") +
-      '>CHECKOUT AV€</button></div>');
+    showDrawerProfile(vendor, rows);
   }
   function openOrderScreen() {
     if (!vendor) return;
@@ -4520,18 +4554,49 @@
       return '<div class="sn-txn"><b>' + escHtml(t.summary || t.client_id || "tx") + "</b><span>" + escHtml(when + retain) + "</span></div>";
     }).join("") + "</div>";
   }
+  function paintDrawerCart(profile) {
+    var footer = $("sn-drawer-cart");
+    var active = !!(profile && vendor && profileIsVendor(profile.actor) && profileId(profile.actor) === profileId(vendor));
+    footer.hidden = !active;
+    $("drawer").classList.toggle("has-cart", active);
+    if (!active) return;
+    var subtotal = cartSubtotal();
+    var items = Object.values(cart.items).reduce(function (count, qty) { return count + qty; }, 0);
+    var html = '<div class="drawer-cart-line"><span>Cart · ' + items + (items === 1 ? ' item' : ' items') +
+      ' · <b>' + subtotal + ' AV€</b></span>' +
+      '<button type="button" class="sheet-go primary" data-act="' + (profile.actor.test ? "test-checkout" : "open-order") + '"' +
+      (subtotal > 0 ? '' : ' disabled') + '>Checkout</button></div>' +
+      '<nav class="drawer-cart-links" aria-label="Profile sections">' +
+      '<button type="button" class="sheet-go" data-act="profile-jump" data-id="profile-messaging">Messaging</button>' +
+      '<button type="button" class="sheet-go" data-act="profile-jump" data-id="profile-history">History</button></nav>';
+    if (footer.__snBody !== html) {
+      footer.__snBody = html;
+      footer.innerHTML = html;
+    }
+  }
+  function jumpToProfileSection(id) {
+    if (id !== "profile-messaging" && id !== "profile-history") return;
+    var target = $(id);
+    if (!target) return;
+    var sheet = $("sheet");
+    if (drawerH <= collapsedDrawerH() + 8) setDrawerHeight(offerDrawerH());
+    sheet.scrollTop += target.getBoundingClientRect().top - sheet.getBoundingClientRect().top;
+  }
   function paintDrawerContent() {
     var sheet = $("sheet");
     if (!sheet) return;
     var task = currentTaskHtml();
     var body = "";
-    if (drawerProfile && !offerActiveId) body = profileMarkup(drawerProfile);
+    var profile = drawerPlacement || offerActiveId ? null : drawerProfile;
+    paintDrawerCart(profile);
+    if (drawerPlacement) body = drawerPlacement;
+    else if (profile) body = profileMarkup(profile);
     else {
       if (task) body += '<div class="sn-now">' + task + "</div>";
       body += exchangeHtml();
       body += txnsHtml();
     }
-    var profileKey = drawerProfile && !offerActiveId ? profileId(drawerProfile.actor) + ":" + checkoutAccount() : "";
+    var profileKey = profile ? profileId(profile.actor) + ":" + checkoutAccount() : "";
     if (sheet.__snBody !== body || sheet.__snProfileKey !== profileKey) {
       var entry = sheet.__snProfileKey === profileKey && sheet.querySelector("form:focus-within[data-profile-action]");
       sheet.__snProfileKey = profileKey;
@@ -5054,6 +5119,8 @@
       if (act === "order-client-ok") { clientReceived(id); }
       if (act === "order-cancel") { orderCancelKeepPay(id, "Client/peer cancel"); }
       if (act === "order-send") { sendOrderMsg(id); }
+      if (act === "placement-close") dismissDrawerPlacement();
+      if (act === "profile-jump") jumpToProfileSection(id);
       if (act === "profile-close") {
         drawerProfile = null;
         paintDrawerContent();
@@ -5110,7 +5177,7 @@
         if ($("sn-actor-name")) {} else {
           /* recreate name field value via attribute */
         }
-        openSheet("NAME · " + (rn === "delivery_services" ? "DELIVERY SERVICES" : String(rn || "").toUpperCase()),
+        showDrawerPlacement("NAME · " + (rn === "delivery_services" ? "DELIVERY SERVICES" : String(rn || "").toUpperCase()),
           '<input id="sn-actor-name" class="field" value="' + String(nm2).replace(/"/g, "") + '" />' +
           (rn === "vendor" || rn === "delivery_services" ? '<input id="sn-actor-gbp" class="field" placeholder="Google Business Profile URL" value="' + String(gbp2 && gbp2.value || "").replace(/"/g, "") + '" />' : "") +
           '<button type="button" class="sheet-go primary" data-act="save-actor" data-role="' + rn + '">SAVE · VERIFY</button>');
@@ -5365,7 +5432,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4451 = true;
+    window.__SN_4452 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
