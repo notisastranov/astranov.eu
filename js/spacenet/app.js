@@ -1,7 +1,7 @@
-/* SpaceNet 4450 — vendor, driver, and client profiles in the map drawer. */
+/* SpaceNet 4451 — globe radar with geographic detections. */
 (function () {
   "use strict";
-  var VER = "4450";
+  var VER = "4451";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -162,10 +162,6 @@
   function daysSinceJ2000() { return Date.now() / 86400000 + 2440587.5 - 2451545.0; }
   function earthSpin() {
     return (earthStartPhase + (performance.now() - earthOpenTime) / 1000 * 2 * Math.PI / globeDaySeconds) % (2 * Math.PI);
-  }
-  function solarLngDeg() {
-    var s = ((Date.now() / 1000) % 86400) / 86400;
-    return 180 - s * 360;
   }
   var TIERS = [
     { id: "galaxy", dist: 9.2, name: "Galaxy" },
@@ -423,6 +419,143 @@
     ctx.fill();
     ctx.stroke();
   }
+  var globeRadar = { longitude: null, lastFrame: 0, target: null, until: 0, seen: new Map() };
+  var radarHoldMs = 3000;
+  var radarSpeed = 18; // Degrees per second.
+
+  function radarTurn(value) {
+    // Both meridians of the sweep plane share a 180-degree phase.
+    return ((value % 180) + 180) % 180;
+  }
+  function radarTargets() {
+    var targets = [];
+    newsItems.forEach(function (clip) {
+      var location = clip.location;
+      if (location.kind === "story") {
+        targets.push({ lat: location.lat, lng: location.lng, label: "News · " + location.name });
+      }
+    });
+    nearbyPosts.forEach(function (post) {
+      if (post && (post.note || post.text || post.title) && Number.isFinite(post.lat) && Number.isFinite(post.lng)) {
+        targets.push({ lat: post.lat, lng: post.lng, label: "Post · " + (post.name || post.title || "Map update") });
+      }
+    });
+    [pendingOffer, testOrder].concat(jobs.slice(0, 12)).forEach(function (job) {
+      var vendor = job && job.vendor;
+      if (vendor && !job.cancelled && (job.stage || 0) < 4 && Number.isFinite(vendor.lat) && Number.isFinite(vendor.lng)) {
+        targets.push({ lat: vendor.lat, lng: vendor.lng, label: "Delivery · " + (vendor.name || "Active order") });
+      }
+    });
+    return targets;
+  }
+  function showRadarDetection(target) {
+    $("sn-radar").classList.toggle("locked", !!target);
+    $("sn-radar-status").textContent = target ? "Radar detected " + target.label : "";
+  }
+  function stepGlobeRadar(now) {
+    var radar = globeRadar;
+    if (radar.longitude === null) {
+      radar.longitude = radarTurn((cam.yaw + earthSpin()) * 180 / Math.PI - 40);
+    }
+    var dt = radar.lastFrame ? Math.min(50, now - radar.lastFrame) : 0;
+    radar.lastFrame = now;
+    if (radar.target) {
+      if (now < radar.until) return;
+      radar.target = null;
+      showRadarDetection(null);
+    }
+    var travel = radarSpeed * dt / 1000;
+    var closest = travel;
+    var found = null, key;
+    radarTargets().forEach(function (target) {
+      var crossing = radarTurn(target.lng - radar.longitude);
+      if (crossing > closest) return;
+      var place = target.lat.toFixed(1) + "," + target.lng.toFixed(1);
+      if (now < (radar.seen.get(place) || 0)) return;
+      var point = project(target.lat, target.lng, cam);
+      if (!point || point.z < .18 || point.x < 12 || point.x > view.w - 12 || point.y < 12 || point.y > view.h - 12) return;
+      closest = crossing;
+      found = target;
+      key = place;
+    });
+    if (!found) {
+      radar.longitude = radarTurn(radar.longitude + travel);
+      return;
+    }
+    radar.seen.forEach(function (expiry, place) { if (expiry <= now) radar.seen.delete(place); });
+    radar.seen.set(key, now + 60000);
+    radar.target = found;
+    radar.longitude = radarTurn(found.lng);
+    radar.until = now + radarHoldMs;
+    showRadarDetection(found);
+  }
+  function traceRadarMeridian(longitude, color, width) {
+    ctx.beginPath();
+    for (var side = 0; side < 2; side++) {
+      var pen = false;
+      for (var lat = -90; lat <= 90; lat += 2) {
+        var p = project(lat, longitude + side * 180, cam);
+        if (!p) { pen = false; continue; }
+        if (pen) ctx.lineTo(p.x, p.y);
+        else ctx.moveTo(p.x, p.y);
+        pen = true;
+      }
+    }
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.stroke();
+  }
+  function drawGlobeRadar(now) {
+    stepGlobeRadar(now);
+    var radar = globeRadar;
+    ctx.save();
+    if (radar.target) {
+      ctx.shadowColor = "#7dff9a";
+      ctx.shadowBlur = 13;
+      traceRadarMeridian(radar.longitude, "rgba(143,255,183,.96)", 2.4);
+    } else {
+      for (var trail = 3; trail > 0; trail--) {
+        traceRadarMeridian(radar.longitude - trail * 3, "rgba(120,230,255," + (.15 - trail * .035) + ")", 3);
+      }
+      traceRadarMeridian(radar.longitude, "rgba(120,230,255,.87)", 1.6);
+    }
+    ctx.restore();
+  }
+  function drawRadarTarget() {
+    var target = globeRadar.target;
+    if (!target) return;
+    var point = project(target.lat, target.lng, cam);
+    if (!point) return;
+    ctx.save();
+    ctx.shadowColor = "#7dff9a";
+    ctx.shadowBlur = 12;
+    ctx.strokeStyle = "#aaffc1";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, 11, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = "#d6ffe1";
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.font = "700 11px system-ui,sans-serif";
+    ctx.textAlign = "center";
+    var label = target.label.slice(0, 37);
+    var x = Math.max(85, Math.min(view.w - 85, point.x));
+    ctx.strokeStyle = "#041320";
+    ctx.lineWidth = 3;
+    ctx.strokeText(label, x, point.y - 18);
+    ctx.fillText(label, x, point.y - 18);
+    ctx.restore();
+  }
+  function pauseGlobeRadar(now) {
+    globeRadar.lastFrame = 0;
+    if (globeRadar.target && now >= globeRadar.until) {
+      globeRadar.target = null;
+      showRadarDetection(null);
+    }
+  }
   function drawGlobe(now) {
     if (!canvas || !ctx) return;
     fitView();
@@ -439,7 +572,7 @@
       ctx.fillStyle = "rgba(210,245,255," + stars[i].a + ")";
       ctx.fillRect(stars[i].x * w, stars[i].y * h, stars[i].s || 1.2, stars[i].s || 1.2);
     }
-    if (cam.dist > 3) { drawOrrery(now); return; }
+    if (cam.dist > 3) { pauseGlobeRadar(now); drawOrrery(now); return; }
     var cx = view.cx, cy = view.cy, r = view.scale;
     var glow = ctx.createRadialGradient(cx, cy, r * 0.82, cx, cy, r * 1.12);
     glow.addColorStop(0, "rgba(80,180,220,0)");
@@ -491,24 +624,7 @@
     night.addColorStop(1, "rgba(2,6,12,0)");
     ctx.fillStyle = night;
     ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
-    var sweepLng = solarLngDeg();
-    ctx.beginPath(); first = true;
-    for (lat = -80; lat <= 80; lat += 3) {
-      p = project(lat, sweepLng, cam);
-      if (!p) { first = true; continue; }
-      if (first) { ctx.moveTo(p.x, p.y); first = false; } else ctx.lineTo(p.x, p.y);
-    }
-    ctx.strokeStyle = "rgba(120, 230, 255, 0.85)"; ctx.lineWidth = 1.6; ctx.stroke();
-    for (i = 1; i <= 5; i++) {
-      ctx.beginPath(); first = true;
-      for (lat = -80; lat <= 80; lat += 4) {
-        p = project(lat, sweepLng - i * 4, cam);
-        if (!p) { first = true; continue; }
-        if (first) { ctx.moveTo(p.x, p.y); first = false; } else ctx.lineTo(p.x, p.y);
-      }
-      ctx.strokeStyle = "rgba(120, 230, 255," + (0.18 - i * 0.028) + ")";
-      ctx.lineWidth = 6 - i; ctx.stroke();
-    }
+    drawGlobeRadar(now);
     for (i = 0; i < SITES.length; i++) {
       p = project(SITES[i].lat, SITES[i].lng, cam);
       if (!p) continue;
@@ -526,6 +642,7 @@
         ctx.strokeStyle = "rgba(232,251,255,0.8)"; ctx.lineWidth = 1.2; ctx.stroke();
       }
     }
+    drawRadarTarget();
     ctx.restore();
     ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.strokeStyle = "rgba(140, 210, 230, 0.35)"; ctx.lineWidth = 1.2; ctx.stroke();
@@ -912,6 +1029,7 @@
     if (intro && now - introT0 >= INTRO_MS) endIntro();
     stepCam(now, dt);
     if (!cityOn) drawGlobe(now);
+    else pauseGlobeRadar(now);
     tickNews(now);
     if (skyOn) drawSky(now);
     maybeLayout();
@@ -5247,7 +5365,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4450 = true;
+    window.__SN_4451 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
