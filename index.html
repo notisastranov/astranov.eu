@@ -4,13 +4,13 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4454"/>
+<meta name="astranov-build" content="4455"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
-<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4454"/>
+<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4455"/>
 <style>
 :root{
   --bg:#02040a; --fg:#e8fbff; --muted:#8ec8d8; --accent:#4df0ff;
@@ -197,6 +197,8 @@ button{cursor:pointer}
   background:rgba(4,16,28,.94);color:#4df0ff;font:800 9px/1 system-ui;letter-spacing:.06em;
   box-shadow:0 0 6px rgba(77,240,255,.16);padding:0;
 }
+
+body.drawer-covers-map-controls #gps,body.drawer-covers-map-controls #sn-me{visibility:hidden}
 
 /* Drawer: drag pill + search/mic header + scrollable sheet */
 #drawer{
@@ -399,6 +401,17 @@ textarea.field,#sn-support-matter{min-height:88px}
 .news-tile img + span::before{content:"▶ ";color:#8af4ff}
 .news-pin.radar-hit .news-line{background:#aaffc1;box-shadow:0 0 6px #7dff9a}
 .news-pin.radar-hit .news-tile{border-color:#aaffc1;box-shadow:0 0 8px #7dff9a}
+#sn-news-desk-open{position:absolute;right:var(--safe-r);top:calc(var(--safe-t) + var(--top-row) + var(--ctrl) + 16px);pointer-events:auto;margin:0}
+.news-desk-tabs{display:flex;flex-wrap:wrap;gap:4px;padding:0 8px}
+.news-desk-tabs .sheet-go[aria-pressed="true"]{background:#4df0ff;color:#041018}
+.news-desk-clip{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(126,233,255,.23);color:#e8fbff;text-decoration:none;font:600 13px/1.25 system-ui}
+.news-desk-clip img{width:68px;height:44px;object-fit:cover;border-radius:6px}
+.news-desk-clip small,.market-row small{display:block;color:#9ad7e8;font:500 11px system-ui;margin-top:2px}
+.market-row{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid rgba(126,233,255,.18);font:600 13px system-ui}
+.market-row>div:last-child{text-align:right}
+.fanes-feature{margin:8px;overflow:hidden;border:1px solid rgba(126,233,255,.28);border-radius:10px}
+.fanes-feature img{display:block;width:100%;max-height:150px;object-fit:cover}
+.fanes-feature>div{padding:8px}
 #sn-news-player{
   position:absolute;left:0;top:0;pointer-events:auto;width:min(238px,calc(100vw - 16px));box-sizing:border-box;
   padding:5px;border:1px solid rgba(77,240,255,.65);border-radius:9px;background:#040e1c;
@@ -432,12 +445,16 @@ textarea.field,#sn-support-matter{min-height:88px}
 .drawer-placement header{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .drawer-placement h2{margin:4px 0;font:750 16px system-ui}
 #sn-drawer-cart{flex:none;border-top:1px solid rgba(126,233,255,.3);background:#04101c;padding:3px max(10px,var(--safe-r)) calc(3px + var(--safe-b)) max(10px,var(--safe-l))}
-#sn-drawer-cart[hidden],#drawer.has-cart #search{display:none}
-#drawer.has-cart:not(.open) #sheet{padding:0}
+#sn-drawer-cart[hidden],#drawer:not(.open) #sn-drawer-cart{display:none}
+#drawer:not(.open) #sheet{visibility:hidden;padding:0}
+.vendor-menu-controls{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:5px}
+.vendor-menu-controls .sheet-go{margin:0}
 .drawer-cart-line,.drawer-cart-links{display:flex;align-items:center;justify-content:space-between;gap:8px;width:min(100%,640px);margin:auto}
 .drawer-cart-line>span{font:650 13px system-ui}
-.drawer-cart-links{justify-content:flex-end}
 .drawer-cart-line .sheet-go,.drawer-cart-links .sheet-go{margin:0}
+#sn-checkout-client{display:grid;gap:4px;border:1px solid rgba(126,233,255,.3);max-height:185px;overflow:auto}
+#sn-checkout-client label{display:flex;align-items:center;gap:8px;margin:0;padding:3px}
+#sn-checkout-client input{width:auto;margin:0}
 .drawer-cart-links .sheet-go{min-height:23px;padding:1px 8px;font-size:11px}
 .profile-section{padding:11px 8px;border-bottom:1px solid rgba(126,233,255,.23)}
 .home-title{display:flex;justify-content:space-between;align-items:center;padding:5px 8px}
@@ -495,6 +512,7 @@ textarea.field,#sn-support-matter{min-height:88px}
   <label>AI helper<input name="helper" type="range" min="0" max="100"></label>
 </dialog>
 <aside id="sn-news" aria-label="Video news" hidden>
+  <button type="button" class="sheet-go" id="sn-news-desk-open" data-act="news-desk">News</button>
   <div id="sn-news-pins"></div>
   <p id="sn-news-empty" class="note" hidden>News unavailable. Retrying shortly.</p>
   <section id="sn-news-player" aria-labelledby="sn-news-title" hidden>
@@ -518,6 +536,7 @@ textarea.field,#sn-support-matter{min-height:88px}
 </dialog>
 
 <nav id="menu" hidden>
+  <button type="button" id="sn-news-menu">News</button>
   <button type="button" id="sn-transactions-menu">Transactions</button>
   <button type="button" id="sn-support-menu">SUPPORT DESK</button>
   <button type="button" id="sn-view">Zoom in</button>
@@ -546,10 +565,10 @@ textarea.field,#sn-support-matter{min-height:88px}
 <div id="toast" role="status"></div>
 <div id="line" role="status"></div>
 
-<script src="/js/vendor/leaflet.js?v=4454"></script>
-<script src="/js/spacenet/partners/types.js?v=4454"></script>
-<script src="/js/spacenet/partners/client.js?v=4454"></script>
-<script src="/js/spacenet/app.js?v=4454"></script>
-<script src="/js/spacenet/auth.js?v=4454"></script>
+<script src="/js/vendor/leaflet.js?v=4455"></script>
+<script src="/js/spacenet/partners/types.js?v=4455"></script>
+<script src="/js/spacenet/partners/client.js?v=4455"></script>
+<script src="/js/spacenet/app.js?v=4455"></script>
+<script src="/js/spacenet/auth.js?v=4455"></script>
 </body>
 </html>

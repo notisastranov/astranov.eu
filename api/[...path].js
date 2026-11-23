@@ -3,6 +3,7 @@ const handlers = {
   "find": require("../lib/http/find"),
   "live": require("../lib/http/live"),
   "news": require("../lib/http/news"),
+  "market-news": require("../lib/http/market-news"),
   "test-checkout": require("../lib/http/test-checkout"),
   "place": require("../lib/http/place"),
   "public-config": require("../lib/http/public-config"),
@@ -22,6 +23,8 @@ const handlers = {
   "partners/openapi.json": require("../lib/http/partners/openapi"),
   "vendors/direct": require("../lib/http/vendors/direct"),
   "transactions": require("../lib/http/transactions"),
+  "profile-orders": require("../lib/http/profile-orders"),
+  "vendor-menu": require("../lib/http/vendor-menu"),
   "stripe/create-checkout": require("../lib/http/stripe/create-checkout"),
   "revolut/create-order": require("../lib/http/revolut/create-order"),
 };

@@ -1,7 +1,7 @@
-/* SpaceNet 4454 — steady globe framing and illuminated event borders. */
+/* SpaceNet 4455 */
 (function () {
   "use strict";
-  var VER = "4454";
+  var VER = "4455";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -216,14 +216,62 @@
     var path = rail === "stripe" ? "/api/stripe/create-checkout" : rail === "revolut" ? "/api/revolut/create-order" : "/api/paypal/create-order";
     fetch(path, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ amount: eur, origin: location.origin, reference: "deposit", currency: "AV€", rail: rail })
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + authToken() },
+      body: JSON.stringify({ amount: eur, origin: location.origin, reference: "deposit", currency: "AV€", rail: rail, wallet_topup: rail === "paypal" })
     }).then(function (r) { return r.json(); }).then(function (j) {
       var url = (j && (j.approve || j.url || j.checkout));
-      if (!url) { say((j && (j.error || j.message)) || (rail + " not configured — set env secrets.")); return; }
-      try { localStorage.setItem("sn:pay-deposit", String(eur)); localStorage.setItem("sn:pay-rail", rail); } catch (e) {}
+      if (!url) { openSheet("Wallet top-up", '<p class="note">Top-up could not start.</p>'); return; }
+      if (rail === "paypal" && j.orderId) {
+        try { localStorage.setItem("sn:wallet-order", JSON.stringify({ id: j.orderId, account: checkoutAccount() })); } catch (e) {}
+      }
       location.href = url;
-    }).catch(function () { say(rail + " dark. Check env secrets."); });
+    }).catch(function () { openSheet("Wallet top-up", '<p class="note">Top-up service unavailable.</p>'); });
+  }
+  var paypalReturnPending = false;
+  async function finishPayPalReturn() {
+    var params = new URLSearchParams(location.search);
+    if (paypalReturnPending || params.get("paypal") !== "success" || !params.get("token")) return;
+    paypalReturnPending = true;
+    var oid = params.get("token"), isWallet = params.get("wallet") === "1";
+    try {
+      var response = await fetch("/api/paypal/capture-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + authToken() },
+        body: JSON.stringify({ token: oid, wallet_topup: isWallet })
+      });
+      var result = await response.json();
+      if (!response.ok || !result.ok) {
+        openSheet("PayPal confirmation", '<p class="note">' + (response.status === 403 ? "Sign in with the account that started this top-up." :
+          "Confirmation is pending. Reload to retry this payment.") + '</p>');
+        return;
+      }
+      if (result.wallet) {
+        try {
+          var pending = JSON.parse(localStorage.getItem("sn:wallet-order") || "null");
+          var seenKey = "sn:wallet-seen:" + result.captureId;
+          if (pending && pending.id === oid && pending.account === checkoutAccount() && !localStorage.getItem(seenKey)) {
+            localStorage.setItem(seenKey, "1");
+            avcSet(avcGet() + Number(result.avc));
+          }
+          if (pending && pending.id === oid) localStorage.removeItem("sn:wallet-order");
+        } catch (e) {}
+        testCheckoutRequest();
+        pullTxnsRemote();
+        openSheet("Wallet top-up confirmed", '<p class="note">' + escHtml(result.eur) + ' EUR received.' +
+          (result.wallet.bonus_cents ? ' First-deposit bonus: ' + escHtml(testCoinText(result.wallet.bonus_cents)) + ' in test credits.' : '') + '</p>');
+      } else {
+        var jid = localStorage.getItem("sn:pay-job") || "";
+        jobs.forEach(function (job) { if (job.id === jid) job.paid = true; });
+        saveJobs();
+        localStorage.removeItem("sn:pay-job");
+        say("PayPal transaction verified.");
+      }
+      var clean = new URL(location.href);
+      ["paypal", "wallet", "token", "PayerID"].forEach(function (key) { clean.searchParams.delete(key); });
+      history.replaceState({}, "", clean.href);
+    } catch (e) {
+      openSheet("PayPal confirmation", '<p class="note">Confirmation is pending. Reload to retry this payment.</p>');
+    } finally { paypalReturnPending = false; }
   }
   function poolGet() {
     try {
@@ -813,9 +861,11 @@
   }
   function countryAt(point) {
     if (!point) return "";
-    return (newsRegions.find(function (region) {
+    var region = newsRegions.find(function (region) {
       return region[1].some(function (ring) { return insideCountryRing(point, ring); });
-    }) || [""])[0];
+    });
+    var country = !region && eventCountry(point);
+    return region ? region[0] : country ? country[0] === "Romania" ? "RO" : country[0] : "";
   }
   function eventCountry(point) {
     return eventOutlines.find(function (country) {
@@ -963,14 +1013,17 @@
       Number.isFinite(location.lng) && Math.abs(location.lng) <= 180 &&
       (clip.playlist ? /^UU[\w-]{22}$/ : /^[\w-]{11}$/).test(clip.id);
   }
-  function loadNews(country, global) {
+  function loadNews(country, global, center) {
     var generation = ++newsGeneration;
-    fetchJson("/api/news" + (global ? "?events=1" : country ? "?country=" + encodeURIComponent(country) : ""))
+    var params = new URLSearchParams(global ? { events: "1" } : { country: country });
+    if (center) { params.set("lat", center.lat.toFixed(2)); params.set("lng", center.lng.toFixed(2)); }
+    fetchJson("/api/news?" + params)
       .then(function (feed) {
         if (generation !== newsGeneration) return;
         var clips = Array.isArray(feed && feed.items) ? feed.items.filter(validNewsClip) : [];
         if (global) clips = clips.filter(function (clip) { return clip.location.kind === "story"; });
         var cause = $("sn-news-empty");
+        cause.textContent = center ? "No recent local video news." : global ? "No verified global video updates." : "No recent national video news.";
         cause.hidden = !!clips.length;
         if (!clips.length || feed.fallback) newsRefresh = performance.now() + 30000;
         var previous = new Map(newsItems.map(function (clip) { return [clip.id, clip]; }));
@@ -1010,8 +1063,11 @@
     var tiles = focus && newsItems.includes(focus) ? [focus].concat(newsItems.filter(function (clip) { return clip !== focus; })) : newsItems;
     tiles.forEach(function (clip) {
       var anchor = clip.location;
-      var point = project(anchor.lat, anchor.lng, cam);
+      var point = cityOn && map ? map.latLngToContainerPoint([anchor.lat, anchor.lng]) : project(anchor.lat, anchor.lng, cam);
       clip.box = null;
+      if (cityOn && point && floor >= 92) {
+        point = { x: clampNews(point.x, 16, view.w - 16), y: clampNews(point.y, 88, view.h - drawerH - 16) };
+      }
       if (global && anchor.kind !== "story") point = null;
       if (point && point.x >= 0 && point.x <= view.w && point.y >= 0 && point.y <= view.h - drawerH && floor >= 92 && occupied.length < (global ? 4 : 6)) {
         for (var i = 0; i < candidates.length; i++) {
@@ -1043,7 +1099,7 @@
   }
   function tickNews(now) {
     var deck = $("sn-news");
-    var show = !cityOn && (tierI === 2 || tierI === 3) && !document.hidden;
+    var show = (cityOn || tierI === 2 || tierI === 3) && !document.hidden;
     deck.hidden = !show;
     if (!show) {
       if (newsSelection) stopNews();
@@ -1052,8 +1108,9 @@
     if (now >= newsRegionCheck) {
       newsRegionCheck = now + 900;
       var global = tierI === 2;
-      var country = global ? "" : countryAt(pointUnder());
-      var mode = global ? "global" : "national:" + country;
+      var center = cityOn && map ? map.getCenter() : null;
+      var country = global ? "" : countryAt(center || pointUnder());
+      var mode = global ? "global" : center ? "city:" + center.lat.toFixed(1) + "," + center.lng.toFixed(1) : "national:" + country;
       if (mode !== newsCountry || now >= newsRefresh) {
         if (mode !== newsCountry && newsCountry !== null) {
           stopNews();
@@ -1063,12 +1120,13 @@
         newsCountry = mode;
         deck.classList.toggle("news-global", global);
         newsRefresh = now + (global ? 90000 : 180000);
-        loadNews(country, global);
+        loadNews(country, global, center);
       }
     }
     if (newsItems.length) layoutNewsTiles();
   }
   function bindNews() {
+    setInterval(function () { if (!document.hidden && drawerNews) refreshNewsDesk(drawerNews); }, 60000);
     $("sn-news-close").addEventListener("click", function () {
       var tile = newsSelection && newsSelection.button;
       stopNews();
@@ -1379,6 +1437,10 @@
     youMark = null;
     if (here && isFinite(here.lat)) {
       youMark = L.circleMarker([here.lat, here.lng], { radius: 8, color: "#4df0ff", fillColor: "#4df0ff", fillOpacity: 0.9, weight: 2 }).addTo(map);
+      youMark.on("click", function (e) {
+        if (pickingDestination) nameDestination(e.latlng);
+        else if (!openOwnProfile() && window.SNAuth) SNAuth.open();
+      });
     }
     paintShopsOnMap();
     paintActorsOnMap();
@@ -1440,6 +1502,7 @@
   var drawerBeforePlacement = null;
   function showDrawerPlacement(title, content) {
     drawerHome = false;
+    drawerNews = "";
     $("logo").setAttribute("aria-expanded", "false");
     if (!drawerPlacement) drawerBeforePlacement = { height: drawerH, scroll: $("sheet").scrollTop };
     drawerPlacement = '<section class="drawer-profile drawer-placement">' +
@@ -1486,7 +1549,8 @@
   var testRoles = { vendor: "Vendor", driver: "Driver", client: "Client" };
   var actorIcons = { vendor: "🏪", delivery_services: "📦", driver: "🚚", client: "🏠" };
   var testOrder = null;
-  var testClientId = "";
+  var deliverySelection = new Set();
+  var testOrderQueue = [];
   function placeTestPin(role) {
     if (!listPt || !Object.hasOwn(testRoles, role)) return;
     var pins = loadTestPins();
@@ -1771,7 +1835,7 @@
         if (photos[0]) pin[isVendor ? "logo" : "profile"] = photos[0];
         if (photos[1]) pin.cover = photos[1];
         if (updateTestPins(pins, true)) {
-          if (isVendor && vendor && profileId(vendor) === profileId(pin)) { vendor = pin; renderTestVendor(); }
+          if (isVendor && vendor && profileId(vendor) === profileId(pin)) { vendor = pin; renderVendorShop(); }
           else openActorSheet(pin);
         }
       } catch (error) {
@@ -1844,14 +1908,54 @@
     return posts.filter(function (post) { return post && (post.text || post.note || post.title); })
       .sort(function (a, b) { return new Date(b.t || 0) - new Date(a.t || 0); }).slice(0, 12);
   }
-  function profileHistory(actor) {
-    var account = checkoutAccount();
-    if (!account) return [];
-    var id = profileId(actor);
-    return loadAccountRows("profile-history", account).concat(loadAccountRows("txns", account)).filter(function (row) {
-      var payload = row.payload || {};
-      return [payload.vendor_id, payload.driver_id, payload.client_location_id].some(function (value) { return value && String(value) === id; });
-    }).slice(0, 10);
+  var profileOrderState = null;
+  function loadProfileOrders(actor, history, offset) {
+    var token = authToken();
+    if (!token || (!actor.self && !profileIsVendor(actor))) return;
+    var state = { id: profileId(actor), token: token, pending: true, history: history, offset: offset || 0 };
+    profileOrderState = state;
+    paintDrawerContent();
+    var params = new URLSearchParams({ offset: state.offset });
+    if (!actor.self) params.set("vendor", state.id);
+    fetchJson("/api/profile-orders?" + params, { headers: { Authorization: "Bearer " + token } }).then(function (data) {
+      if (profileOrderState !== state || token !== authToken()) return;
+      state.pending = false;
+      state.data = data && Array.isArray(data.items) ? data : null;
+      paintDrawerContent();
+    });
+  }
+  function profileOrdersFor(actor) {
+    var state = profileOrderState;
+    return state && state.id === profileId(actor) && state.token === authToken() ? state : null;
+  }
+  function orderHistoryMarkup(actor, state) {
+    var data = state.data;
+    return '<article class="drawer-profile"><section class="profile-section">' +
+      '<button type="button" class="sheet-go" data-act="profile-main" aria-label="Back to profile">← Back</button>' +
+      '<h2>' + escHtml(actor.name) + ' · Order history</h2>' +
+      (state.pending ? '<p class="note">Loading orders…</p>' : !data ? '<p class="note">Order history unavailable.</p>'
+        : data.items.map(function (row) {
+          return '<div class="profile-entry"><b>' + escHtml(row.vendor_name || "Order") +
+            '</b><p>' + escHtml(row.status) + (row.test ? ' · Test' : '') + '</p><time>' +
+            escHtml(transactionDate(row.created_at)) + '</time></div>';
+        }).join("") || '<p class="note">No orders yet.</p>') +
+      (state.offset ? '<button type="button" class="sheet-go" data-act="profile-page" data-i="' + Math.max(0, state.offset - 30) + '">Previous</button>' : '') +
+      (data && data.count > state.offset + 30 ? '<button type="button" class="sheet-go" data-act="profile-page" data-i="' + (state.offset + 30) + '">Next</button>' : '') +
+      '</section></article>';
+  }
+  function openOwnProfile() {
+    var person = checkoutAccount() && SNAuth.user();
+    if (!person) return false;
+    var addresses = deliveryLocations().filter(function (pin) { return pin.savedDelivery || pin.accountId === checkoutAccount(); });
+    var menu = '<h3>Delivery addresses</h3><p class="note">' + escHtml(person.address || "") + '</p>' +
+      addresses.map(function (pin) {
+        return '<p><button type="button" class="sheet-go" data-act="profile-address" data-id="' +
+          escHtml(pin.id) + '">' + escHtml(pin.name) + ' · Show on map</button></p>';
+      }).join("") +
+      '<button type="button" class="sheet-go" data-act="home-account">Manage account</button>';
+    showDrawerProfile({ id: person.id, self: true, role: "client", name: person.name || "Your profile",
+      photo: person.photo, cover: person.cover, phone: person.phone }, menu);
+    return true;
   }
   function profileMessages(actor) {
     var account = checkoutAccount();
@@ -1866,7 +1970,10 @@
     var isVendor = profileIsVendor(actor);
     var avatar = profileImage(actor.profile || actor.avatar || actor.avatar_url || actor.photo);
     var cover = profileImage(actor.cover || (actor.test && isVendor ? vendorBrand(actor).photo : ""));
+    var state = profileOrdersFor(actor);
+    if (state && state.history) return orderHistoryMarkup(actor, state);
     var posts = profileUpdates(actor);
+    var stats = state && state.data;
     return '<article class="drawer-profile">' +
       '<div class="profile-cover" data-role="' + escHtml(role) + '">' +
         (cover ? '<img src="' + escHtml(cover) + '" alt="">' : '') +
@@ -1876,8 +1983,14 @@
           '<span aria-hidden="true">' + (role === "Driver" ? "🚚" : "🏠") + '</span>') +
       '</div><div><h2>' + escHtml(actor.name || role) + '</h2><p class="note">' + escHtml(role) +
       (actor.test ? ' · Test profile' : actor.verified ? ' · Verified' : '') + '</p>' +
-      (isVendor ? vendorContact(actor) : '') + '</div></div></div>' +
-      '<section class="profile-section"><h3>Menu</h3>' + profile.menu + '</section>' +
+      (isVendor ? vendorContact(actor) : actor.self && actor.phone ? '<p class="note">' + escHtml(actor.phone) + '</p>' : '') + '</div></div></div>' +
+      (stats ? '<section class="profile-section"><p class="note">Orders today · <b>' + stats.today + '</b></p>' +
+        (actor.self ? '<button type="button" class="sheet-go" data-act="profile-orders">Order history</button>' : '') + '</section>' : '') +
+      (actor.self ? '<section class="profile-section">' + profile.menu + '</section></article>' : '') +
+      (actor.self ? '' :
+       '<section class="profile-section"><h3>Menu</h3>' +
+        (stats && stats.can_manage_menu ? '<button type="button" class="sheet-go" data-act="import-test-menu">Import menu</button>' : '') +
+        profile.menu + '</section>'  +
       '<section class="profile-section"><h3>Posts</h3>' +
       posts.map(function (post) {
         return '<div class="profile-entry"><p>' + escHtml(post.text || post.note || post.title) + '</p>' +
@@ -1894,23 +2007,23 @@
       (checkoutAccount()
         ? '<form data-profile-action="message"><label class="profile-label">Message<textarea class="field" name="text" maxlength="1000" required></textarea></label>' +
           '<button type="submit" class="sheet-go primary">Save message on this device</button><p class="note" role="status"></p></form>'
-        : '<button type="button" class="sheet-go" data-act="profile-sign-in">Sign in to message</button>') + '</section>' +
-      '<section class="profile-section" id="profile-history"><h3>History</h3>' +
-      (profileHistory(actor).map(function (row) {
-        return '<div class="profile-entry"><p>' + escHtml(row.summary) + '</p><time>' +
-          escHtml(transactionDate(row.completed_at || row.created_at)) + '</time></div>';
-      }).join("") || '<p class="note">' + (checkoutAccount() ? 'No transactions with this profile on this device.' : 'Sign in to see your own history.') + '</p>') +
-      '<button type="button" class="sheet-go" data-act="profile-transactions">Transaction history</button></section>' + '</article>';
+        : '<button type="button" class="sheet-go" data-act="profile-sign-in">Sign in to message</button>') + '</section></article>');
   }
   function showDrawerProfile(actor, menu) {
     drawerHome = false;
+    drawerNews = "";
     $("logo").setAttribute("aria-expanded", "false");
     var changed = !drawerProfile || profileId(actor) !== profileId(drawerProfile.actor);
     clearDrawerPlacement();
     drawerProfile = { actor: actor, menu: menu };
     if ($("sn-sheet").classList.contains("on")) closeSheet();
     else paintDrawerContent();
-    if (changed) $("sheet").scrollTop = 0;
+    var orders = profileOrdersFor(actor);
+    if (changed || orders && orders.history) {
+      profileOrderState = null;
+      $("sheet").scrollTop = 0;
+      loadProfileOrders(actor, false, 0);
+    }
     if (changed || drawerH <= collapsedDrawerH()) setDrawerHeight(offerDrawerH());
     loadProfilePosts(actor);
   }
@@ -2586,7 +2699,7 @@
     if (queued.test) {
       var next = queued.drivers.indexOf(queued.driver) + 1;
       if (offersArmed() && queued.drivers[next]) showTestOffer(testOrder, queued.drivers[next]);
-      else testOrder = null;
+      else advanceTestOrder();
     }
   }
   function acceptOffer(jobId) {
@@ -2595,15 +2708,6 @@
     if (pendingOffer.test) {
       pendingOffer = null;
       testOrder.accepted = true;
-      var account = checkoutAccount();
-      if (account && testOrder.driver) {
-        var recent = loadAccountRows("profile-history", account);
-        var record = recent.find(function (row) { return "test-order-" + row.order_id === testOrder.id; });
-        if (record) {
-          record.payload.driver_id = profileId(testOrder.driver);
-          writeAccountRows("profile-history", account, recent);
-        }
-      }
       paintActiveOfferCard(testOrder, "active");
       return;
     }
@@ -2680,6 +2784,7 @@
     ensureHopConfirms(job);
     offerActiveId = job.id;
     drawerHome = false;
+    drawerNews = "";
     $("logo").setAttribute("aria-expanded", "false");
     pendingOffer = job;
     closeJobs();
@@ -2696,10 +2801,7 @@
   function offerDrawerH() {
     return Math.max(collapsedDrawerH(), Math.min(maxDrawerH(), Math.round(window.innerHeight * (2 / 3))));
   }
-  function collapsedDrawerH() {
-    var footer = $("sn-drawer-cart");
-    return footer && !footer.hidden ? Math.max(70, footer.offsetHeight + 34) : 70;
-  }
+  function collapsedDrawerH() { return 70; }
 
   function setSupport(on) {
     supportOn = !!on;
@@ -2856,7 +2958,7 @@
     if (name && name.indexOf(",") >= 0) name = name.split(",")[0];
     if (!name || !isFinite(lat) || !isFinite(lng)) return null;
     return {
-      id: String(row.id || row.osm_id || (name + lat + lng)),
+      id: String(row.vendor_id || row.id || row.osm_id || (name + lat + lng)),
       name: String(name).slice(0, 80),
       lat: lat,
       lng: lng,
@@ -3063,7 +3165,7 @@
     }
   }
   function vendorMenu(s) {
-    var base = s && s.test ? (s.menu || []) : (s && s.menu && s.menu.length) ? s.menu : [
+    var base = s && (s.test || s.registered) ? (s.menu || []) : (s && s.menu && s.menu.length) ? s.menu : [
       { name: "House special", price: "12", note: "Photo · fresh", hours: "11:00–22:00", stock: "in", photo: "" },
       { name: "Daily tray", price: "8", note: "Limited", hours: "12:00–20:00", stock: "in", photo: "" },
       { name: "Drink", price: "3", note: "Cold", hours: "all day", stock: "in", photo: "" }
@@ -3077,7 +3179,9 @@
         hours: m.hours || m.availability || "Today",
         stock: m.stock || "in",
         photo: m.photo || m.image || "",
-        from: m.from, until: m.until
+        from: m.from, until: m.until, days: m.days, category: m.category,
+        limited: Number.isInteger(m.quantity),
+        quantity: Number.isInteger(m.quantity) && m.quantity >= 0 ? m.quantity : 99
       };
     });
   }
@@ -3094,11 +3198,21 @@
     return Math.round((basis + cartFee(basis)) * 100) / 100;
   }
   function openVendor(s) {
+    if (!vendor || profileId(s) !== profileId(vendor)) cart = { items: {}, comment: "" };
     vendor = s;
-    cart = { items: {}, comment: cart && cart.comment || "" };
-    if (s.test) { renderTestVendor(); return; }
+    if (s.test) { renderVendorShop(); return; }
     if (map && isFinite(s.lat)) map.setView([s.lat, s.lng], 17);
     renderVendorShop();
+    if (!s.registered && !s.menu) fetchJson("/api/vendor-menu?vendor=" + encodeURIComponent(profileId(s))).then(function (data) {
+      if (!data || !data.registered || vendor !== s || !drawerProfile || drawerProfile.actor !== s) return;
+      if (Object.keys(cart.items).length && !s.menu) {
+        cart.items = {};
+        say("The vendor menu has loaded. Add items from the updated menu.");
+      }
+      s.registered = true;
+      s.menu = data.items;
+      renderVendorShop();
+    });
     var ds = s && (s.vendor_type === "delivery_services" || s.kind === "delivery_services");
     say(s.name + (ds ? " · delivery services · same UX as food · AV€ · 3% fee." : " · profile + menu. Order in AV€ · 3% fee."));
   }
@@ -3106,28 +3220,14 @@
     return '<button type="button" class="sheet-go" data-act="remove-test-pin" data-id="' + escHtml(pin.id) + '">Remove pin</button>';
   }
   function itemAvailable(item) {
-    if (!item || item.stock !== "in") return false;
+    if (!item || item.stock === "out" || item.quantity === 0 || item.price <= 0) return false;
+    if (item.days && !item.days.includes(new Date().getDay())) return false;
     if (!item.from || !item.until || item.from === item.until) return true;
     var now = new Date();
     var clock = String(now.getHours()).padStart(2, "0") + ":" + String(now.getMinutes()).padStart(2, "0");
     return item.from < item.until
       ? clock >= item.from && clock < item.until
       : clock >= item.from || clock < item.until;
-  }
-  function renderTestVendor() {
-    if (!vendor || !vendor.test) return;
-    var rows = vendorMenu(vendor).map(function (m) {
-      var available = itemAvailable(m);
-      return '<article class="test-item profile-menu-item">' +
-        (m.photo ? '<img width="58" height="58" src="' + escHtml(m.photo) + '" alt=""/>' : "") +
-        '<div class="profile-item-copy"><b>' + escHtml(m.name) + '</b><p class="note">' + escHtml(m.note) + '</p>' +
-        '<p class="note">' + m.price + ' AV€ · ' + escHtml(m.hours) + ' · ' + (available ? "Available" : "Unavailable") + '</p>' +
-        '</div>' + menuQuantity(m, available) + '</article>';
-    }).join("");
-    showDrawerProfile(vendor,
-      rows + '<button type="button" class="sheet-go" data-act="edit-test-menu">List an item</button>' +
-      '<button type="button" class="sheet-go" data-act="edit-test-vendor">Edit vendor</button>' +
-      removeTestPinButton(vendor));
   }
   async function menuPhoto(file) {
     if (!file || !file.size) return "";
@@ -3174,11 +3274,116 @@
       return '<button type="button" data-product="' + i + '">' + photo + '<span>' + escHtml(item.name) + '</span></button>';
     }).join("") + '</div>';
   }
+  var menuColumns = ["photo", "description", "category", "price", "quantity", "available_from", "available_until", "days", "name"];
+  var menuDays = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+  function downloadMenuTemplate() {
+    var csv = menuColumns.join(",") + "\r\n" +
+      ",Tomato and mozzarella,Pizza,12.00,20,11:00,22:00,Mon Tue Wed Thu Fri Sat Sun,Margherita pizza\r\n";
+    var url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    var download = document.createElement("a");
+    download.href = url;
+    download.download = "spacenet-menu-template.csv";
+    download.click();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+  function readMenuCsv(csv) {
+    var rows = [], row = [], value = "", quoted = false, closed = false;
+    csv = csv.replace(/^\uFEFF/, "");
+    for (var i = 0; i <= csv.length; i++) {
+      var c = csv[i];
+      if (quoted) {
+        if (c !== '"') value += c || "";
+        else if (csv[i + 1] === '"') { value += '"'; i++; }
+        else { quoted = false; closed = true; }
+      } else if (c === "," || c === "\n" || c === "\r" || c === undefined) {
+        row.push(value.trim());
+        value = "";
+        closed = false;
+        if (c !== ",") {
+          if (row.some(Boolean)) rows.push(row);
+          row = [];
+          if (c === "\r" && csv[i + 1] === "\n") i++;
+        }
+      } else if (c === '"' && !value && !closed) quoted = true;
+      else if (closed || c === '"') throw new Error("Check quoted cells in the CSV.");
+      else value += c;
+    }
+    if (quoted) throw new Error("An item has an unclosed quote.");
+    var header = rows.shift();
+    if (!header || header.map(function (cell) { return cell.toLowerCase(); }).join(",") !== menuColumns.join(",")) {
+      throw new Error("Use the column names and order in the sample CSV.");
+    }
+    if (!rows.length || rows.length > 200) throw new Error("Upload between 1 and 200 items.");
+    return rows.map(function (cells, i) {
+      var [photo, note, category, price, quantity, from, until, days, name] = cells;
+      var weekdays = days ? Array.from(new Set(days.toLowerCase().split(/[\s;,]+/).filter(Boolean).map(function (day) { return menuDays.indexOf(day); }))) : null;
+      var clock = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+      if (cells.length !== menuColumns.length || !name || name.length > 80 || note.length > 300 || category.length > 60 ||
+          photo && (photo.length > 2048 || !/^https:\/\/[^\s]+$/i.test(photo)) ||
+          !/^\d{1,4}(?:\.\d{1,2})?$/.test(price) || Number(price) <= 0 ||
+          !/^\d{1,5}$/.test(quantity) || !!from !== !!until || from && (!clock.test(from) || !clock.test(until)) ||
+          weekdays && (!weekdays.length || weekdays.includes(-1))) {
+        throw new Error("Check item " + (i + 1) + " for missing or invalid values.");
+      }
+      return { name: name, photo: photo, note: note, category: category, price: Number(price),
+        quantity: Number(quantity), days: weekdays, from: from, until: until, savedAt: Date.now(),
+        hours: from && from !== until ? from + "–" + until : "All day" };
+    });
+  }
+  function importTestMenu() {
+    if (!vendor) return;
+    var shop = vendor;
+    var state = profileOrdersFor(shop);
+    if (!shop.test && !(state && state.data && state.data.can_manage_menu)) return;
+    var vendorId = vendor.id;
+    openSheet("Import menu", '<form id="sn-import-menu" class="test-form">' +
+      '<p class="note">Use HTTPS photo links and save your spreadsheet as comma-separated CSV. Imported rows are added to your menu.</p>' +
+      '<button type="button" class="sheet-go" data-act="menu-template">Download sample spreadsheet</button>' +
+      '<label>Menu spreadsheet<input class="field" type="file" name="menuFile" accept=".csv,text/csv" required></label>' +
+      '<p class="note" role="alert"></p><button class="sheet-go primary">Upload menu</button></form>');
+    $("sn-import-menu").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var form = e.currentTarget, file = form.elements.menuFile.files[0];
+      var alert = form.querySelector('[role="alert"]');
+      var submit = form.querySelector('button:not([type])');
+      if (submit.disabled) return;
+      submit.disabled = true;
+      try {
+        if (!file || file.size > 512000) throw new Error("Choose a CSV file under 500 KB.");
+        var items = readMenuCsv(await file.text());
+        if (!form.isConnected || !$("sn-sheet").classList.contains("on") || !vendor || vendor.id !== vendorId) return;
+        if (!shop.test) {
+          var token = authToken();
+          var result = await fetchJson("/api/vendor-menu?vendor=" + encodeURIComponent(vendorId), {
+            method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+            body: JSON.stringify({ items: items })
+          });
+          if (!result || !Array.isArray(result.items)) throw new Error("The vendor menu could not be saved.");
+          if (vendor === shop && token === authToken() && $("sn-import-menu") === form) {
+            shop.registered = true;
+            shop.menu = result.items;
+            renderVendorShop();
+          }
+          return;
+        }
+        var pins = loadTestPins();
+        var pin = pins.find(function (row) { return row.id === vendorId; });
+        if (!pin) throw new Error("This vendor pin was removed.");
+        pin.menu = (pin.menu || []).concat(items);
+        if (!updateTestPins(pins, true)) throw new Error("Could not save the menu on this device.");
+        vendor = pin;
+        renderVendorShop();
+      } catch (error) { alert.textContent = error.message; }
+      finally { submit.disabled = false; }
+    });
+  }
   function editTestMenu() {
     if (!vendor || !vendor.test) return;
     var vendorId = vendor.id, gallery = productGallery(), galleryPhoto = "";
     openSheet("List an item",
       '<form id="test-item-form" class="test-form">' +
+      '<button type="button" class="sheet-go" data-act="import-test-menu">Upload spreadsheet</button>' +
+      '<button type="button" class="sheet-go" data-act="menu-template">Download sample spreadsheet</button>' +
       renderGallery(gallery) +
       '<p class="note" id="sn-product-selected" aria-live="polite"></p>' +
       '<label>Name<input class="field" name="name" maxlength="80" required></label>' +
@@ -3218,7 +3423,7 @@
       submit.disabled = true;
       try {
         var photo = (await menuPhoto(data.get("photo"))) || galleryPhoto;
-        if (!form.isConnected || !vendor || vendor.id !== vendorId) return;
+        if (!form.isConnected || !$("sn-sheet").classList.contains("on") || !vendor || vendor.id !== vendorId) return;
         var pins = loadTestPins();
         var pin = pins.find(function (row) { return row.id === vendorId; });
         if (!pin) throw new Error("This vendor pin was removed.");
@@ -3229,7 +3434,7 @@
         });
         if (updateTestPins(pins, true)) {
           vendor = pin;
-          renderTestVendor();
+          renderVendorShop();
         }
       } catch (error) {
         alert.textContent = error.message;
@@ -3343,25 +3548,43 @@
   function deliveryLocations() {
     var account = checkoutAccount();
     var known = loadActors().concat(loadTestPins()).filter(function (pin) {
-      return pin.role === "client" && (!pin.accountId || pin.accountId === account);
+      return pin.role === "client" && (pin.accountId === account || pin.test && !pin.accountId);
     });
-    return savedDeliveryLocations().concat(known);
+    return Array.from(new Map(savedDeliveryLocations().concat(known).map(function (pin) { return [pin.id, pin]; })).values());
   }
   function deliveryPicker(clients) {
-    return '<label>Deliver to<select id="sn-checkout-client" class="field" required>' +
-      '<option value="">Choose a client location</option>' + clients.map(function (pin) {
-        return '<option value="' + escHtml(pin.id) + '"' + (pin.id === testClientId ? " selected" : "") + '>' +
-          escHtml(pin.name) + ' · ' + Number(pin.lat).toFixed(4) + ', ' + Number(pin.lng).toFixed(4) + '</option>';
-      }).join("") + '</select></label>' +
-      '<button type="button" class="sheet-go" data-act="checkout-new-client">Add a client location on the map</button>';
+    return '<fieldset id="sn-checkout-client"><legend>Deliver to</legend>' + clients.map(function (pin) {
+      return '<label><input type="checkbox" value="' + escHtml(pin.id) + '"' +
+        (deliverySelection.has(pin.id) ? " checked" : "") + '> ' + escHtml(pin.name) + '</label>';
+    }).join("") + '<p class="note">Each address receives a full cart. Choose up to eight addresses.</p></fieldset>' +
+      '<button type="button" class="sheet-go" data-act="checkout-new-client">Add a delivery address on the map</button>';
   }
-  function selectedDelivery(clients) {
-    return clients.find(function (pin) { return pin.id === $("sn-checkout-client").value; });
+  function selectedDeliveries(clients) {
+    var picker = $("sn-checkout-client");
+    if (!picker) return [];
+    var checks = Array.from(picker.querySelectorAll('input:checked'));
+    if (checks.length > 8) checks.splice(8).forEach(function (input) { input.checked = false; });
+    deliverySelection = new Set(checks.map(function (input) { return input.value; }));
+    return clients.filter(function (pin) { return deliverySelection.has(pin.id); });
+  }
+  function deliveryTotal(entries) {
+    var subtotal = cartSubtotal();
+    return entries.reduce(function (sum, entry) {
+      return sum + Math.round(orderCharge(subtotal, entry.quote.total) * 100);
+    }, 0);
+  }
+  function checkoutDeliveries(clients, options) {
+    return selectedDeliveries(clients).map(function (pin) { return { pin: pin, quote: quoteDelivery(vendor, pin, options) }; });
+  }
+  function advanceTestOrder() {
+    testOrder = testOrderQueue.shift() || null;
+    if (testOrder && offersArmed()) showTestOffer(testOrder, testOrder.drivers[0]);
   }
   function beginDestinationPick() {
     if (!vendor || !requireCheckoutSignIn()) return;
     var note = $("sn-order-comment");
     if (note) cart.comment = note.value;
+    selectedDeliveries(deliveryLocations());
     closeSheet();
     if (!cityOn) openCity(vendor);
     map.closePopup();
@@ -3402,7 +3625,7 @@
         form.querySelector('[role="alert"]').textContent = "This browser could not save the new location.";
         return;
       }
-      testClientId = pin.id;
+      if (deliverySelection.size < 8) deliverySelection.add(pin.id);
       paintActorsOnMap();
       resumeCheckout();
     });
@@ -3420,17 +3643,11 @@
       '<button class="sheet-go primary" disabled>Pay and place test order</button>' +
       '<button type="button" class="sheet-go" data-act="test-menu">Back to menu</button></form>');
     var form = $("test-order-form");
-    var selectedQuote;
     function showTotal() {
-      var client = selectedDelivery(clients);
-      form.querySelector('button:not([type])').disabled = !client;
-      $("sn-test-total").textContent = "";
-      testClientId = client ? client.id : "";
-      if (!client) return;
-      selectedQuote = quoteDelivery(shop, client, {});
-      var delivery = selectedQuote.total;
-      $("sn-test-total").textContent = "Cart " + cartSubtotal() + " AV€ + delivery " + delivery +
-        " AV€ + 3% fee = " + testCoinText(Math.round(orderCharge(cartSubtotal(), delivery) * 100));
+      var destinations = checkoutDeliveries(clients, {});
+      form.querySelector('button:not([type])').disabled = !destinations.length;
+      $("sn-test-total").textContent = destinations.length
+        ? destinations.length + (destinations.length === 1 ? ' delivery' : ' deliveries') + ' · total including 3% fee: ' + testCoinText(deliveryTotal(destinations)) : "";
     }
     $("sn-checkout-client").addEventListener("change", showTotal);
     showTotal();
@@ -3449,59 +3666,60 @@
         alert.textContent = "Check the availability of the items in your cart.";
         return;
       }
-      var client = selectedDelivery(clients);
-      if (!client) return;
+      var destinations = checkoutDeliveries(clients, {});
+      if (!destinations.length) return;
       if (!drivers.length) {
         alert.textContent = "Place a test driver on the map before paying.";
         return;
       }
-      var quote = selectedQuote;
+      if (lines.some(function (item) { return cartQty(item.i) * destinations.length > item.quantity && item.limited; })) {
+        alert.textContent = "There is insufficient stock for all selected addresses.";
+        return;
+      }
       var items = lines.map(function (item) {
         return { name: item.name, qty: cartQty(item.i), unit_cents: Math.round(item.price * 100) };
       });
-      var payload = {
-        vendor: { id: shop.id, name: shop.name, lat: shop.lat, lng: shop.lng },
-        drop: { id: client.id, name: client.name, lat: client.lat, lng: client.lng },
-        items: items,
-        delivery_cents: Math.round(quote.driver * 100)
-      };
-      var orderId = testOrderKey(payload);
+      var payloads = destinations.map(function (entry) {
+        return {
+          vendor: { id: shop.id, name: shop.name, lat: shop.lat, lng: shop.lng },
+          drop: { id: entry.pin.id, name: entry.pin.name, lat: entry.pin.lat, lng: entry.pin.lng },
+          items: items,
+          delivery_cents: Math.round(entry.quote.driver * 100)
+        };
+      });
+      var key = testOrderKey(payloads);
+      var orders = payloads.map(function (payload, i) {
+        return { order_id: i ? key.slice(0, -1) + ((parseInt(key.slice(-1), 16) + i) % 16).toString(16) : key, payload: payload };
+      });
       button.disabled = true;
       $("sn-checkout-client").disabled = true;
       form.querySelector('[data-act="checkout-new-client"]').disabled = true;
       testSubmitting = true;
       alert.textContent = "";
-      var result = await testCheckoutRequest({ order_id: orderId, payload: payload });
+      var result = await testCheckoutRequest(orders.length > 1 ? { batch: orders } : orders[0]);
       button.disabled = false;
-      form.querySelector("select").disabled = false;
+      form.querySelector("fieldset").disabled = false;
       form.querySelector('[data-act="checkout-new-client"]').disabled = false;
       testSubmitting = false;
-      if (!result.id) {
+      if (!result.id && !Array.isArray(result.orders)) {
         alert.textContent = result.error === "insufficient_test_credit" ? "Not enough test credit for this order." :
           result.error === "auth_required" || result.error === "auth_changed" ? "Sign in again to use test credit." :
           "Order confirmation unavailable. Retry to check the same order.";
         return;
       }
       try { sessionStorage.removeItem("sn:test-submit"); } catch (err) {}
-      var account = checkoutAccount();
-      if (account) {
-        var recent = loadAccountRows("profile-history", account);
-        writeAccountRows("profile-history", account, [{
-          order_id: orderId,
-          summary: "Test order · " + shop.name + " → " + client.name,
-          created_at: new Date().toISOString(),
-          payload: { vendor_id: profileId(shop), client_location_id: client.id }
-        }].concat(recent).slice(0, 200));
-      }
       if (form.isConnected && vendor === shop) cart.items = {};
-      testOrder = {
-        id: "test-order-" + orderId, test: true, stage: 0,
-        vendor: shop, drop: client, fee: quote.driver, km: quote.km,
-        item: items.map(function (item) { return item.qty + " × " + item.name; }).join(", "),
-        drivers: drivers.sort(function (a, b) { return haversineKm(a, shop) - haversineKm(b, shop); })
-      };
-      if (offersArmed()) showTestOffer(testOrder, testOrder.drivers[0]);
-      else openSheet("Test order queued", '<p class="note">Turn on power to send the offer to the nearest test driver.</p>');
+      drivers.sort(function (a, b) { return haversineKm(a, shop) - haversineKm(b, shop); });
+      testOrderQueue.push.apply(testOrderQueue, destinations.map(function (entry, i) {
+        return {
+          id: "test-order-" + orders[i].order_id, test: true, stage: 0,
+          vendor: shop, drop: entry.pin, fee: entry.quote.driver, km: entry.quote.km,
+          item: items.map(function (item) { return item.qty + " × " + item.name; }).join(", "),
+          drivers: drivers
+        };
+      }));
+      advanceTestOrder();
+      if (!offersArmed()) openSheet("Test order queued", '<p class="note">Turn on power to send the offer to the nearest test driver.</p>');
     });
   }
   var testDeliveryStages = ["Confirm pickup", "Confirm delivery", "Client received"];
@@ -3516,20 +3734,27 @@
     return '<div class="profile-item-qty">' +
       '<button type="button" class="sheet-go" aria-label="Remove one ' + escHtml(item.name) + '" data-act="qty-minus" data-i="' + item.i + '"' + (qty ? "" : " disabled") + '>−</button>' +
       '<span aria-label="Quantity">' + qty + '</span>' +
-      '<button type="button" class="sheet-go" aria-label="Add ' + escHtml(item.name) + ' to cart" data-act="qty-plus" data-i="' + item.i + '"' + (available ? "" : " disabled") + '>+</button></div>';
+      '<button type="button" class="sheet-go" aria-label="Add ' + escHtml(item.name) + ' to cart" data-act="qty-plus" data-i="' + item.i + '"' + (available && qty < Math.min(99, item.quantity) ? "" : " disabled") + '>+</button></div>';
   }
   function renderVendorShop() {
     if (!vendor) return;
+    var controls = vendor.test ? '<div class="vendor-menu-controls">' +
+      '<button type="button" class="sheet-go" data-act="edit-test-menu">List an item</button>' +
+      '<button type="button" class="sheet-go" data-act="edit-test-vendor">Edit vendor</button>' +
+      '<button type="button" class="sheet-go" data-act="import-test-menu">Import menu</button>' +
+      removeTestPinButton(vendor) + '</div>' : '';
     var rows = vendorMenu(vendor).map(function (item) {
       var photo = profileImage(item.photo);
+      var available = itemAvailable(item);
+      var details = [item.price + " AV€", item.hours, item.category,
+        item.limited ? item.quantity + " in stock" : "", available ? "" : "Unavailable"].filter(Boolean);
       return '<article class="test-item profile-menu-item">' +
-        (photo ? '<img width="58" height="58" src="' + escHtml(photo) + '" alt="">' : '') +
-        '<div class="profile-item-copy"><b>' + escHtml(item.name) + '</b><p class="note">' +
-        escHtml(item.price) + ' AV€ · ' + escHtml(item.hours) + '</p>' +
+        (photo ? '<img width="58" height="58" src="' + escHtml(photo) + '" alt="" loading="lazy">' : '') +
+        '<div class="profile-item-copy"><b>' + escHtml(item.name) + '</b><p class="note">' + escHtml(details.join(" · ")) + '</p>' +
         (item.note ? '<p class="note">' + escHtml(item.note) + '</p>' : '') +
-        '</div>' + menuQuantity(item, true) + '</article>';
+        '</div>' + menuQuantity(item, available) + '</article>';
     }).join("");
-    showDrawerProfile(vendor, rows);
+    showDrawerProfile(vendor, controls + (rows || '<p class="note">No menu items yet.</p>'));
   }
   function openOrderScreen() {
     if (!vendor) return;
@@ -3552,12 +3777,10 @@
       '<button type="button" id="sn-pay-cart" class="sheet-go primary" data-act="pay-avc" disabled>Pay and place order</button>' +
       '<button type="button" class="sheet-go" data-act="back-vendor">Back to menu</button></div>');
     function update() {
-      var chosen = selectedDelivery(clients);
-      $("sn-pay-cart").disabled = !chosen;
-      testClientId = chosen ? chosen.id : "";
-      var delivery = chosen ? quoteDelivery(vendor, chosen, quoteOpts).total : 0;
-      $("sn-cart-total").textContent = chosen
-        ? "Cart " + cartSubtotal() + " AV€ + delivery " + delivery + " AV€ + 3% fee = " + orderCharge(cartSubtotal(), delivery) + " AV€"
+      var destinations = checkoutDeliveries(clients, quoteOpts);
+      $("sn-pay-cart").disabled = !destinations.length;
+      $("sn-cart-total").textContent = destinations.length
+        ? destinations.length + (destinations.length === 1 ? ' delivery' : ' deliveries') + ' · total including 3% fee: ' + testCoinText(deliveryTotal(destinations))
         : "Cart " + cartSubtotal() + " AV€";
     }
     $("sn-checkout-client").addEventListener("change", update);
@@ -3739,18 +3962,20 @@
   function payCartAvc() {
     if (!requireCheckoutSignIn()) return;
     if (!$("sn-checkout-client")) return;
-    var destination = selectedDelivery(deliveryLocations());
-    if (!destination) return;
+    var destinations = checkoutDeliveries(deliveryLocations(), quoteOpts);
+    if (!destinations.length) return;
     var ta = $("sn-order-comment");
     if (ta) cart.comment = String(ta.value || "").trim().slice(0, 500);
     var tot = cartSubtotal();
     if (tot <= 0) { say("Cart empty."); return; }
-    drop = destination;
-    var q = quoteDelivery(vendor, drop, quoteOpts);
-    var due = orderCharge(tot, q.total);
+    if (vendorMenu(vendor).some(function (item) {
+      var qty = cartQty(item.i);
+      return qty && (!itemAvailable(item) || item.limited && qty * destinations.length > item.quantity);
+    })) { say("Check item availability for the selected addresses."); return; }
+    var due = deliveryTotal(destinations) / 100;
     if (avcGet() < due) {
       openSheet("TOP UP AV€",
-        '<p class="note">Need ' + due + " AV€ (order " + tot + " + delivery " + q.total + " upfront). You have " + Math.round(avcGet()) + " AV€.</p>" +
+        '<p class="note">Need ' + due + " AV€ for the selected deliveries. You have " + Math.round(avcGet()) + " AV€.</p>" +
         '<input id="sn-add-eur" inputmode="decimal" placeholder="Euro to top up" value="20" />' +
         '<button type="button" class="sheet-go primary" data-act="topup" data-rail="paypal">PAYPAL</button>' +
         '<button type="button" class="sheet-go" data-act="topup" data-rail="stripe">STRIPE</button>' +
@@ -3758,35 +3983,39 @@
       return;
     }
     avcSet(avcGet() - due);
-    var job = {
-      id: "j" + Date.now().toString(36),
-      vendor: vendor,
-      drop: drop,
-      km: q.km,
-      fee: q.total,
-      driverPay: q.driver,
-      orderTotal: tot,
-      cut: cartFee(tot + q.total),
-      quote: { base: q.base, night: q.night, extraKm: q.extraKm, weather: q.weather, floor: q.floor },
-      prepMin: VENDOR_PREP_MIN,
-      currency: "AV€",
-      items: Object.keys(cart.items).map(function (k) { return { i: Number(k), qty: cart.items[k] }; }),
-      comment: cart.comment || "",
-      stage: 0,
-      confirms: { vendor: false, driver: false, client: false, pickup: { vendor: false, driver: false }, deliver: { driver: false, client: false } },
-      paid: true,
-      paidUpfront: true,
-      status: "pending",
-      t: Date.now()
-    };
-    jobs.unshift(job);
+    var placed = destinations.map(function (entry) {
+      var q = entry.quote;
+      var job = {
+        id: "j" + crypto.randomUUID(),
+        vendor: vendor,
+        drop: entry.pin,
+        km: q.km,
+        fee: q.total,
+        driverPay: q.driver,
+        orderTotal: tot,
+        cut: cartFee(tot + q.total),
+        quote: { base: q.base, night: q.night, extraKm: q.extraKm, weather: q.weather, floor: q.floor },
+        prepMin: VENDOR_PREP_MIN,
+        currency: "AV€",
+        items: Object.keys(cart.items).map(function (k) { return { i: Number(k), qty: cart.items[k] }; }),
+        comment: cart.comment || "",
+        stage: 0,
+        confirms: { vendor: false, driver: false, client: false, pickup: { vendor: false, driver: false }, deliver: { driver: false, client: false } },
+        paid: true,
+        paidUpfront: true,
+        status: "pending",
+        t: Date.now()
+      };
+      jobs.unshift(job);
+      recordOrderPayment(job, orderCharge(tot, q.total), job.cut);
+      return job;
+    });
     saveJobs();
-    recordOrderPayment(job, due, job.cut);
-    routeOrderToLive(job);
+    placed.forEach(routeOrderToLive);
     cart = { items: {}, comment: "" };
     closeSheet();
     openJobs();
-    say("Paid " + due + " AV€ (delivery " + q.total + " upfront → driver). Vendor must confirm.");
+    say("Paid " + due + " AV€ for " + placed.length + " delivery order(s). Vendor must confirm.");
   }
   function setDrop(pt) {
     drop = { lat: pt.lat, lng: pt.lng };
@@ -4279,6 +4508,9 @@
         supportBtn.style.setProperty("bottom", "auto", "important");
       }
     }
+    var upperControls = Math.max(powerBtn ? powerBtn.getBoundingClientRect().bottom : 0,
+      supportBtn ? supportBtn.getBoundingClientRect().bottom : 0);
+    document.body.classList.toggle("drawer-covers-map-controls", H - lift < upperControls + 56);
     var desk = $("sn-support-sheet");
     var sup = $("sn-support");
     if (desk && desk.classList.contains("on")) {
@@ -4635,8 +4867,8 @@
   function paintDrawerCart(profile) {
     var footer = $("sn-drawer-cart");
     var active = !!(profile && vendor && profileIsVendor(profile.actor) && profileId(profile.actor) === profileId(vendor));
-    footer.hidden = !active;
-    $("drawer").classList.toggle("has-cart", active);
+    var state = profile && profileOrdersFor(profile.actor);
+    footer.hidden = !active || !!(state && state.history);
     if (!active) return;
     var subtotal = cartSubtotal();
     var items = Object.values(cart.items).reduce(function (count, qty) { return count + qty; }, 0);
@@ -4645,15 +4877,15 @@
       '<button type="button" class="sheet-go primary" data-act="' + (profile.actor.test ? "test-checkout" : "open-order") + '"' +
       (subtotal > 0 ? '' : ' disabled') + '>Checkout</button></div>' +
       '<nav class="drawer-cart-links" aria-label="Profile sections">' +
-      '<button type="button" class="sheet-go" data-act="profile-jump" data-id="profile-messaging">Messaging</button>' +
-      '<button type="button" class="sheet-go" data-act="profile-jump" data-id="profile-history">History</button></nav>';
+      (state && state.data ? '<button type="button" class="sheet-go" data-act="profile-orders">History</button>' : '<span></span>') +
+      '<button type="button" class="sheet-go" data-act="profile-jump" data-id="profile-messaging">Messaging</button></nav>';
     if (footer.__snBody !== html) {
       footer.__snBody = html;
       footer.innerHTML = html;
     }
   }
   function jumpToProfileSection(id) {
-    if (id !== "profile-messaging" && id !== "profile-history") return;
+    if (id !== "profile-messaging") return;
     var target = $(id);
     if (!target) return;
     var sheet = $("sheet");
@@ -4665,9 +4897,10 @@
     if (!sheet) return;
     var task = currentTaskHtml();
     var body = "";
-    var profile = drawerHome || drawerPlacement || offerActiveId ? null : drawerProfile;
+    var profile = drawerNews || drawerHome || drawerPlacement || offerActiveId ? null : drawerProfile;
     paintDrawerCart(profile);
-    if (drawerHome) body = homeMarkup();
+    if (drawerNews) body = newsDeskMarkup();
+    else if (drawerHome) body = homeMarkup();
     else if (drawerPlacement) body = drawerPlacement;
     else if (profile) body = profileMarkup(profile);
     else {
@@ -4680,11 +4913,17 @@
       var entry = sheet.__snProfileKey === profileKey && sheet.querySelector("form:focus-within[data-profile-action]");
       sheet.__snProfileKey = profileKey;
       var typed = entry && entry.elements.text.value;
+      var qtyButton = sheet.contains(document.activeElement) && document.activeElement.closest("[data-i][data-act^=qty-]");
+      var focusedQuantity = qtyButton && { index: qtyButton.dataset.i, action: qtyButton.dataset.act };
       var action = entry && entry.dataset.profileAction;
       sheet.__snBody = body;
       sheet.innerHTML = body;
       var replacement = action && sheet.querySelector('[data-profile-action="' + action + '"] textarea');
       if (replacement) { replacement.value = typed; replacement.focus({ preventScroll: true }); }
+      if (focusedQuantity) {
+        var nextButton = sheet.querySelector('[data-i="' + focusedQuantity.index + '"][data-act="' + focusedQuantity.action + '"]');
+        if (nextButton && !nextButton.disabled) nextButton.focus({ preventScroll: true });
+      }
     }
   }
   function bindPower() {
@@ -4903,6 +5142,10 @@
       setOpen(false);
       openTransactionHistory();
     });
+    $("sn-news-menu").addEventListener("click", function () {
+      setOpen(false);
+      openNewsDesk("events");
+    });
     var viewBtn = $("sn-view");
     var outBtn = $("sn-view-out");
     if (outBtn) outBtn.addEventListener("click", function () { setOpen(false); stepTier(1); });
@@ -4915,6 +5158,92 @@
         stepTier(-1);
       });
     }
+  }
+  var drawerNews = "";
+  var newsDeskCache = Object.create(null);
+  var newsDeskLoading = Object.create(null);
+  var newsDeskTabs = { events: "News", investments: "Investments", culture: "Arts & Culture", spacenet: "SpaceNet" };
+  var quoteGroups = ["Space", "AI and chips", "Technology", "Defense", "Automotive", "Shipping"];
+  function newsClipCards(items) {
+    return items.filter(function (item) { return item && /^[\w-]{11}$/.test(item.id); }).map(function (item) {
+      var where = item.location && item.location.kind === "story" ? " · " + escHtml(item.location.name) : "";
+      return '<a class="news-desk-clip" target="_blank" rel="noopener noreferrer" href="https://www.youtube.com/watch?v=' + item.id + '">' +
+        '<img loading="lazy" alt="" src="https://i.ytimg.com/vi/' + item.id + '/default.jpg">' +
+        '<span><b>' + escHtml(item.title) + '</b><small>' + escHtml(item.source) + where + '</small></span></a>';
+    }).join("");
+  }
+  function marketRows(items) {
+    return quoteGroups.map(function (group) {
+      var rows = items.filter(function (item) { return item.group === group; });
+      if (!rows.length) return "";
+      return '<section class="profile-section"><h3>' + group + '</h3>' + rows.map(function (item) {
+        var quote = item.quote;
+        var price = quote && Number.isFinite(quote.price) && Number.isFinite(quote.timestamp);
+        var label = price ? quote.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 }) + " " + escHtml(quote.currency)
+          : item.symbol ? "Quote unavailable" : "Public listing unverified";
+        return '<div class="market-row"><div><b>' + escHtml(item.name) + '</b>' +
+          (item.symbol ? '<small>' + escHtml(item.symbol) + '</small>' : '') + '</div>' +
+          '<div><b>' + label + '</b>' + (price ? '<small>' + (quote.stale ? 'Last available · ' : '') +
+            escHtml(new Date(quote.timestamp).toLocaleString()) + '</small>' : '') + '</div></div>';
+      }).join("") + '</section>';
+    }).join("");
+  }
+  function newsDeskMarkup() {
+    var cached = newsDeskCache[drawerNews];
+    var items = cached && cached.data && Array.isArray(cached.data.items) ? cached.data.items : [];
+    var fallback = '<p class="note">' + (newsDeskLoading[drawerNews] ? "Loading…" :
+      drawerNews === "investments" ? "Market quotes are temporarily unavailable." : "No recent videos available.") + '</p>';
+    var body;
+    if (drawerNews === "investments") {
+      body = '<p class="note">Exchange quotes via Yahoo Finance. Prices may be delayed.</p>' + (marketRows(items) || fallback);
+    } else if (drawerNews === "culture") {
+      body = '<article class="fanes-feature"><img src="/js/spacenet/assets/fanes-illustration.webp" alt="">' +
+        '<div><h3>Fanes, Village of Colors</h3><p class="note">Rhodes, Greece · Village art and heritage · Illustration</p>' +
+        '<a class="sheet-go" href="https://www.openstreetmap.org/search?query=Fanes%2C%20Rhodes%2C%20Greece" target="_blank" rel="noopener noreferrer">Find Fanes on the map</a></div></article>' +
+        '<section class="profile-section"><h3>Artists, film &amp; celebrities</h3>' + (newsClipCards(items) || fallback) + '</section>';
+    } else if (drawerNews === "spacenet") {
+      var links = cached && cached.data && Array.isArray(cached.data.socials) ? cached.data.socials : [];
+      body = '<section class="profile-section"><h3>Latest from Notis Astranov</h3>' +
+        (newsClipCards(items) || fallback) +
+        '<a class="sheet-go" href="https://www.youtube.com/@notisastranov" target="_blank" rel="noopener noreferrer">Notis Astranov on YouTube</a>' +
+        links.filter(function (link) { return link && /^https:\/\//.test(link.url); }).map(function (link) {
+          return '<a class="sheet-go" target="_blank" rel="noopener noreferrer" href="' + escHtml(link.url) + '">' + escHtml(link.label) + '</a>';
+        }).join(" ") + '</section>';
+    } else {
+      body = '<section class="profile-section"><h3>Current events</h3>' + (newsClipCards(items) || fallback) + '</section>';
+    }
+    return '<article class="drawer-profile"><header class="home-title"><h2>News</h2>' +
+      '<button type="button" class="sheet-x" data-act="news-desk-close" aria-label="Close news">×</button></header>' +
+      '<nav class="news-desk-tabs" aria-label="News sections">' + Object.keys(newsDeskTabs).map(function (key) {
+        return '<button type="button" class="sheet-go" data-act="news-desk" data-id="' + key + '" aria-pressed="' +
+          (drawerNews === key) + '">' + newsDeskTabs[key] + '</button>';
+      }).join("") + '</nav>' + body + '</article>';
+  }
+  function openNewsDesk(section) {
+    if (!Object.hasOwn(newsDeskTabs, section)) section = "events";
+    var opening = !drawerNews;
+    drawerHome = false;
+    $("logo").setAttribute("aria-expanded", "false");
+    clearDrawerPlacement();
+    drawerNews = section;
+    if ($("sn-sheet").classList.contains("on")) closeSheet();
+    paintDrawerContent();
+    $("sheet").scrollTop = 0;
+    if (opening || drawerH <= collapsedDrawerH() + 8) setDrawerHeight(offerDrawerH());
+    refreshNewsDesk(section);
+  }
+  function refreshNewsDesk(section) {
+    var previous = newsDeskCache[section];
+    if (newsDeskLoading[section] || (previous && previous.until > Date.now())) return;
+    newsDeskLoading[section] = true;
+    paintDrawerContent();
+    var endpoint = section === "investments" ? "/api/market-news"
+      : section === "culture" || section === "spacenet" ? "/api/news?section=" + section : "/api/news?events=1";
+    fetchJson(endpoint, { cache: "no-store" }).then(function (data) {
+      newsDeskCache[section] = { data: data, until: Date.now() + (data && data.items && data.items.length ? 60000 : 15000) };
+      newsDeskLoading[section] = false;
+      if (drawerNews === section) paintDrawerContent();
+    });
   }
   var drawerHome = false;
   var homeVersion = "";
@@ -4945,6 +5274,7 @@
           (allowed ? '' : ' disabled') + '><span>' + homeRoleLabels[role] + '</span><small>' +
           (allowed ? active[role] ? 'On' : 'Off' : 'Unassigned') + '</small></button>';
       }).join("") + '</div></section>' : '') +
+      '<button type="button" class="sheet-go" data-act="news-desk" data-id="spacenet">SpaceNet videos &amp; social</button>' +
       '<section class="profile-section"><h3>Version</h3>' +
       '<div class="home-build"><span>Loaded <b>' + escHtml(VER) + '</b></span>' +
       '<span>Latest <b>' + escHtml(homeVersion || (homeLoading ? 'Checking…' : 'Unavailable')) + '</b></span></div>' +
@@ -4965,6 +5295,7 @@
     if (drawerHome) paintDrawerContent();
   }
   function openHomeDrawer() {
+    drawerNews = "";
     clearDrawerPlacement();
     if ($("sn-sheet").classList.contains("on")) closeSheet();
     drawerHome = !drawerHome;
@@ -5125,7 +5456,8 @@
           return;
         }
         var html = '<p class="note">' + avcGet().toLocaleString("en-GB") +
-          ' AV€ in wallet</p><p id="sn-test-credit" class="note">Loading test credit…</p>';
+          ' AV€ in wallet</p><p id="sn-test-credit" class="note">Loading test credit…</p>' +
+          '<p class="note">300 test credits at signup. A first confirmed PayPal top-up of €33 or more adds 3,000 test credits once.</p>';
         if (ownerMail()) html += '<p class="note">Pool ' + Math.round(poolGet()).toLocaleString("en-GB") + " AV€ · owner only.</p>";
         html += '<input id="sn-add-eur" inputmode="decimal" placeholder="Euro to top up → AV€" />' +
           '<button type="button" class="sheet-go primary" data-act="topup" data-rail="paypal">TOP UP · PAYPAL</button>' +
@@ -5256,6 +5588,12 @@
       if (act === "order-client-ok") { clientReceived(id); }
       if (act === "order-cancel") { orderCancelKeepPay(id, "Client/peer cancel"); }
       if (act === "order-send") { sendOrderMsg(id); }
+      if (act === "news-desk") openNewsDesk(id);
+      if (act === "news-desk-close") {
+        drawerNews = "";
+        paintDrawerContent();
+        setDrawerHeight(collapsedDrawerH());
+      }
       if (act === "home-close") openHomeDrawer();
       if (act === "home-account" && window.SNAuth && SNAuth.open) SNAuth.open();
       if (act === "home-role" && window.SNAuth && SNAuth.toggleRole) {
@@ -5273,6 +5611,14 @@
         }).then(paintDrawerContent);
       }
       if (act === "placement-close") dismissDrawerPlacement();
+      if (drawerProfile && (act === "profile-orders" || act === "profile-page" || act === "profile-main")) {
+        loadProfileOrders(drawerProfile.actor, act !== "profile-main", i);
+        $("sheet").scrollTop = 0;
+      }
+      if (act === "profile-address") {
+        var address = deliveryLocations().find(function (pin) { return pin.id === id; });
+        if (address) { openCity(address); setDrawerHeight(collapsedDrawerH()); }
+      }
       if (act === "profile-jump") jumpToProfileSection(id);
       if (act === "profile-close") {
         drawerProfile = null;
@@ -5284,7 +5630,9 @@
       if (act === "profile-sign-in" && window.SNAuth && SNAuth.open) SNAuth.open();
       if (act === "edit-test-menu") editTestMenu();
       if (act === "edit-test-vendor") editTestVendorProfile();
-      if (act === "test-menu") renderTestVendor();
+      if (act === "test-menu") renderVendorShop();
+      if (act === "import-test-menu") importTestMenu();
+      if (act === "menu-template") downloadMenuTemplate();
       if (act === "test-checkout") openTestCheckout();
       if (act === "history-sign-in") {
         try {
@@ -5297,7 +5645,7 @@
       if (act === "checkout-new-client") beginDestinationPick();
       if (act === "checkout-cancel-client") { endDestinationPick(); resumeCheckout(); }
       if (act === "test-client") {
-        testClientId = id;
+        deliverySelection = new Set([id]);
         if (vendor && cartSubtotal() > 0) resumeCheckout();
         else openSheet("Delivery address selected", '<p class="note">Tap a test vendor to add items.</p>');
       }
@@ -5310,7 +5658,7 @@
         testOrder.stage++;
         if (testOrder.stage === testDeliveryStages.length) {
           closeOffer(testOrder.id);
-          testOrder = null;
+          advanceTestOrder();
         } else paintActiveOfferCard(testOrder, "active");
       }
       if (act === "test-pin") { placeTestPin(t.getAttribute("data-role")); }
@@ -5397,24 +5745,16 @@
       if (act === "drv-notis") {
         say("Assigned to drv-notis · " + ((vendor && vendor.name) || "shop") + ". Set drop, then send.");
       }
-      if (act === "add-item" || act === "qty-plus") {
-        var ix = Number(t.getAttribute("data-i"));
-        if (!isFinite(ix)) return;
-        if (vendor && vendor.test && !itemAvailable(vendorMenu(vendor)[ix])) return;
+      if (act === "add-item" || act === "qty-plus" || act === "qty-minus") {
+        var item = vendor && vendorMenu(vendor)[i];
+        if (!item || (act !== "qty-minus" && !itemAvailable(item))) return;
         var orderComment = $("sn-order-comment");
         if (orderComment) cart.comment = orderComment.value;
-        cart.items[ix] = Math.min(99, cartQty(ix) + 1);
-        if (vendor && vendor.test) renderTestVendor();
-        else if (t.getAttribute("data-order")) openOrderScreen(); else renderVendorShop();
-      }
-      if (act === "qty-minus") {
-        var iy = Number(t.getAttribute("data-i"));
-        if (!isFinite(iy)) return;
-        var orderComment = $("sn-order-comment");
-        if (orderComment) cart.comment = orderComment.value;
-        cart.items[iy] = Math.max(0, cartQty(iy) - 1);
-        if (vendor && vendor.test) renderTestVendor();
-        else if (t.getAttribute("data-order")) openOrderScreen(); else renderVendorShop();
+        var qty = Math.max(0, Math.min(99, item.quantity, cartQty(i) + (act === "qty-minus" ? -1 : 1)));
+        if (qty) cart.items[i] = qty;
+        else delete cart.items[i];
+        if (t.hasAttribute("data-order") && cartSubtotal()) openOrderScreen();
+        else renderVendorShop();
       }
       if (act === "open-order" && (!vendor || !vendor.test)) openOrderScreen();
       if (act === "back-vendor") renderVendorShop();
@@ -5558,38 +5898,15 @@
     if (signed()) testCheckoutRequest();
     bindSky();
     loadJobs();
-    var pay = new URLSearchParams(location.search).get("paypal");
-    if (pay === "success") {
-      var jid = "";
-      try { jid = localStorage.getItem("sn:pay-job") || ""; } catch (e) {}
-      var tokenQs = new URLSearchParams(location.search).get("token");
-      fetch("/api/paypal/capture-order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: tokenQs, orderID: tokenQs }) })
-        .then(function (r) { return r.json(); })
-        .then(function (j) {
-          if (j && (j.ok || j.status === "COMPLETED" || j.capture)) {
-            jobs.forEach(function (job) { if (job.id === jid) job.paid = true; });
-            saveJobs();
-            var dep = 0;
-            try { dep = Number(localStorage.getItem("sn:pay-deposit") || 0); localStorage.removeItem("sn:pay-deposit"); } catch (e) {}
-            if (dep > 0 && signed() && j.captureId && Number(j.avc) > 0) {
-              var credit = Number(j.avc);
-              avcSet(avcGet() + credit);
-              recordTransaction({ client_id: "topup-" + j.captureId, kind: "wallet_topup", status: "completed",
-                summary: "PayPal wallet top-up", amount_avc: credit, created_at: new Date().toISOString() });
-              say("PayPal " + credit + " € on your account · " + avcGet() + " AV€.");
-            } else say("PayPal captured. Transaction verified.");
-          } else say((j && (j.error || j.message)) || "PayPal capture did not finish.");
-        }).catch(function () { say("PayPal capture dark."); });
-      history.replaceState({}, "", location.pathname);
-    }
+    finishPayPalReturn();
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4454 = true;
+    window.__SN_4455 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
-      openCity: openCity, closeCity: closeCity, listAt: listAt,
+      openOwnProfile: openOwnProfile, openCity: openCity, closeCity: closeCity, listAt: listAt,
       goNamed: hunt, huntNamed: hunt, hunt: hunt,
       user: function () { return window.SNAuth && SNAuth.user ? SNAuth.user() : null; },
       paintMoney: paintMoney, evolve: evolve, addFunds: addFunds, avcGet: avcGet,
@@ -5609,15 +5926,20 @@
       goCityFromGlobe: goCityFromGlobe, startTransaction: startTransaction, openPeerMessage: openPeerMessage
     };
     window.addEventListener("spacenet:signed-in", function () {
+      if (drawerProfile) loadProfileOrders(drawerProfile.actor, false, 0);
       if (cityOn) paintActorsOnMap();
       paintDrawerContent();
       restoreCheckoutAfterAuth();
+      finishPayPalReturn();
       pullTxnsRemote();
       flushTransactions();
     });
     window.addEventListener("online", flushTransactions);
     window.addEventListener("spacenet:signed-out", function () {
-      if ($("sn-history")) closeSheet();
+      profileOrderState = null;
+      deliverySelection.clear();
+      if (drawerProfile && (drawerProfile.actor.self || drawerProfile.actor.savedDelivery)) drawerProfile = null;
+      if ($("sn-history") || $("sn-checkout-client") || $("sn-client-location-form")) closeSheet();
       paintDrawerContent();
       if (cityOn) paintActorsOnMap();
       if (pickingDestination) { endDestinationPick(); resumeCheckout(); }

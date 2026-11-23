@@ -117,6 +117,8 @@
       roles: assignedRoles(u),
       name: (u.user_metadata && (u.user_metadata.full_name || u.user_metadata.name)) || u.name || "",
       photo: (u.user_metadata && (u.user_metadata.avatar_url || u.user_metadata.picture)) || u.picture || "",
+      address: u.user_metadata && u.user_metadata.address,
+      cover: u.user_metadata && (u.user_metadata.cover_url || u.user_metadata.cover),
       phone: u.phone || (u.user_metadata && u.user_metadata.phone) || read("sn:phone", "") || "",
       verified: !!(u.email_confirmed_at || (u.app_metadata && u.app_metadata.provider === "google") || (u.identities && u.identities.length))
     };
@@ -484,7 +486,7 @@
       btn.addEventListener("click", function (e) {
         e.preventDefault();
         e.stopPropagation();
-        openMe();
+        if (!window.SN || !SN.openOwnProfile || !SN.openOwnProfile()) openMe();
       });
     }
     var search = new URLSearchParams(location.search);
