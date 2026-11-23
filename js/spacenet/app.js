@@ -1,7 +1,7 @@
-/* SpaceNet 4455 */
+/* SpaceNet 4456 */
 (function () {
   "use strict";
-  var VER = "4455";
+  var VER = "4456";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -1501,6 +1501,7 @@
   var drawerPlacement = "";
   var drawerBeforePlacement = null;
   function showDrawerPlacement(title, content) {
+    drawerAI = false;
     drawerHome = false;
     drawerNews = "";
     $("logo").setAttribute("aria-expanded", "false");
@@ -2010,6 +2011,7 @@
         : '<button type="button" class="sheet-go" data-act="profile-sign-in">Sign in to message</button>') + '</section></article>');
   }
   function showDrawerProfile(actor, menu) {
+    drawerAI = false;
     drawerHome = false;
     drawerNews = "";
     $("logo").setAttribute("aria-expanded", "false");
@@ -2801,7 +2803,7 @@
   function offerDrawerH() {
     return Math.max(collapsedDrawerH(), Math.min(maxDrawerH(), Math.round(window.innerHeight * (2 / 3))));
   }
-  function collapsedDrawerH() { return 70; }
+  function collapsedDrawerH() { return 64; }
 
   function setSupport(on) {
     supportOn = !!on;
@@ -2852,7 +2854,6 @@
   function sendSupport(matter, fromVoice) {
     matter = String(matter || "").trim();
     if (!matter) { say("Describe the product bug."); return; }
-    lastVoice = !!fromVoice;
     if (!isProductBug(matter)) {
       setSupport(false);
       openSheet("PEER CHANNEL",
@@ -2876,7 +2877,7 @@
       if (j && j.ticket) supportTicket = j.ticket;
       var text = (j && j.say) || ("Bug ticket " + (supportTicket || "parked") + " → Cursor AI programmer.");
       say(text);
-      speakIfVoice(text);
+      speakIfVoice(text, fromVoice);
       try {
         var prompt = "SpaceNet product bug on astranov.eu stamp:\n" + matter + (supportTicket ? ("\nTicket: " + supportTicket) : "");
         var url = "https://cursor.com/agents?prompt=" + encodeURIComponent(prompt.slice(0, 1500));
@@ -4225,18 +4226,16 @@
   }
   function openPower() { /* power is hold-to-toggle offers. no menu. */ }
   function closePower() { var sh = $("sn-power-sheet"); if (sh) sh.classList.remove("on"); }
-  var lastVoice = false;
   var hist = [];
-  function speakIfVoice(s) {
-    if (!lastVoice) return;
-    lastVoice = false;
+  function speakIfVoice(s, fromVoice) {
+    if (!fromVoice) return;
     var volume = soundLevel("helper");
     if (!volume) return;
     try {
       if (!window.speechSynthesis) return;
       speechSynthesis.cancel();
       var u = new SpeechSynthesisUtterance(String(s || "").slice(0, 280));
-      u.lang = "en-GB";
+      u.lang = /[\u0370-\u03ff]/.test(s) ? "el-GR" : "en-GB";
       u.volume = volume;
       speechSynthesis.speak(u);
     } catch (e) {}
@@ -4262,50 +4261,72 @@
       openVendor(vendor);
     }
   }
+  var drawerAI = false;
+  var aiStatus = "";
+  var aiPending = false;
+  function showAI(status) {
+    drawerAI = true;
+    drawerHome = false;
+    drawerNews = "";
+    clearDrawerPlacement();
+    $("logo").setAttribute("aria-expanded", "false");
+    if ($("sn-sheet").classList.contains("on")) closeSheet();
+    setDrawerHeight(Math.max(drawerH, Math.round(window.innerHeight * 0.42)));
+    updateAIStatus(status);
+  }
+  function updateAIStatus(status) {
+    aiStatus = status;
+    paintDrawerContent();
+    var live = $("sn-ai-live");
+    if (live) live.textContent = status;
+    var sheet = $("sheet");
+    if (drawerAI && sheet) sheet.scrollTop = sheet.scrollHeight;
+  }
   function talk(raw, fromVoice) {
     var q = String(raw || "").trim();
     if (!q) return;
-    lastVoice = !!fromVoice;
+    if (aiPending) { showAI("Wait for SpaceNet AI to finish answering."); return; }
+    aiPending = true;
+    var conversation = hist.slice(-16);
     hist.push({ role: "user", content: q });
     activeExchange.push({ role: "user", content: q });
     if (hist.length > 24) hist = hist.slice(-24);
     if (activeExchange.length > 24) activeExchange = activeExchange.slice(-24);
-    paintDrawerContent();
-    if (drawerH < Math.round(window.innerHeight * 0.36)) setDrawerHeight(Math.round(window.innerHeight * 0.42));
-    say("…");
+    showAI("SpaceNet AI is thinking…");
     var vendors = shops.slice(0, 8).map(function (s) { return s.name; });
     fetch("/api/ai", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         message: q,
-        history: hist,
+        history: conversation,
         here: {
           lat: here && here.lat,
           lng: here && here.lng,
           place: here && here.name,
-          level: cityOn ? "street" : "globe",
-          avc: avcGet(),
+          level: cityOn ? "street" : tierI === 3 ? "national" : "globe",
           shop: vendor && vendor.name,
           vendors: vendors
         }
       })
     }).then(function (r) { return r.json(); }).then(function (j) {
-      var text = (j && (j.say || j.text)) || "Grok is quiet.";
+      if (!j || j.ok === false || !(j.say || j.text)) throw new Error("AI unavailable");
+      var text = j.say || j.text;
       hist.push({ role: "assistant", content: text });
       activeExchange.push({ role: "assistant", content: text });
-      paintDrawerContent();
-      say(text);
-      speakIfVoice(text);
-      applyAct(j, q);
+      updateAIStatus("");
+      if (drawerAI) {
+        $("sn-ai-live").textContent = text;
+        speakIfVoice(text, fromVoice);
+        applyAct(j, q);
+      }
     }).catch(function () {
-      var fallback = "Grok dark. Named hunt on this phone.";
+      var fallback = "SpaceNet AI is unavailable right now.";
       hist.push({ role: "assistant", content: fallback });
       activeExchange.push({ role: "assistant", content: fallback });
-      paintDrawerContent();
-      say(fallback);
-      hunt(q);
-    });
+      updateAIStatus(fallback);
+      if (drawerAI && !fromVoice) hunt(q);
+    }).finally(function () { aiPending = false; });
   }
   function clockLine(d, utc) {
     var opt = { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false };
@@ -4551,7 +4572,7 @@
     layoutKey = key;
     layoutChrome();
   }
-  var drawerH = 70;
+  var drawerH = collapsedDrawerH();
   var drawerDrag = null;
   var cancelDrawerCoast;
   var cityRadarLayers = [];
@@ -4849,8 +4870,8 @@
   function exchangeHtml() {
     var rows = (hist || []).slice(-12);
     if (!rows.length) return '';
-    return '<div class="sn-exch"><h3>COMMAND</h3>' + rows.map(function (m) {
-      var role = m.role === "user" ? "YOU" : "NET";
+    return '<div class="sn-exch">' + rows.map(function (m) {
+      var role = m.role === "user" ? "YOU" : "AI";
       return '<div class="sn-exch-row ' + (m.role === "user" ? "u" : "a") + '"><b>' + role + "</b><span>" + escHtml(m.content) + "</span></div>";
     }).join("") + "</div>";
   }
@@ -4897,9 +4918,12 @@
     if (!sheet) return;
     var task = currentTaskHtml();
     var body = "";
-    var profile = drawerNews || drawerHome || drawerPlacement || offerActiveId ? null : drawerProfile;
+    var profile = drawerAI || drawerNews || drawerHome || drawerPlacement || offerActiveId ? null : drawerProfile;
     paintDrawerCart(profile);
-    if (drawerNews) body = newsDeskMarkup();
+    if (drawerAI && !offerActiveId) body = '<article class="drawer-profile"><header class="home-title"><h2>SpaceNet AI</h2>' +
+      '<button type="button" class="sheet-x" data-act="ai-close" aria-label="Close SpaceNet AI">×</button></header>' +
+      (aiStatus ? '<p class="sn-ai-status">' + escHtml(aiStatus) + '</p>' : '') + exchangeHtml() + '</article>';
+    else if (drawerNews) body = newsDeskMarkup();
     else if (drawerHome) body = homeMarkup();
     else if (drawerPlacement) body = drawerPlacement;
     else if (profile) body = profileMarkup(profile);
@@ -5220,6 +5244,7 @@
       }).join("") + '</nav>' + body + '</article>';
   }
   function openNewsDesk(section) {
+    drawerAI = false;
     if (!Object.hasOwn(newsDeskTabs, section)) section = "events";
     var opening = !drawerNews;
     drawerHome = false;
@@ -5295,6 +5320,7 @@
     if (drawerHome) paintDrawerContent();
   }
   function openHomeDrawer() {
+    drawerAI = false;
     drawerNews = "";
     clearDrawerPlacement();
     if ($("sn-sheet").classList.contains("on")) closeSheet();
@@ -5320,6 +5346,7 @@
       form.__sn = true;
       form.addEventListener("submit", function (e) {
         e.preventDefault();
+        if (aiPending) { showAI("Wait for SpaceNet AI to finish answering."); return; }
         var v = inp && inp.value;
         if (inp) inp.value = "";
         talk(v, false);
@@ -5336,29 +5363,73 @@
       inp.addEventListener("focus", function () { paintSearchSuggest(inp.value || ""); });
       inp.addEventListener("blur", function () { setTimeout(function () { var box = $("sn-suggest"); if (box) box.hidden = true; }, 180); });
     }
-    if (mic && !mic.__sn) {
-      mic.__sn = true;
-      mic.addEventListener("click", function (e) {
-        e.preventDefault(); e.stopPropagation();
-        if (inp && String(inp.value || "").trim()) {
-          var v = inp.value; inp.value = ""; talk(v, false); return;
-        }
-        if (window.SpeechRecognition || window.webkitSpeechRecognition) {
-          var Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
-          var rec = new Rec();
-          rec.lang = "en-GB";
-          rec.interimResults = false;
-          rec.continuous = false;
-          rec.onresult = function (ev) {
-            var t = ev.results[0][0].transcript;
-            if (inp) inp.value = t;
-            talk(t, true);
-          };
-          rec.onerror = function () { say("Mic closed."); };
-          try { rec.start(); say("Listening…"); } catch (err) { say("Mic busy. Tap again."); }
-        } else say("Type, then search. This browser has no speech engine.");
-      });
+    if (!mic || !inp || mic.__sn) return;
+    mic.__sn = true;
+    var recognition = null;
+    var errors = {
+      "not-allowed": "Microphone access was denied. Allow access or type your question.",
+      "audio-capture": "No microphone was detected. You can type your question.",
+      "no-speech": "No speech detected. Tap AI Talk to try again.",
+      network: "Transcription is unavailable. You can type your question."
+    };
+    function finish(rec) {
+      if (recognition !== rec) return false;
+      recognition = null;
+      mic.setAttribute("aria-pressed", "false");
+      mic.textContent = "AI Talk";
+      return true;
     }
+    function cancelListening() {
+      if (!recognition) return;
+      var rec = recognition;
+      finish(rec);
+      rec.abort();
+    }
+    form.addEventListener("submit", cancelListening, true);
+    mic.addEventListener("sn-cancel-listening", cancelListening);
+    mic.addEventListener("click", function () {
+      if (recognition) {
+        var current = recognition;
+        updateAIStatus("Finishing transcription…");
+        try { current.stop(); }
+        catch (error) { if (finish(current)) updateAIStatus("Tap AI Talk to try again."); }
+        return;
+      }
+      if (aiPending) { showAI("Wait for SpaceNet AI to finish answering."); return; }
+      var Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!Rec) { showAI("This browser does not support voice transcription. Type your question."); return; }
+      var rec = new Rec();
+      recognition = rec;
+      var previous = inp.value;
+      rec.lang = /^el(?:-|$)/i.test(navigator.language || "") ? "el-GR" : "en-GB";
+      rec.interimResults = true;
+      rec.continuous = false;
+      mic.setAttribute("aria-pressed", "true");
+      mic.textContent = "Stop";
+      showAI("Listening…");
+      rec.onresult = function (event) {
+        if (recognition !== rec) return;
+        var result = event.results[event.resultIndex];
+        var transcript = result && result[0] && result[0].transcript.trim();
+        if (!transcript) return;
+        inp.value = transcript;
+        if (result.isFinal && finish(rec)) talk(transcript, true);
+      };
+      rec.onerror = function (event) {
+        if (finish(rec)) {
+          if (!inp.value) inp.value = previous;
+          updateAIStatus(errors[event.error] || "Transcription stopped. Tap AI Talk to retry.");
+        }
+      };
+      rec.onend = function () {
+        if (finish(rec)) updateAIStatus("Tap AI Talk to try again or type your question.");
+      };
+      try { rec.start(); }
+      catch (error) {
+        finish(rec);
+        updateAIStatus("The microphone could not start. You can type your question.");
+      }
+    });
   }
   function syncRadarHud() {
     var hud = $("sn-radar");
@@ -5505,54 +5576,6 @@
         if (tab) { e.preventDefault(); focusTab(tab.getAttribute("data-tab")); }
       });
     }
-    var f = $("f"), inp = $("in"), go = $("go");
-    if (f && !f.__sn) {
-      f.__sn = true;
-      f.addEventListener("submit", function (e) {
-        e.preventDefault();
-        var v = inp && inp.value;
-        if (inp) inp.value = "";
-        if (typeof paintGo === "function") paintGo();
-        talk(v, false);
-        materialize(needFilter());
-      });
-    }
-    if (inp) inp.addEventListener("input", function () { materialize(needFilter()); });
-    function paintGo() {
-      if (!go) return;
-      var has = inp && String(inp.value || "").trim();
-      go.textContent = has ? "GO" : "MIC";
-      go.setAttribute("aria-label", has ? "Send" : "Talk");
-    }
-    paintGo();
-    if (inp && !inp.__snGoPaint) {
-      inp.__snGoPaint = true;
-      inp.addEventListener("input", paintGo);
-    }
-    if (go && !go.__sn) {
-      go.__sn = true;
-      go.addEventListener("click", function (e) {
-        e.preventDefault();
-        if (inp && String(inp.value || "").trim()) {
-          var v = inp.value; inp.value = ""; paintGo(); talk(v, false); return;
-        }
-        if (window.SpeechRecognition || window.webkitSpeechRecognition) {
-          var Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
-          var rec = new Rec();
-          rec.lang = "en-GB";
-          rec.interimResults = false;
-          rec.continuous = false;
-          rec.onresult = function (ev) {
-            var t = ev.results[0][0].transcript;
-            if (inp) inp.value = t;
-            paintGo();
-            talk(t, true);
-          };
-          rec.onerror = function () { say("Mic closed."); };
-          try { rec.start(); say("Listening…"); } catch (err) { say("Mic busy. Tap again."); }
-        } else say("Type, then GO. This browser has no speech engine.");
-      });
-    }
     var jobsBtn = $("sn-tasks-btn"), findBtn = $("sn-find-btn"), nodeBtn = $("sn-node-btn");
     if (jobsBtn) jobsBtn.addEventListener("click", openJobs);
     if (findBtn) findBtn.addEventListener("click", openFind);
@@ -5588,6 +5611,12 @@
       if (act === "order-client-ok") { clientReceived(id); }
       if (act === "order-cancel") { orderCancelKeepPay(id, "Client/peer cancel"); }
       if (act === "order-send") { sendOrderMsg(id); }
+      if (act === "ai-close") {
+        drawerAI = false;
+        $("mic").dispatchEvent(new Event("sn-cancel-listening"));
+        paintDrawerContent();
+        $("mic").focus({ preventScroll: true });
+      }
       if (act === "news-desk") openNewsDesk(id);
       if (act === "news-desk-close") {
         drawerNews = "";
@@ -5902,7 +5931,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4455 = true;
+    window.__SN_4456 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },

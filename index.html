@@ -4,13 +4,13 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4455"/>
+<meta name="astranov-build" content="4456"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
-<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4455"/>
+<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4456"/>
 <style>
 :root{
   --bg:#02040a; --fg:#e8fbff; --muted:#8ec8d8; --accent:#4df0ff;
@@ -18,7 +18,7 @@
   --safe-b:max(6px, env(safe-area-inset-bottom));
   --safe-l:max(10px, env(safe-area-inset-left));
   --safe-r:max(10px, env(safe-area-inset-right));
-  --drawer-h:70px;
+  --drawer-h:64px;
   --sheet-h:0px;
   --top-row:36px;
   --search-h:34px;
@@ -123,13 +123,18 @@ button{cursor:pointer}
   pointer-events:auto;touch-action:manipulation;
 }
 #q{
-  flex:1;min-width:0;height:var(--search-h);border-radius:10px;border:1px solid rgba(77,240,255,.35);
+  flex:1;min-width:0;height:var(--search-h);border-radius:10px;border:1px solid #4ca8ff;
+  box-shadow:0 0 8px rgba(52,145,255,.55),inset 0 0 5px rgba(52,145,255,.2);
   background:rgba(4,14,28,.92);color:var(--fg);padding:0 10px;font-size:14px;outline:none;
 }
+#q:focus{border-color:#8bcaff;box-shadow:0 0 12px rgba(52,145,255,.8)}
 #mic{
-  width:var(--search-h);height:var(--search-h);border-radius:10px;border:1px solid rgba(77,240,255,.35);
-  background:rgba(4,14,28,.92);color:var(--accent);font-size:15px;flex:none;
+  height:var(--search-h);padding:0 10px;border-radius:10px;border:1px solid rgba(77,240,255,.55);
+  background:rgba(4,14,28,.92);color:var(--accent);font:700 12px system-ui;flex:none;
 }
+#mic[aria-pressed="true"]{border-color:#8bcaff;background:#173d69;color:#fff}
+#sn-ai-live{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.sn-ai-status{margin:0 0 8px;color:var(--muted);font-size:12px}
 
 /* Radar — under top row only; stays clear of money and drawer */
 #sn-radar{
@@ -221,15 +226,14 @@ body.drawer-covers-map-controls #gps,body.drawer-covers-map-controls #sn-me{visi
 .sn-txn span{font:500 11px/1.3 ui-monospace,monospace;color:var(--muted)}
 .lean-task{padding-top:4px}
 #handle{
-  flex:none;height:22px;min-height:22px;border:0;background:transparent;color:transparent;
+  flex:none;height:16px;min-height:16px;border:0;background:transparent;color:transparent;
   font-size:0;line-height:0;cursor:grab;touch-action:none;
   display:flex;align-items:center;justify-content:center;user-select:none;padding:0;
 }
 #handle::before{
-  content:"";width:36px;height:3px;border-radius:3px;background:rgba(126,176,255,.85);display:block;
+  content:"";width:36px;height:1px;background:rgba(126,176,255,.85);display:block;
   box-shadow:none;
 }
-#handle .lab{display:none!important}
 #sheet{
   flex:1;min-height:0;overflow:auto;padding:0 10px calc(10px + var(--safe-b));
   -webkit-overflow-scrolling:touch;touch-action:pan-x;overscroll-behavior:contain;
@@ -552,9 +556,10 @@ textarea.field,#sn-support-matter{min-height:88px}
   <div id="cli-drag" class="sn-trivial-law" aria-hidden="true"></div>
   <button type="button" id="handle" aria-label="Expand sheet" aria-controls="sheet" aria-expanded="false"></button>
   <form id="search" action="/" method="get">
-    <input id="q" name="q" autocomplete="off" enterkeyhint="search" placeholder="Command the HUD · show, hide, or reshape"/>
-    <button type="button" id="mic" aria-label="Handsfree mic">🎤</button>
+    <input id="q" name="q" autocomplete="off" enterkeyhint="search" aria-label="Search or ask SpaceNet AI" placeholder="Search or ask SpaceNet AI"/>
+    <button type="button" id="mic" aria-label="AI Talk" aria-pressed="false">AI Talk</button>
   </form>
+  <span id="sn-ai-live" class="sr-only" role="status"></span>
   <div id="sheet"></div>
   <div id="sn-drawer-cart" hidden></div>
 </div>
@@ -565,10 +570,10 @@ textarea.field,#sn-support-matter{min-height:88px}
 <div id="toast" role="status"></div>
 <div id="line" role="status"></div>
 
-<script src="/js/vendor/leaflet.js?v=4455"></script>
-<script src="/js/spacenet/partners/types.js?v=4455"></script>
-<script src="/js/spacenet/partners/client.js?v=4455"></script>
-<script src="/js/spacenet/app.js?v=4455"></script>
-<script src="/js/spacenet/auth.js?v=4455"></script>
+<script src="/js/vendor/leaflet.js?v=4456"></script>
+<script src="/js/spacenet/partners/types.js?v=4456"></script>
+<script src="/js/spacenet/partners/client.js?v=4456"></script>
+<script src="/js/spacenet/app.js?v=4456"></script>
+<script src="/js/spacenet/auth.js?v=4456"></script>
 </body>
 </html>
