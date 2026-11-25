@@ -1,5 +1,5 @@
 /*
- * SpaceNet 4463
+ * SpaceNet 4464
  *
  * Astranov Script is the project's name for this stack:
  * - JavaScript for the SpaceNet browser app and Node.js API handlers.
@@ -11,7 +11,7 @@
  */
 (function () {
   "use strict";
-  var VER = "4463";
+  var VER = "4464";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -1175,6 +1175,7 @@
     var pinchStepped = false;
     canvas.addEventListener("contextmenu", function (e) {
       e.preventDefault();
+      if (e.button !== 2 || e.pointerType === "touch") return;
       var p = pos(e);
       var hit = globeHit(p.x, p.y, cam);
       if (hit) listAt(hit);
@@ -1200,7 +1201,7 @@
         var hit = globeHit(p.x, p.y, cam);
         if (hit) listAt(hit);
         drag = null;
-      }, 1000);
+      }, 500);
     });
     canvas.addEventListener("pointermove", function (e) {
       var p = pos(e);
@@ -1390,14 +1391,31 @@
     if (area === discoveredArea && Date.now() < discoveryUntil) return;
     discoveredArea = area;
     discoveryUntil = Date.now() + 300000;
-    fetchJson("/api/nearby-vendors?lat=" + pt.lat.toFixed(2) + "&lng=" + pt.lng.toFixed(2)).then(function(data) {
-      if (area !== discoveredArea) return;
-      if (!data || !data.vendors?.length) { discoveryUntil = Date.now() + 30000; return; }
-      shops = uniqPlaces(data.vendors.map(row => Object.assign(row,{discovered:true})).concat(shops.filter(row => !row.discovered)));
+    var url = "/api/nearby-vendors?lat=" + pt.lat.toFixed(2) + "&lng=" + pt.lng.toFixed(2);
+    var key = "sn:nearby:" + area;
+    function display(rows) {
+      if (area !== discoveredArea || !rows.length) return;
+      shops = rows.map(row => Object.assign({},row,{discovered:true})).concat(shops.filter(row => !row.discovered && !rows.some(saved => saved.id === row.id)));
       if (cityOn) paintShopsOnMap();
       var listing = new URLSearchParams(location.search).get("listing");
       var selected = listing && shops.find(shop=>shop.id===listing);
       if (selected && !drawerProfile) openVendor(selected);
+    }
+    var cached;
+    try { cached = JSON.parse(localStorage.getItem(key)); } catch {}
+    if (cached?.vendors) display(cached.vendors);
+    fetchJson(url + "&saved=1").then(async function(data) {
+      if (area !== discoveredArea) return;
+      if (data?.vendors?.length) display(data.vendors);
+      if (data?.vendors?.length && (!cached || cached.checked > Date.now()-86400000)) {
+        try { localStorage.setItem(key,JSON.stringify({vendors:data.vendors,checked:cached?.checked || Date.now()})); } catch {}
+        return;
+      }
+      var fresh = await fetchJson(url);
+      if (!fresh?.vendors?.length) { if (area === discoveredArea) discoveryUntil = Date.now()+30000; return; }
+      var rows = Array.from(new Map([...(data?.vendors || []),...fresh.vendors].map(row => [row.id,row])).values());
+      try { localStorage.setItem(key,JSON.stringify({vendors:rows,checked:Date.now()})); } catch {}
+      display(rows);
     });
   }
   var streetLayer;
@@ -1443,7 +1461,7 @@
       var hold = 0, holdPt = null;
       el.addEventListener("contextmenu", function (e) {
         e.preventDefault();
-        if (!map || pickingDestination) return;
+        if (!map || pickingDestination || e.button !== 2 || e.pointerType === "touch") return;
         var ll = map.mouseEventToLatLng(e);
         if (ll) listAt({ lat: ll.lat, lng: ll.lng });
       });
@@ -1572,39 +1590,38 @@
     if (!pt || !isFinite(pt.lat) || !isFinite(pt.lng)) return;
     listPt = { lat: pt.lat, lng: pt.lng };
     listAlt = altitudeFromDist(cam.dist);
-    if (cityOn) markPlot(listPt);
-    showDrawerPlacement("List on SpaceNet",
-      '<button type="button" class="sheet-go" data-act="insert-actor" data-role="vendor">🏪 List vendor</button>' +
-      '<button type="button" class="sheet-go" data-act="insert-actor" data-role="delivery_services">📦 List delivery service</button>' +
-      '<button type="button" class="sheet-go" data-act="insert-actor" data-role="driver">🚚 List driver</button>' +
-      '<button type="button" class="sheet-go" data-act="insert-actor" data-role="client">🏠 List client</button>' +
-      '<button type="button" class="sheet-go" data-act="open-architect">Open Architect</button>');
+    if (!cityOn) openCity(pt);
+    placeTestPin(localStorage.getItem("sn:pin-role") || "vendor");
   }
-  var testRoles = { vendor: "Vendor", driver: "Driver", client: "Client" };
-  var actorIcons = { vendor: "🏪", delivery_services: "📦", driver: "🚚", client: "🏠" };
+  var testRoles = { vendor: "Vendor", driver: "Driver", client: "Client", delivery_services: "Delivery service", post: "News" };
+  var actorIcons = { vendor: "🏪", delivery_services: "📦", driver: "🚚", client: "🏠", post: "📰" };
   var testOrder = null;
   var deliverySelection = new Set();
   var testOrderQueue = [];
-  function placeTestPin(role) {
-    if (!listPt || !Object.hasOwn(testRoles, role)) return;
+  function placeTestPin(role, current) {
+    if (!Object.hasOwn(testRoles, role)) role = "vendor";
     var pins = loadTestPins();
-    pins.unshift({
-      id: "test-" + crypto.randomUUID(),
-      role: role, name: "Test " + testRoles[role].toLowerCase(),
-      menu: role === "vendor" ? starterProducts.map(function (item) { return Object.assign({}, item); }) : undefined,
-      brandIndex: role === "vendor" ? pins.filter(function (pin) { return pin.role === "vendor"; }).length : undefined,
-      lat: listPt.lat, lng: listPt.lng, test: true,
-      accountId: role === "client" ? checkoutAccount() : undefined
-    });
-    if (!updateTestPins(pins, true)) return;
-    dismissDrawerPlacement();
+    var pin = current && pins.find(row => row.id === current.id);
+    if (!pin) {
+      if (!listPt) return;
+      pin = { id: "test-" + crypto.randomUUID(), lat:listPt.lat, lng:listPt.lng, test:true, quick:true };
+      pins.unshift(pin);
+    }
+    if (!pin.name || pin.name === testRoles[pin.role]) pin.name = testRoles[role];
+    pin.role = role;
+    pin.accountId = role === "client" ? checkoutAccount() : undefined;
+    if (isVendorRole(role) && !pin.menu) pin.menu = role === "vendor" ? starterProducts.map(item => ({...item})) : [{name:"City delivery",price:3}];
+    if (!updateTestPins(pins,true)) return;
+    localStorage.setItem("sn:pin-role",role);
+    openActorSheet(pin);
   }
   function loadTestPins() {
-    return [];
+    try { return JSON.parse(localStorage.getItem("sn:quick-pins") || "[]"); }
+    catch { return []; }
   }
   function updateTestPins(pins, keepSheet) {
     try {
-      localStorage.setItem("sn:test-pins", JSON.stringify(pins.slice(0, 120)));
+      localStorage.setItem("sn:quick-pins", JSON.stringify(pins));
     } catch (e) {
       if (drawerPlacement) showDrawerPlacement("Test pins", '<p class="note">This browser could not save the pins.</p>');
       else openSheet("Test pins", '<p class="note">This browser could not save the pins.</p>');
@@ -1922,6 +1939,7 @@
     return String(actor.id || (actor.name + ":" + actor.lat + "," + actor.lng));
   }
   function profileRole(actor) {
+    if (actor.role === "post") return "News";
     if (actor.role === "delivery_services" || actor.kind === "delivery_services") return "Delivery service";
     if (actor.role === "driver" || actor.kind === "driver") return "Driver";
     if (actor.role === "client" || actor.kind === "drop" || actor.savedDelivery) return "Client";
@@ -2032,10 +2050,13 @@
         '<button type="button" class="sheet-x" data-act="profile-close" aria-label="Close profile">×</button>' +
       '<div class="profile-identity"><div class="profile-avatar">' +
         (avatar ? '<img src="' + escHtml(avatar) + '" alt="">' : isVendor ? vendorLogo(actor) :
-          '<span aria-hidden="true">' + (role === "Driver" ? "🚚" : "🏠") + '</span>') +
+          '<span aria-hidden="true">' + (actorIcons[actor.role] || "🏠") + '</span>') +
       '</div><div><h2>' + escHtml(actor.name || role) + '</h2><p class="note">' + escHtml(role) +
       (actor.test ? ' · Test profile' : actor.verified ? ' · Verified' : '') + '</p>' +
       (isVendor ? vendorContact(actor) : actor.self && actor.phone ? '<p class="note">' + escHtml(actor.phone) + '</p>' : '') + '</div></div></div>' +
+      (actor.quick ? '<nav aria-label="Pin type">' + Object.keys(testRoles).map(function (key) {
+        return '<button class="sheet-go" data-act="quick-role" data-role="' + key + '" aria-pressed="' + (actor.role === key) + '">' + actorIcons[key] + ' ' + testRoles[key] + '</button>';
+      }).join("") + '</nav>' : '') +
       (stats ? '<section class="profile-section"><p class="note">Orders today · <b>' + stats.today + '</b></p>' +
         (actor.self ? '<button type="button" class="sheet-go" data-act="profile-orders">Order history</button>' : '') + '</section>' : '') +
       (actor.self ? '<section class="profile-section">' + profile.menu + '</section></article>' : '') +
@@ -2138,7 +2159,7 @@
     var role = profileRole(a);
     if (role === "Vendor" || role === "Delivery service") { openVendor(a); return; }
     var id = escHtml(a.id);
-    var menu = role === "Client"
+    var menu = role === "News" ? '<input class="field" id="quick-headline" aria-label="Headline" placeholder="Headline" maxlength="80"><button class="sheet-go" data-act="quick-publish">Publish news</button>' : role === "Client"
       ? '<button type="button" class="sheet-go primary" data-act="test-client" data-id="' + id + '">Deliver here</button>'
       : a.test
         ? (testOrder && !testOrder.accepted && testOrder.drivers.some(function (d) { return d.id === a.id; })
@@ -3115,7 +3136,7 @@
     if (!map || typeof L === "undefined") return;
     shopMarks.forEach(function (m) { try { map.removeLayer(m); } catch (e) {} });
     shopMarks = [];
-    var list = uniqPlaces(shops || []);
+    var list = (shops || []).filter(s => s.discovered).concat(uniqPlaces((shops || []).filter(s => !s.discovered)));
     list.forEach(function (s) {
       if (!isFinite(s.lat) || !isFinite(s.lng)) return;
       var mark = L.marker([s.lat, s.lng], {
@@ -6072,6 +6093,13 @@
         }
         updateTestPins(loadTestPins().filter(function (pin) { return pin.id !== id; }));
       }
+      if (act === "quick-role" && drawerProfile?.actor.quick) placeTestPin(t.dataset.role, drawerProfile.actor);
+      if (act === "quick-publish" && drawerProfile?.actor.role === "post") {
+        var post = drawerProfile.actor, headline = $("quick-headline").value.trim();
+        if (!headline) { $("quick-headline").focus(); return; }
+        if (!signed()) { needLogin("Sign in to publish news."); return; }
+        persistListing({id:post.id,kind:"post",name:headline,lat:post.lat,lng:post.lng});
+      }
       if (act === "insert-actor") { insertActor(t.getAttribute("data-role")); }
       if (act === "save-actor") { saveActor(t.getAttribute("data-role")); }
       if (act === "retry-verify") {
@@ -6305,7 +6333,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4463 = true;
+    window.__SN_4464 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
