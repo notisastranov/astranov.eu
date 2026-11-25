@@ -1,5 +1,5 @@
 /*
- * SpaceNet 4470
+ * SpaceNet 4471
  *
  * Astranov Script is the project's name for this stack:
  * - JavaScript for the SpaceNet browser app and Node.js API handlers.
@@ -11,7 +11,7 @@
  */
 (function () {
   "use strict";
-  var VER = "4470";
+  var VER = "4471";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -5436,6 +5436,25 @@
       if (inSheet && dy > 0) scroll.scrollTop += Math.max(0, dy - (drawerH - height));
       return { moved: drawerH !== height || scroll.scrollTop !== before, resized: drawerH !== height };
     }
+    var mouseDrag=null, suppressClick=false;
+    d.addEventListener("pointerdown",function(e){
+      if(e.pointerType!=="mouse" || e.button!==0 || handle.contains(e.target)) return;
+      suppressClick=false;
+      mouseDrag={x:e.clientX,y:e.clientY,last:e.clientY,moved:false,id:e.pointerId};
+    },true);
+    window.addEventListener("pointermove",function(e){
+      if(!mouseDrag || e.pointerId!==mouseDrag.id) return;
+      var travel=Math.abs(e.clientY-mouseDrag.y);
+      if(!mouseDrag.moved && (travel<8 || travel<Math.abs(e.clientX-mouseDrag.x))) return;
+      mouseDrag.moved=true;e.preventDefault();
+      setDrawerHeight(drawerH+mouseDrag.last-e.clientY,true);mouseDrag.last=e.clientY;
+    },true);
+    window.addEventListener("pointerup",function(e){
+      if(!mouseDrag || mouseDrag.id!==e.pointerId)return;
+      suppressClick=mouseDrag.moved;mouseDrag=null;
+      if(suppressClick)setDrawerHeight(drawerH);
+    },true);
+    d.addEventListener("click",function(e){if(suppressClick){suppressClick=false;e.preventDefault();e.stopImmediatePropagation();}},true);
     function coast(state) {
       var velocity = state.velocity;
       var last = performance.now();
@@ -5461,7 +5480,7 @@
         x: p.clientX, y: p.clientY, lastY: p.clientY, lastTime: performance.now(),
         inSheet: sheet.contains(e.target) || $("sn-sheet").contains(e.target), moved: false, resized: false, velocity: 0
       };
-    }, { passive: true });
+    }, { passive: true,capture:true });
     d.addEventListener("touchmove", function (e) {
       if (!touch || e.touches.length !== 1) return;
       var p = e.touches[0];
@@ -5472,15 +5491,17 @@
         touch.moved = true;
       }
       e.preventDefault();
+      e.stopPropagation();
       var now = performance.now(), dy = touch.lastY - p.clientY;
       var elapsed = Math.max(8, now - touch.lastTime);
       var instant = Math.max(-2.4, Math.min(2.4, dy / elapsed));
       touch.velocity = .25 * touch.velocity + .75 * instant;
       touch.lastY = p.clientY;
       touch.lastTime = now;
-      var movement = moveBy(dy, touch.inSheet);
+      var fastRetract = dy < 0 && touch.velocity < -.65;
+      var movement = moveBy(dy, touch.inSheet && !fastRetract);
       touch.resized = touch.resized || movement.resized;
-    }, { passive: false });
+    }, { passive: false,capture:true });
     function finishTouch(e) {
       var state = touch;
       touch = null;
@@ -5490,8 +5511,8 @@
         coast(state);
       } else if (state.resized) setDrawerHeight(drawerH);
     }
-    d.addEventListener("touchend", finishTouch);
-    d.addEventListener("touchcancel", finishTouch);
+    d.addEventListener("touchend", finishTouch,true);
+    d.addEventListener("touchcancel", finishTouch,true);
     window.addEventListener("resize", function () {
       if (pendingOffer || offerActiveId) setDrawerHeight(Math.round(window.innerHeight / 3));
       else setDrawerHeight(drawerH);
@@ -5905,46 +5926,91 @@
       }
     });
   }
+  var radarExpanded=false, radarHeading=null, radarRows=[], gamePoints=[], gameRoom=null;
+  function radarOrigin() { return here || (cityOn && map ? map.getCenter() : view && globeHit(view.cx,view.cy,cam)); }
+  function radarBearing(a,b) {
+    var rad=Math.PI/180, delta=(b.lng-a.lng)*rad;
+    return (360+Math.atan2(Math.sin(delta)*Math.cos(b.lat*rad),
+      Math.cos(a.lat*rad)*Math.sin(b.lat*rad)-Math.sin(a.lat*rad)*Math.cos(b.lat*rad)*Math.cos(delta))/rad)%360;
+  }
   function syncRadarHud() {
-    var hud = $("sn-radar");
-    var blips = $("sn-radar-blips");
-    if (!hud) return;
-    var pts = [];
-    if (here) pts.push({ lat: here.lat, lng: here.lng, you: true });
-    (shops || []).slice(0, 12).forEach(function (s) {
-      if (s && isFinite(s.lat) && isFinite(s.lng)) pts.push({ lat: s.lat, lng: s.lng });
-    });
-    (jobs || []).slice(0, 8).forEach(function (j) {
-      var v = j && j.vendor;
-      if (v && isFinite(v.lat) && isFinite(v.lng)) pts.push({ lat: v.lat, lng: v.lng, hot: true });
-      else if (j && isFinite(j.lat) && isFinite(j.lng)) pts.push({ lat: j.lat, lng: j.lng, hot: true });
-    });
-    var hot = pts.some(function (p) { return p.hot; });
-    hud.classList.toggle("hot", hot);
-    if (!blips) return;
-    if (!here || pts.length < 2) {
-      blips.innerHTML = '<i style="left:50%;top:50%"></i>';
+    var origin=radarOrigin(), blips=$("sn-radar-blips");
+    if (!blips || !origin || !newsItems) return;
+    var pts=newsItems.filter(clip=>clip.box).map(clip=>({...clip.location,name:clip.title}));
+    if(cityOn && map) {
+      shopMarks.concat(actorMarks).forEach(mark=>{
+        var pt=mark.getLatLng();
+        if(map.getBounds().contains(pt)) pts.push({lat:pt.lat,lng:pt.lng,name:mark.options.title || "Map pin"});
+      });
+    } else if(view) {
+      radarTargets().filter(p=>!p.clip && project(p.lat,p.lng,cam)).forEach(p=>pts.push({...p,name:p.label}));
+    }
+    gamePoints.forEach(p=>pts.push({...p,name:p.team+" · "+p.label+" ("+p.kind+")"}));
+    radarRows=pts.map(p=>({...p,km:haversineKm(origin,p),angle:radarBearing(origin,p)-(radarHeading || 0)})).sort((a,b)=>a.km-b.km);
+    var range=Math.max(0.1,...radarRows.map(p=>p.km));
+    blips.innerHTML=radarRows.map(p=>{
+      var r=44*Math.sqrt(p.km/range), angle=p.angle*Math.PI/180;
+      return '<i title="'+escHtml(p.name)+'" style="left:'+(50+r*Math.sin(angle))+'%;top:'+(50-r*Math.cos(angle))+'%"></i>';
+    }).join("");
+    var options=$("radar-targets");
+    if(options) options.innerHTML=radarRows.map(p=>'<button class="sheet-go" data-act="radar-route" data-lat="'+p.lat+'" data-lng="'+p.lng+'">'+escHtml(p.name)+' · '+p.km.toFixed(1)+' km · '+Math.round((p.angle+360)%360)+'°</button>').join(" ") || "No map results here.";
+    if($("radar-heading")) $("radar-heading").textContent=radarHeading===null?"North up":"Facing "+Math.round(radarHeading)+"° · forward up";
+  }
+  function compassReading(e) {
+    var value=Number.isFinite(e.webkitCompassHeading)?e.webkitCompassHeading:
+      (e.absolute && Number.isFinite(e.alpha)?360-e.alpha:null);
+    if(value!==null) radarHeading=(value+(screen.orientation?.angle || 0)+360)%360;
+  }
+  async function toggleRadar() {
+    radarExpanded=!radarExpanded;
+    $("sn-radar").setAttribute("aria-expanded",String(radarExpanded));
+    if(!radarExpanded) {
+      window.removeEventListener("deviceorientationabsolute",compassReading);
+      window.removeEventListener("deviceorientation",compassReading);
+      radarHeading=null;
+      if($("radar-panel")) dismissDrawerPlacement();
       return;
     }
-    var R = 800;
-    function km(a, b) {
-      var dLat = ((b.lat - a.lat) * Math.PI) / 180, dLng = ((b.lng - a.lng) * Math.PI) / 180;
-      var s1 = Math.sin(dLat / 2), s2 = Math.sin(dLng / 2);
-      var h = s1 * s1 + Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * s2 * s2;
-      return 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(h)));
+    showDrawerPlacement("Radar",'<div id="radar-panel"><p id="radar-heading">North up</p><button class="sheet-go" data-act="radar-game">Play hide-and-seek</button><div id="radar-game"></div><h3>Map results</h3><div id="radar-targets"></div></div>');
+    setDrawerHeight(Math.round(innerHeight/3));
+    if(routeLayer) fitOfferRoute();
+    syncRadarHud();
+    try {
+      if(window.DeviceOrientationEvent?.requestPermission && await DeviceOrientationEvent.requestPermission()!=="granted") return;
+      if(radarExpanded) {
+        window.addEventListener("deviceorientationabsolute",compassReading);
+        window.addEventListener("deviceorientation",compassReading);
+      }
+    } catch {}
+  }
+  async function gameRequest(kind,marker) {
+    var form=$("radar-game-form"), status=$("radar-game-status");
+    if(!form || !checkoutAccount()) {if(status) status.textContent="Sign in to join a game."; return;}
+    var fields=form.elements, pt=marker==="drone" && cityOn && map ? map.getCenter() : here;
+    if(kind!=="radar-leave" && !pt) {status.textContent="Use GPS to set your location first.";return;}
+    if(kind!=="radar-leave" && !form.reportValidity()) return;
+    var params={room:fields.room.value,team:fields.team.value,label:fields.label.value,nearby:fields.nearby.checked,discoverable:fields.discoverable.checked};
+    var account=checkoutAccount(), data=await listingAction({...params,kind,marker,lat:pt?.lat,lng:pt?.lng});
+    if(account!==checkoutAccount() || !form.isConnected) return;
+    if(!data?.ok){status.textContent="Game service unavailable.";return;}
+    gameRoom=kind==="radar-leave"?null:{...params,account};
+    gamePoints=data.points || [];
+    status.textContent=kind==="radar-leave"?"Left game.":gamePoints.length+" shared game pins.";
+    syncRadarHud();
+  }
+  async function refreshGamePins() {
+    var room=gameRoom;
+    if(!radarExpanded || document.hidden || !room || !here || room.account!==checkoutAccount()) return;
+    var data=await listingAction({...room,kind:"radar-list",lat:here.lat,lng:here.lng});
+    if(gameRoom===room && room.account===checkoutAccount()) {gamePoints=data?.points || [];syncRadarHud();}
+  }
+  function showRadarGame() {
+    var el=$("radar-game");if(!el)return;
+    el.innerHTML='<form id="radar-game-form"><label>Game code (share with friends)<input class="field" name="room" minlength="8" maxlength="80" required></label><label>Team<input class="field" name="team" required maxlength="40"></label><label>Player or drone name<input class="field" name="label" required maxlength="60"></label><label><input type="checkbox" name="discoverable"> Let nearby teams see this pin for 15 minutes</label><label><input type="checkbox" name="nearby"> Show nearby public game pins</label><button type="button" class="sheet-go" data-act="game-player">Share my GPS pin</button><button type="button" class="sheet-go" data-act="game-drone">Share my drone pin at city map center</button><button type="button" class="sheet-go" data-act="game-list">Find teams</button><button type="button" class="sheet-go" data-act="game-leave">Leave game</button><p id="radar-game-status" role="status"></p></form>';
+    var f=$("radar-game-form"); f.onsubmit=e=>e.preventDefault();
+    if(gameRoom?.account===checkoutAccount()) for(var key of ["room","team","label","nearby","discoverable"]) {
+      if(typeof gameRoom[key]==="boolean") f.elements[key].checked=gameRoom[key];else f.elements[key].value=gameRoom[key];
     }
-    var html = "";
-    pts.forEach(function (p) {
-      if (p.you) { html += '<i style="left:50%;top:50%;background:#fff;box-shadow:0 0 8px #fff"></i>'; return; }
-      var d = km(here, p);
-      if (d > R / 1000) return;
-      var ang = Math.atan2(p.lng - here.lng, p.lat - here.lat);
-      var rad = Math.min(0.42, d / (R / 1000) * 0.42);
-      var x = 50 + Math.sin(ang) * rad * 100;
-      var y = 50 - Math.cos(ang) * rad * 100;
-      html += '<i style="left:' + x.toFixed(1) + "%;top:" + y.toFixed(1) + '%"></i>';
-    });
-    blips.innerHTML = html || '<i style="left:50%;top:50%"></i>';
   }
   function clearCityRadar() {
     if (!map) { cityRadarLayers = []; return; }
@@ -6070,6 +6136,16 @@
       if (!act) return;
       var id = t.getAttribute("data-id");
       var i = Number(t.getAttribute("data-i"));
+      if(act==="radar-game") showRadarGame();
+      if(act==="radar-route") {
+        var dest={lat:Number(t.dataset.lat),lng:Number(t.dataset.lng)};
+        if(!here) locate(pt=>{land(pt);drawRoute(pt,dest);});
+        else {if(!cityOn) openCity(here);drawRoute(here,dest);}
+      }
+      if(act==="game-player") gameRequest("radar-share","player");
+      if(act==="game-drone") {if(cityOn) gameRequest("radar-share","drone");else $("radar-game-status").textContent="Open the city map and center it on your drone first.";}
+      if(act==="game-list") gameRequest("radar-list");
+      if(act==="game-leave") gameRequest("radar-leave");
       if (act === "hide") { closeJobs(); setDrawerHeight(collapsedDrawerH()); paintDrawerContent(); }
       if (act === "open-architect") { openArchitectAt(listPt); }
       if (act === "vendor-confirm-order") { vendorConfirmOrder(id); }
@@ -6532,6 +6608,9 @@
   function bindSky() {}
 
   function boot() {
+    $("sn-radar").onclick=toggleRadar;
+    setInterval(function(){if(!document.hidden){if(gameRoom && gameRoom.account!==checkoutAccount()){gameRoom=null;gamePoints=[];}syncRadarHud();}},1000);
+    setInterval(refreshGamePins,10000);
     setInterval(refreshDispatch,2000);
     loadLand();
     loadBorders();
@@ -6558,7 +6637,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4470 = true;
+    window.__SN_4471 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },

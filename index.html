@@ -4,13 +4,13 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4470"/>
+<meta name="astranov-build" content="4471"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
-<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4470"/>
+<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4471"/>
 <style>
 :root{
   --bg:#02040a; --fg:#e8fbff; --muted:#8ec8d8; --accent:#4df0ff;
@@ -140,11 +140,14 @@ button{cursor:pointer}
 /* Radar — under top row only; stays clear of money and drawer */
 #sn-radar{
   position:relative;justify-self:center;
-  width:30px;height:30px;border-radius:50%;pointer-events:none;overflow:hidden;
+  width:100%;height:var(--ctrl);min-width:0;padding:0;border-radius:999px;pointer-events:auto;overflow:hidden;
   border:1px solid rgba(77,240,255,.4);
   background:radial-gradient(circle,rgba(4,14,28,.78) 0 58%,transparent 59%);
   box-shadow:inset 0 0 10px rgba(77,240,255,.14);
 }
+#sn-radar[aria-expanded="true"]{position:fixed;left:50%;top:calc(var(--safe-t) + var(--top-row) + 48px);transform:translateX(-50%);width:min(52vw,220px,max(36px,calc(100dvh - var(--drawer-h) - var(--safe-t) - var(--top-row) - 52px)));height:auto;aspect-ratio:1;border-radius:50%}
+#sn-radar::after{content:"";position:absolute;top:50%;left:50%;width:5px;height:5px;border-radius:50%;background:white;transform:translate(-50%,-50%)}
+#sn-money{grid-column:5}
 #sn-radar-sweep{
   position:absolute;inset:0;border-radius:50%;
   background:
@@ -516,7 +519,7 @@ textarea.field,#sn-support-matter{min-height:88px}
   <button type="button" id="sn-burger" aria-label="Menu" aria-expanded="false" aria-controls="menu">☰</button>
   <button type="button" id="sn-resources" aria-label="Device resources" aria-haspopup="dialog"><canvas id="sn-spark" width="100" height="42" aria-hidden="true"></canvas></button>
   <button type="button" id="logo" aria-label="Astranov.eu Home" aria-controls="sheet" aria-expanded="false">ASTRANOV.EU</button>
-  <div id="sn-radar" aria-hidden="true"><div id="sn-radar-sweep"></div><div id="sn-radar-blips"></div></div>
+  <button id="sn-radar" type="button" aria-label="Radar" aria-expanded="false" aria-controls="sheet"><span id="sn-radar-sweep"></span><span id="sn-radar-blips"></span></button>
   <span id="sn-radar-status" role="status"></span>
   <button type="button" id="sn-money" class="on" aria-label="Wallet"><span class="tgt">AV€</span></button>
 </header>
@@ -592,10 +595,10 @@ textarea.field,#sn-support-matter{min-height:88px}
 <div id="toast" role="status"></div>
 <div id="line" role="status"></div>
 
-<script src="/js/vendor/leaflet.js?v=4470"></script>
-<script src="/js/spacenet/partners/types.js?v=4470"></script>
-<script src="/js/spacenet/partners/client.js?v=4470"></script>
-<script src="/js/spacenet/app.js?v=4470"></script>
-<script src="/js/spacenet/auth.js?v=4470"></script>
+<script src="/js/vendor/leaflet.js?v=4471"></script>
+<script src="/js/spacenet/partners/types.js?v=4471"></script>
+<script src="/js/spacenet/partners/client.js?v=4471"></script>
+<script src="/js/spacenet/app.js?v=4471"></script>
+<script src="/js/spacenet/auth.js?v=4471"></script>
 </body>
 </html>
