@@ -1,5 +1,5 @@
 /*
- * SpaceNet 4467
+ * SpaceNet 4468
  *
  * Astranov Script is the project's name for this stack:
  * - JavaScript for the SpaceNet browser app and Node.js API handlers.
@@ -11,7 +11,7 @@
  */
 (function () {
   "use strict";
-  var VER = "4467";
+  var VER = "4468";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -1421,14 +1421,12 @@
   var streetLayer;
   function setStreetLayer() {
     if (!map) return;
-    var carto = localStorage.getItem("sn:basemap") === "carto";
-    var dark = localStorage.getItem("sn:dark-map") === "1";
-    $("city").classList.toggle("dark-basemap",dark && !carto);
-    if (streetLayer) map.removeLayer(streetLayer);
-    streetLayer = L.tileLayer(carto ? "https://{s}.basemaps.cartocdn.com/" + (dark ? "dark_all" : "light_all") + "/{z}/{x}/{y}.png" :
-      "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom:19,minZoom:12,
-      attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' +
-        (carto ? ' © <a href="https://carto.com/attributions">CARTO</a>' : '')}).addTo(map);
+    $("city").classList.toggle("dark-basemap", localStorage.getItem("sn:dark-map") === "1");
+    if (streetLayer) return;
+    streetLayer = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19, minZoom: 12,
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
   }
   function openCity(pt) {
     if (!pt || !isFinite(pt.lat) || !isFinite(pt.lng)) return;
@@ -5659,7 +5657,7 @@
   function homeMarkup() {
     return '<article class="drawer-profile home-panel"><header class="home-title">' +
       '<h2>SpaceNet Home</h2><button type="button" class="sheet-x" data-act="home-close" aria-label="Close Home">×</button></header>' +
-      '<section class="profile-section"><h3>City map layers</h3><button class="sheet-go" data-act="map-osm">OpenStreetMap</button> <button class="sheet-go" data-act="map-carto">CARTO</button> <button class="sheet-go" aria-pressed="' + (localStorage.getItem("sn:dark-map")!=="1") + '" data-act="map-light">☀️ Bright</button> <button class="sheet-go" aria-pressed="' + (localStorage.getItem("sn:dark-map")==="1") + '" data-act="map-dark">🌌 Dark</button></section>' +
+      '<section class="profile-section"><h3>City map layers</h3><button class="sheet-go" aria-pressed="' + (localStorage.getItem("sn:dark-map")!=="1") + '" data-act="map-light">☀️ Bright</button> <button class="sheet-go" aria-pressed="' + (localStorage.getItem("sn:dark-map")==="1") + '" data-act="map-dark">🌌 Dark</button></section>' +
       '<section class="profile-section"><h3>Installation</h3><button class="sheet-go" data-act="install-app">Install on computer or phone</button> ' +
       '<a class="sheet-go" href="/" target="_blank" rel="noopener">Open web version</a></section>' +
       '<section class="profile-section"><h3>Version</h3>' +
@@ -6116,8 +6114,7 @@
           form.querySelector("p").textContent=result?.ok?"Submitted for review.":"Submission unavailable.";
         };
       }
-      if (act === "map-osm" || act === "map-carto") {localStorage.setItem("sn:basemap",act.slice(4)); setStreetLayer();}
-      if (act === "map-dark" || act === "map-light") { localStorage.setItem("sn:dark-map",act==="map-dark"?"1":"0"); localStorage.setItem("sn:basemap","carto"); setStreetLayer(); paintDrawerContent(); }
+      if (act === "map-dark" || act === "map-light") { localStorage.setItem("sn:dark-map",act==="map-dark"?"1":"0"); setStreetLayer(); paintDrawerContent(); }
       if (act === "install-app") {
         if (installEvent) { installEvent.prompt(); installEvent = null; }
         else { homeStatus = "Use your browser menu to install SpaceNet or add it to your home screen."; paintDrawerContent(); }
@@ -6451,7 +6448,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4467 = true;
+    window.__SN_4468 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
