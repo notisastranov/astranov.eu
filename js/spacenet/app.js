@@ -1,5 +1,5 @@
 /*
- * SpaceNet 4469
+ * SpaceNet 4470
  *
  * Astranov Script is the project's name for this stack:
  * - JavaScript for the SpaceNet browser app and Node.js API handlers.
@@ -11,7 +11,7 @@
  */
 (function () {
   "use strict";
-  var VER = "4469";
+  var VER = "4470";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -1385,6 +1385,30 @@
       locate(function (pt) { land(pt, true); }); /* true = fly + open street map */
     }, true);
   }
+  var websiteProfiles = new Map(), enrichmentRunning = false;
+  async function enrichVisibleShops() {
+    if (enrichmentRunning) return;
+    enrichmentRunning=true;
+    try {
+      while (cityOn && map) {
+        var batch=shops.filter(shop=>shop.discovered && shop.website && map.getBounds().contains([shop.lat,shop.lng]) && !websiteProfiles.has(shop.id)).slice(0,2);
+        if (!batch.length) break;
+        await Promise.all(batch.map(async function(shop){
+          websiteProfiles.set(shop.id,{});
+          var data=await fetchJson("/api/vendor-menu?vendor="+encodeURIComponent(shop.id));
+          if (!data?.registered) return;
+          var profile={};
+          if (data.items?.some(item=>!item.sample)) profile.menu=data.items;
+          for (var key of ["logo","cover","messaging","phone"]) if(data[key]) profile[key]=data[key];
+          websiteProfiles.set(shop.id,profile);
+          var current=shops.find(row=>row.id===shop.id);
+          if(current) Object.assign(current,profile);
+          var marker=shopMarks.find(mark=>mark.options.vendorId===shop.id);
+          if(current && marker && profile.logo) marker.setIcon(L.divIcon({className:"actor-pin",html:vendorLogo(current),iconSize:[32,32],iconAnchor:[16,16]}));
+        }));
+      }
+    } finally {enrichmentRunning=false;}
+  }
   var discoveredArea = "", discoveryUntil = 0;
   function discoverNearby(pt) {
     var area = pt.lat.toFixed(2) + "," + pt.lng.toFixed(2);
@@ -1395,8 +1419,9 @@
     var key = "sn:nearby:" + area;
     function display(rows) {
       if (area !== discoveredArea || !rows.length) return;
-      shops = rows.map(row => Object.assign({},row,{discovered:true})).concat(shops.filter(row => !row.discovered && !rows.some(saved => saved.id === row.id)));
+      shops = rows.map(row => Object.assign({},row,websiteProfiles.get(row.id),{discovered:true})).concat(shops.filter(row => !row.discovered && !rows.some(saved => saved.id === row.id)));
       if (cityOn) paintShopsOnMap();
+      enrichVisibleShops();
       var listing = new URLSearchParams(location.search).get("listing");
       var selected = listing && shops.find(shop=>shop.id===listing);
       if (selected && !drawerProfile) openVendor(selected);
@@ -1609,7 +1634,7 @@
     }
     if (!pin.name || pin.name === testRoles[pin.role]) pin.name = testRoles[role];
     pin.role = role;
-    pin.accountId = role === "client" || role === "driver" ? checkoutAccount() : undefined;
+    pin.accountId = checkoutAccount() || undefined;
     if (isVendorRole(role) && !pin.menu) pin.menu = role === "vendor" ? starterProducts.map(item => ({...item})) : [{name:"City delivery",price:3}];
     if (!updateTestPins(pins,true)) return;
     localStorage.setItem("sn:pin-role",role);
@@ -1857,6 +1882,7 @@
     var phone = vendorBrand(row).phone;
     return '<p class="profile-contact">' +
       (phone ? '<a href="tel:' + escHtml(phone.replace(/[^+\d]/g, "")) + '">' + escHtml(phone) + '</a>' : 'Phone unavailable') +
+      (row.messaging && /^https:\/\/(wa\.me|api\.whatsapp\.com|m\.me|t\.me)\//i.test(row.messaging) ? ' · <a target="_blank" rel="noopener" href="'+escHtml(row.messaging)+'">Website messaging</a>' : '') +
       (row.streetAddress ? ' · '+escHtml(row.streetAddress) : '') + (row.hours ? ' · '+escHtml(row.hours) : '') +
       (row.website && /^https?:\/\//i.test(row.website) ? ' · <a href="'+escHtml(row.website)+'" target="_blank" rel="noopener">Website</a>' : '') +
       (row.test && row.phone == null ? ' <small>Test number</small>' : '') + '</p>';
@@ -3066,7 +3092,7 @@
       phone: row.phone || tags.phone || tags["contact:phone"] || "",
       logo: row.logo || row.photo || row.image || "",
       cover: row.cover, profile: row.profile, peer: row.peer, posts: row.posts,
-      quickCheckout:row.shop?.quickCheckout === true,
+      quickCheckout:row.shop?.quickCheckout === true, accountId:row.shop?.contactAccount,
       menu: Array.isArray(row.shop?.menu) ? row.shop.menu : Array.isArray(row.menu) ? row.menu : undefined,
       src: row.src || "osm"
     };
@@ -3309,6 +3335,7 @@
         cart.items = {};
         say("The vendor menu has loaded. Add items from the updated menu.");
       }
+      s.logo=data.logo || s.logo; s.cover=data.cover || s.cover; s.messaging=data.messaging || s.messaging;
       s.menuStored=data.stored;
       s.canEdit = data.canEdit;
       s.editorAccount = checkoutAccount();
@@ -4173,6 +4200,7 @@
       var scope=vendorId || (drawerProfile && profileIsVendor(drawerProfile.actor) ? profileId(drawerProfile.actor) : null);
       var [result,notices]=await Promise.all([listingAction({kind:"inbox",vendor:vendorId}),listingAction({kind:"notifications",vendor:scope,peer:drawerProfile?.actor?.accountId || drawerProfile?.actor?.id})]);
       if(account!==checkoutAccount() || !Array.isArray(result?.items) || !notices?.ok) return;
+      refreshChatCount();
       notices.peer=peer;
       notices.vendor=scope;
       notices.messages.forEach(m=>{notices.counts[m.sender]=(notices.counts[m.sender]||0)+1;});
@@ -5171,21 +5199,64 @@
     var footer = $("sn-drawer-cart");
     var active = !!(profile && vendor && profileIsVendor(profile.actor) && profileId(profile.actor) === profileId(vendor));
     var state = profile && profileOrdersFor(profile.actor);
-    footer.hidden = !active || !!(state && state.history);
-    if (!active) return;
+    footer.hidden = !profile;
+    if (footer.hidden) return;
     var subtotal = cartSubtotal();
     var items = Object.values(cart.items).reduce(function (count, qty) { return count + qty; }, 0);
-    var html = '<div class="drawer-cart-line"><span>Cart · ' + items + (items === 1 ? ' item' : ' items') +
+    var html = (active && !state?.history ? '<div class="drawer-cart-line"><span>Cart · ' + items + (items === 1 ? ' item' : ' items') +
       ' · <b>' + subtotal + ' AV€</b></span>' +
       '<button type="button" class="sheet-go primary" data-act="' + (profile.actor.test || profile.actor.quickCheckout ? "test-checkout" : "open-order") + '"' +
-      (subtotal > 0 ? '' : ' disabled') + '>Checkout</button></div>' +
+      (subtotal > 0 ? '' : ' disabled') + '>Checkout</button></div>' : '') +
       '<nav class="drawer-cart-links" aria-label="Profile sections">' +
       (state && state.data ? '<button type="button" class="sheet-go" data-act="profile-orders">History</button>' : '<span></span>') +
-      '<button type="button" class="sheet-go" data-act="profile-jump" data-id="profile-messaging">Messaging</button></nav>';
+      '<button type="button" class="sheet-go chat-button" data-unread="'+ (chatCount.account===checkoutAccount() && chatCount.key===profileId(profile.actor) && chatCount.value>0) +'" data-act="profile-chat">Messaging <b>'+ (chatCount.key===profileId(profile.actor) && chatCount.account===checkoutAccount()?chatCount.value:0) +'</b></button></nav>';
     if (footer.__snBody !== html) {
       footer.__snBody = html;
       footer.innerHTML = html;
     }
+  }
+  var chatCount={};
+  function chatTarget(actor) {
+    return actor.discovered || (profileIsVendor(actor) && !actor.accountId && !actor.peer) ? {vendor:profileId(actor)} : {peer:actor.accountId || actor.peer || actor.id};
+  }
+  async function refreshChatCount() {
+    var actor=drawerProfile?.actor, account=checkoutAccount();
+    if (!actor || !account) return;
+    var data=await listingAction({...chatTarget(actor),kind:actor.self?"chat-list":"chat-count"});
+    if (actor!==drawerProfile?.actor || account!==checkoutAccount() || !data?.ok) return;
+    chatCount={key:profileId(actor),account:account,value:data.threads ? data.threads.reduce((n,row)=>n+Number(row.unread),0) : data.unread || 0};
+    if (!$("sn-drawer-cart").hidden) paintDrawerCart(drawerProfile);
+  }
+  function openProfileChat(target,title) {
+    if (!checkoutAccount()) {openOwnProfile();return;}
+    openSheet(title || "Messaging",'<button hidden id="chat-older" class="sheet-go">Earlier messages</button><div id="chat-log" role="log"></div><form id="chat-compose"><textarea class="field" required maxlength="1000" aria-label="Message"></textarea><button class="sheet-go" disabled>Send</button><p role="status"></p></form>');
+    var form=$("chat-compose"), log=$("chat-log"), older=$("chat-older"), account=checkoutAccount();
+    var entries=new Map(), exhausted=false, busy=false;
+    async function load(kind,previous) {
+      if(busy || !form.isConnected || account!==checkoutAccount()) return;
+      busy=true;
+      var first=log.firstElementChild;
+      var data=await listingAction({...target,kind,text:kind==="chat-send"?form.querySelector("textarea").value:undefined,
+        before_time:previous && first ? first.dataset.time:undefined,before_id:previous && first ? first.dataset.id:undefined});
+      busy=false;
+      if (!form.isConnected || account!==checkoutAccount()) return;
+      var status=form.querySelector('[role="status"]');
+      if (!data?.ok || !data.linked) {status.textContent=data?.ok?"This profile has no linked messaging account yet.":"Conversation unavailable. Try again.";return;}
+      form.querySelector("button").disabled=false;
+      if(kind==="chat-send") form.reset();
+      var rows=data.rows || [];
+      if ((previous || !entries.size) && rows.length<50) exhausted=true;
+      rows.forEach(row=>entries.set(row.id,row));
+      var sorted=Array.from(entries.values()).sort((a,b)=>a.created_at.localeCompare(b.created_at)||a.id.localeCompare(b.id));
+      log.innerHTML=sorted.map(row=>'<p data-time="'+escHtml(row.created_at)+'" data-id="'+escHtml(row.id)+'"><b>'+(row.outgoing?'You':'Received')+'</b> '+escHtml(row.body)+' <small>'+escHtml(transactionDate(row.created_at))+'</small></p>').join("");
+      older.hidden=exhausted || !entries.size;
+      status.textContent=entries.size?"":"No messages yet.";
+      refreshChatCount();
+    }
+    older.onclick=()=>load("chat-open",true);
+    form.onsubmit=e=>{e.preventDefault();load("chat-send");};
+    load("chat-open");
+    var timer=setInterval(()=>{if (!form.isConnected || !$("sn-sheet").classList.contains("on") || account!==checkoutAccount()) clearInterval(timer);else if(!document.hidden) load("chat-open");},5000);
   }
   function jumpToProfileSection(id) {
     if (id !== "profile-messaging") return;
@@ -6072,11 +6143,17 @@
         });
       }
       if (act === "message-read") listingAction({kind:"message-read",id:id}).then(function(reply){if(reply?.ok){dismissDrawerPlacement();vendorInbox();}});
-      if (act === "reply-message") {
-        showDrawerPlacement("Reply",'<form id="reply-direct"><textarea required class="field" maxlength="1000"></textarea><button class="sheet-go">Send</button><p role="status"></p></form>');
-        $("reply-direct").onsubmit=async function(e){e.preventDefault();var form=e.currentTarget,b=form.querySelector("button");if(b.disabled)return;b.disabled=true;
-          var result=await listingAction({kind:"message",recipient:id,text:form.querySelector("textarea").value});
-          if(result?.ok) dismissDrawerPlacement();else {b.disabled=false;form.querySelector("p").textContent="Message unavailable.";}};
+      if (act === "reply-message") openProfileChat({peer:id},"Conversation");
+      if (act === "profile-chat" && drawerProfile) {
+        if (!drawerProfile.actor.self) openProfileChat(chatTarget(drawerProfile.actor),"Chat · "+drawerProfile.actor.name);
+        else if(checkoutAccount()) {
+          openSheet("Conversations",'<div id="chat-inbox" role="status">Loading…</div>');
+          var box=$("chat-inbox"), account=checkoutAccount();
+          listingAction({kind:"chat-list"}).then(function(data){
+            if(!box.isConnected || account!==checkoutAccount()) return;
+            box.innerHTML=data?.ok ? data.threads.map(row=>'<button class="sheet-go" data-act="reply-message" data-id="'+escHtml(row.peer)+'">'+escHtml(row.name)+' · '+Number(row.unread)+' unread</button>').join(" ") || "No conversations yet." : "Conversations unavailable.";
+          });
+        } else if(window.SNAuth?.open) SNAuth.open();
       }
       if (act === "order-inbox" && vendor) vendorInbox(vendor.id);
       if (act === "order-seen") {
@@ -6481,7 +6558,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4469 = true;
+    window.__SN_4470 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
