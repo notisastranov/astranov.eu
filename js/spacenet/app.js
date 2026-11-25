@@ -1,5 +1,5 @@
 /*
- * SpaceNet 4458
+ * SpaceNet 4459
  *
  * Astranov Script is the project's name for this stack:
  * - JavaScript for the SpaceNet browser app and Node.js API handlers.
@@ -11,7 +11,7 @@
  */
 (function () {
   "use strict";
-  var VER = "4458";
+  var VER = "4459";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -471,7 +471,7 @@
     var targets = [];
     newsItems.forEach(function (clip) {
       var location = clip.location;
-      if (location.kind === "story") {
+      if (location.kind === "story" || clip.breaking) {
         targets.push({ lat: location.lat, lng: location.lng, label: "News · " + location.name, clip: clip });
       }
     });
@@ -907,15 +907,16 @@
     ctx.stroke();
     ctx.restore();
   }
+  var tappedNewsAudio = false;
   function applyNewsAudio() {
     if (!newsPlayerReady || !newsPlayer) return;
-    var volume = soundLevel("news");
+    var volume = tappedNewsAudio ? Math.max(0, Math.min(100, sound.news)) / 100 : soundLevel("news");
     newsPlayer.setVolume(Math.round(volume * 100));
     if (volume) newsPlayer.unMute();
     else newsPlayer.mute();
   }
   function prepareNewsPlayer() {
-    if (newsPlayer || !newsSelection || cityOn || $("sn-news").hidden) return;
+    if (newsPlayer || !newsSelection || $("sn-news").hidden) return;
     if (!window.YT || !YT.Player) {
       if (newsScriptPending || performance.now() < newsScriptRetry) return;
       newsScriptPending = true;
@@ -958,6 +959,7 @@
   }
   function openNews(clip) {
     stopNews();
+    tappedNewsAudio = true;
     newsSelection = clip;
     clip.button.setAttribute("aria-expanded", "true");
     $("sn-news-title").textContent = clip.source + " · " + clip.title;
@@ -1001,7 +1003,7 @@
       button.append(image);
     }
     var label = document.createElement("span");
-    label.textContent = clip.location.kind === "publisher" ? clip.source : clip.location.name;
+    label.textContent = clip.breaking ? "Breaking · " + clip.title : clip.location.kind === "publisher" ? clip.source : clip.location.name;
     button.append(label);
     button.addEventListener("click", function () {
       if (newsSelection === clip) stopNews();
@@ -1024,10 +1026,9 @@
       .then(function (feed) {
         if (generation !== newsGeneration) return;
         var clips = Array.isArray(feed && feed.items) ? feed.items.filter(validNewsClip) : [];
-        if (global) clips = clips.filter(function (clip) { return clip.location.kind === "story"; });
-        var cause = $("sn-news-empty");
-        cause.textContent = center ? "No recent local video news." : global ? "No verified global video updates." : "No recent national video news.";
-        cause.hidden = !!clips.length;
+        if (global) clips = clips.filter(clip => clip.location.kind === "story" || clip.topic && clip.topic !== "events");
+        var liked = newsLikes();
+        clips.sort((a,b)=>Number(!!liked[b.topic])-Number(!!liked[a.topic]) || Number(!!b.breaking)-Number(!!a.breaking));
         if (!clips.length || feed.fallback) newsRefresh = performance.now() + 30000;
         var previous = new Map(newsItems.map(function (clip) { return [clip.id, clip]; }));
         var next = clips.map(function (clip) {
@@ -1055,6 +1056,21 @@
     if (top < box.y + box.h && box.y - height > 48) top = box.y - height - 6;
     panel.style.transform = "translate3d(" + left + "px," + top + "px,0)";
   }
+  var movingPreview;
+  function previewTile(clip) {
+    if (movingPreview && movingPreview.parentNode === clip?.button) return;
+    if (movingPreview) movingPreview.remove();
+    movingPreview = null;
+    if (!clip || clip.playlist || document.hidden) return;
+    var frame = document.createElement("iframe");
+    frame.className = "moving-preview";
+    frame.tabIndex = -1;
+    frame.setAttribute("aria-hidden","true");
+    frame.allow = "autoplay; encrypted-media";
+    frame.src = "https://www.youtube-nocookie.com/embed/" + clip.id + "?autoplay=1&mute=1&playsinline=1&controls=0";
+    clip.button.append(frame);
+    movingPreview = frame;
+  }
   function layoutNewsTiles() {
     var occupied = [];
     var tileW = 82, tileH = 36, floor = view.h - drawerH - tileH - 8;
@@ -1071,7 +1087,7 @@
       if (cityOn && point && floor >= 92) {
         point = { x: clampNews(point.x, 16, view.w - 16), y: clampNews(point.y, 88, view.h - drawerH - 16) };
       }
-      if (global && anchor.kind !== "story") point = null;
+      if (global && anchor.kind !== "story" && !clip.topic) point = null;
       if (point && point.x >= 0 && point.x <= view.w && point.y >= 0 && point.y <= view.h - drawerH && floor >= 92 && occupied.length < (global ? 4 : 6)) {
         for (var i = 0; i < candidates.length; i++) {
           var x = clampNews(point.x + candidates[i][0], 8, view.w - tileW - 8);
@@ -1095,15 +1111,16 @@
       }
       clip.pin.hidden = !clip.box;
     });
+    previewTile(newsSelection ? null : tiles.find(clip => clip.box));
     if (newsSelection) {
       if (newsSelection.box) positionNewsPlayer(newsSelection);
-      else stopNews();
     }
   }
   function tickNews(now) {
     var deck = $("sn-news");
     var show = (cityOn || tierI === 2 || tierI === 3) && !document.hidden;
     deck.hidden = !show;
+    if (!show || !newsItems.length) previewTile(null);
     if (!show) {
       if (newsSelection) stopNews();
       return;
@@ -2324,6 +2341,7 @@
       try { localStorage.setItem("sn:sound", JSON.stringify(sound)); } catch (e) {}
       if (sound.enabled) unlockAudio();
       if (!soundLevel("helper") && window.speechSynthesis) speechSynthesis.cancel();
+      tappedNewsAudio = false;
       applyNewsAudio();
       if (soundLevel("news") && newsPlayerReady && !cityOn) newsPlayer.playVideo();
       syncAmbient();
@@ -5266,6 +5284,10 @@
   var newsDeskLoading = Object.create(null);
   var newsDeskTabs = { events: "News", investments: "Investments", culture: "Arts & Culture", spacenet: "SpaceNet" };
   var quoteGroups = ["Space", "AI and chips", "Technology", "Defense", "Automotive", "Shipping"];
+  function newsLikes() {
+    try { return JSON.parse(localStorage.getItem("sn:news-likes:" + (checkoutAccount() || "guest"))) || {}; }
+    catch { return {}; }
+  }
   function newsClipCards(items) {
     return items.filter(function (item) { return item && /^[\w-]{11}$/.test(item.id); }).map(function (item) {
       var where = item.location && item.location.kind === "story" ? " · " + escHtml(item.location.name) : "";
@@ -5295,6 +5317,7 @@
     var items = cached && cached.data && Array.isArray(cached.data.items) ? cached.data.items : [];
     var fallback = '<p class="note">' + (newsDeskLoading[drawerNews] ? "Loading…" :
       drawerNews === "investments" ? "Market quotes are temporarily unavailable." : "No recent videos available.") + '</p>';
+    var liked = newsLikes();
     var body;
     if (drawerNews === "investments") {
       body = '<p class="note">Exchange quotes via Yahoo Finance. Prices may be delayed.</p>' + (marketRows(items) || fallback);
@@ -5319,7 +5342,8 @@
       '<nav class="news-desk-tabs" aria-label="News sections">' + Object.keys(newsDeskTabs).map(function (key) {
         return '<button type="button" class="sheet-go" data-act="news-desk" data-id="' + key + '" aria-pressed="' +
           (drawerNews === key) + '">' + newsDeskTabs[key] + '</button>';
-      }).join("") + '</nav>' + body + '</article>';
+      }).join("") + '</nav><div class="news-desk-tabs"><button type="button" class="sheet-go" data-act="news-like" aria-pressed="' +
+        !!liked[drawerNews] + '">' + (liked[drawerNews] ? '♥ Preferred' : '♡ Prefer') + ' ' + newsDeskTabs[drawerNews] + '</button></div>' + body + '</article>';
   }
   function openNewsDesk(section) {
     drawerAI = false;
@@ -5700,6 +5724,13 @@
         paintDrawerContent();
         $("mic").focus({ preventScroll: true });
       }
+      if (act === "news-like" && drawerNews) {
+        var preferences = newsLikes();
+        preferences[drawerNews] = !preferences[drawerNews];
+        localStorage.setItem("sn:news-likes:" + (checkoutAccount() || "guest"), JSON.stringify(preferences));
+        newsRefresh = 0;
+        paintDrawerContent();
+      }
       if (act === "news-desk") openNewsDesk(id);
       if (act === "news-desk-close") {
         drawerNews = "";
@@ -6076,7 +6107,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4458 = true;
+    window.__SN_4459 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },

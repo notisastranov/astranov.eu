@@ -4,13 +4,13 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4458"/>
+<meta name="astranov-build" content="4459"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
-<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4458"/>
+<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4459"/>
 <style>
 :root{
   --bg:#02040a; --fg:#e8fbff; --muted:#8ec8d8; --accent:#4df0ff;
@@ -407,7 +407,8 @@ textarea.field,#sn-support-matter{min-height:88px}
 .news-tile img + span::before{content:"▶ ";color:#8af4ff}
 .news-pin.radar-hit .news-line{background:#aaffc1;box-shadow:0 0 6px #7dff9a}
 .news-pin.radar-hit .news-tile{border-color:#aaffc1;box-shadow:0 0 8px #7dff9a}
-#sn-news-desk-open{position:absolute;right:var(--safe-r);top:calc(var(--safe-t) + var(--top-row) + var(--ctrl) + 16px);pointer-events:auto;margin:0}
+#sn-news #sn-news-desk-open{width:var(--ctrl);height:var(--ctrl);min-height:0;padding:0;border-radius:10px;font-size:18px;display:grid;place-items:center;position:absolute;right:var(--safe-r);top:calc(var(--safe-t) + var(--top-row) + var(--ctrl) + 16px);pointer-events:auto;margin:0}
+.news-tile .moving-preview{position:absolute;pointer-events:none;border:0;width:240px;height:200px;transform:scale(.13);transform-origin:top left;left:3px;top:5px}
 .news-desk-tabs{display:flex;flex-wrap:wrap;gap:4px;padding:0 8px}
 .news-desk-tabs .sheet-go[aria-pressed="true"]{background:#4df0ff;color:#041018}
 .news-desk-clip{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(126,233,255,.23);color:#e8fbff;text-decoration:none;font:600 13px/1.25 system-ui}
@@ -428,7 +429,6 @@ textarea.field,#sn-support-matter{min-height:88px}
 #sn-news-status{margin:2px 0;font-size:11px}
 #sn-news-status:empty{display:none}
 #sn-news .sheet-go,#sn-news .sheet-x{min-height:24px;padding:2px 6px;font-size:10px}
-#sn-news-empty{position:absolute;right:var(--safe-r);bottom:calc(var(--drawer-h) + 53px);background:#040e1c;padding:4px 7px;border-radius:5px;font-size:11px}
 .drawer-profile{width:min(100%,640px);margin:auto;padding-bottom:10px}
 .profile-cover{position:relative;min-height:132px;border-radius:11px;overflow:hidden;background:linear-gradient(125deg,#10264b,#084253,#040e1c);display:flex;align-items:flex-end}
 .profile-cover[data-role="Driver"]{background:linear-gradient(125deg,#10264b,#2a316d,#040e1c)}
@@ -518,9 +518,8 @@ textarea.field,#sn-support-matter{min-height:88px}
   <label>AI helper<input name="helper" type="range" min="0" max="100"></label>
 </dialog>
 <aside id="sn-news" aria-label="Video news" hidden>
-  <button type="button" class="sheet-go" id="sn-news-desk-open" data-act="news-desk">News</button>
+  <button type="button" class="sheet-go" id="sn-news-desk-open" data-act="news-desk" aria-label="News" title="News">📰</button>
   <div id="sn-news-pins"></div>
-  <p id="sn-news-empty" class="note" hidden>News unavailable. Retrying shortly.</p>
   <section id="sn-news-player" aria-labelledby="sn-news-title" hidden>
     <header><b id="sn-news-title"></b><button id="sn-news-close" class="sheet-x" type="button" aria-label="Close news preview">×</button></header>
     <div id="sn-news-preview"></div>
@@ -573,10 +572,10 @@ textarea.field,#sn-support-matter{min-height:88px}
 <div id="toast" role="status"></div>
 <div id="line" role="status"></div>
 
-<script src="/js/vendor/leaflet.js?v=4458"></script>
-<script src="/js/spacenet/partners/types.js?v=4458"></script>
-<script src="/js/spacenet/partners/client.js?v=4458"></script>
-<script src="/js/spacenet/app.js?v=4458"></script>
-<script src="/js/spacenet/auth.js?v=4458"></script>
+<script src="/js/vendor/leaflet.js?v=4459"></script>
+<script src="/js/spacenet/partners/types.js?v=4459"></script>
+<script src="/js/spacenet/partners/client.js?v=4459"></script>
+<script src="/js/spacenet/app.js?v=4459"></script>
+<script src="/js/spacenet/auth.js?v=4459"></script>
 </body>
 </html>
