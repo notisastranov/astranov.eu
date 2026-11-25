@@ -1,5 +1,5 @@
 /*
- * SpaceNet 4472
+ * SpaceNet 4473
  *
  * Astranov Script is the project's name for this stack:
  * - JavaScript for the SpaceNet browser app and Node.js API handlers.
@@ -11,7 +11,7 @@
  */
 (function () {
   "use strict";
-  var VER = "4472";
+  var VER = "4473";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -3600,6 +3600,7 @@
       var response = await fetch("/api/test-checkout", {
         method: body ? "POST" : "GET",
         headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+        signal:AbortSignal.timeout(12000),
         body: body ? JSON.stringify(body) : undefined
       });
       var result = await response.json();
@@ -3836,17 +3837,20 @@
       var alert = form.querySelector('[role="alert"]');
       var button = form.querySelector('button:not([type])');
       var lines = vendorMenu(shop).filter(function (item) { return cartQty(item.i) > 0; });
-      if (testOrder || pendingOffer || testSubmitting || button.disabled) {
-        alert.textContent = "Finish or dismiss the current offer first.";
+      if (testSubmitting || button.disabled) {
+        orderGuidance("Your order is already being submitted.");
+        alert.textContent = "Your order is already being submitted.";
         return;
       }
       if (!lines.length || lines.some(function (item) { return !itemAvailable(item); })) {
+        orderGuidance("Check item availability in your cart.");
         alert.textContent = "Check the availability of the items in your cart.";
         return;
       }
       var destinations = checkoutDeliveries(clients, {});
       if (!destinations.length) return;
       if (lines.some(function (item) { return cartQty(item.i) * destinations.length > item.quantity && item.limited; })) {
+        orderGuidance("Reduce the item quantity or choose fewer delivery stops.");
         alert.textContent = "There is insufficient stock for all selected addresses.";
         return;
       }
@@ -3869,7 +3873,7 @@
       $("sn-checkout-client").disabled = true;
       testSubmitting = true;
       alert.textContent = "";
-      await refreshDispatch();
+      orderGuidance("Sending your delivery request…");
       var result = await dispatchRequest("create",{orders:orders});
       button.disabled = false;
       form.querySelector("fieldset").disabled = false;
@@ -3877,7 +3881,8 @@
       if (!result.ok) {
         alert.textContent = result.error === "insufficient_test_credit" ? "Not enough test credit for this order." :
           result.error === "auth_required" || result.error === "auth_changed" ? "Sign in again to use test credit." :
-          "Order confirmation unavailable. Retry to check the same order.";
+          "Dispatch could not confirm receipt. Check your connection and retry the same order.";
+        orderGuidance(alert.textContent);
         return;
       }
       try { sessionStorage.removeItem("sn:test-submit"); } catch (err) {}
@@ -3885,9 +3890,11 @@
       closeSheet();
       if (!result.assignment) {
         var pending = (result.checkout || []).filter(row=>orders.some(order=>order.order_id===row.id));
+        orderGuidance(pending.some(row=>row.state==="offered") ? "Order sent. A nearby driver has 13 seconds to respond." : pending.some(row=>row.state==="waiting") ? waitingGuidance() : "Order submitted. Checking driver availability.");
         var controls = pending.map(row => row.state==="waiting" ? '<button class="sheet-go" data-act="dispatch-pickup" data-id="'+escHtml(row.id)+'">Choose vendor pickup · '+escHtml(row.vendor.name)+'</button>' : '').join(" ");
         var admin = SNAuth.user()?.roles?.some(role=>["admin","super_admin","owner"].includes(role));
         showDrawerPlacement("Delivery requested", '<p>'+(pending.some(row=>row.state==="offered") ? 'A nearby driver has received the offer.' : 'Looking for an available driver.')+'</p>'+controls+
+          (controls && !SNAuth.activeRoles().driver ? '<button class="sheet-go" data-act="enable-delivery">Enable my delivery driver role</button>' : '') +
           (admin && controls ? '<button class="sheet-go" data-act="checkout-driver">Add driver at my location</button>' : ''));
       }
       await displayDispatch(result);
@@ -4002,11 +4009,13 @@
     var waiting = (data.checkout || []).find(row => row.state === "accepted");
     if (waiting) {
       var settled = await dispatchRequest("settle",{id:waiting.id});
-      if (settled.error) { say("Order payment unavailable: " + settled.error); return; }
+      if (settled.error) { orderGuidance(settled.error==="insufficient_test_credit"?"Payment failed. Check your test credit before placing another order.":"Could not confirm payment. Check your connection and order status."); return; }
+      orderGuidance("Delivery accepted. Your order is confirmed.");
       assignment = settled.assignment;
     }
     if (assignment) {
       var key = assignment.id + assignment.state;
+      orderGuidance("");
       if (dispatchView === key) return;
       var payload = assignment.payload;
       var job = {id:assignment.id,shared:true,vendor:payload.vendor,drop:payload.drop,
@@ -4028,11 +4037,22 @@
     var pickup=(data.checkout || []).find(row=>row.state==="pickup");
     if (pickup && pickup.id !== dispatchPickup) {
       dispatchPickup=pickup.id;
+      orderGuidance("No driver accepted. Confirm pickup from the vendor in the drawer.");
       showDrawerPlacement("Pickup checkout",'<p>No available driver. Delivery was canceled.</p><p>'+escHtml(pickup.vendor.name)+' · '+escHtml(pickup.items.map(row=>row.qty+' × '+row.name).join(", "))+'</p><button class="sheet-go" data-act="dispatch-pickup" data-id="'+escHtml(pickup.id)+'">Confirm pickup from vendor</button>');
     }
   }
-  function offersArmed() {
-    try { return localStorage.getItem("sn:offers") === "1"; } catch (e) { return false; }
+  var powerOn=false;
+  function offersArmed() { return powerOn; }
+  function orderGuidance(message) {
+    $("sn-order-status").textContent=message;
+    $("sn-order-guidance").hidden=!message;
+  }
+  function waitingGuidance() {
+    var steps=[];
+    if (!window.SNAuth?.activeRoles().driver) steps.push("enable Delivery driver in your user menu");
+    if (!driverPosition()) steps.push("choose your driver pin or allow GPS");
+    if (!offersArmed()) steps.push("hold Power for three seconds");
+    return "No driver is available yet. " + (steps.length ? "To receive this order yourself, "+steps.join(", ")+". " : "")+"You can also choose pickup in the drawer.";
   }
   function liveReceivers(role) {
     var rows = loadActors().filter(function (a) {
@@ -4273,7 +4293,7 @@
         drops:destinations.map(entry=>({name:entry.pin.name,lat:entry.pin.lat,lng:entry.pin.lng}))};
       request.request_id = testOrderKey(request);
       var result = await listingAction(request);
-      if (!result?.ok) { button.disabled=false; $("sn-checkout-client").disabled=false; $("sn-cart-total").textContent="Order request unavailable. Retry to confirm."; return; }
+      if (!result?.ok) { orderGuidance("Vendor order could not be confirmed. Check your connection and retry."); button.disabled=false; $("sn-checkout-client").disabled=false; $("sn-cart-total").textContent="Order request unavailable. Retry to confirm."; return; }
       cart.items={};
       sessionStorage.removeItem("sn:test-submit");
       openSheet("Order requested",'<p>Awaiting vendor confirmation. No payment collected.</p>');
@@ -5332,6 +5352,7 @@
     var power = $("sn-power");
     if (!power || power.__sn) return;
     power.__sn = true;
+    $("sn-guidance-close").onclick=()=>orderGuidance("");
     var indicator = $("sn-power-count");
     var pointer = null, keyboard = null, timer = 0, started = 0;
     function paint() {
@@ -5358,7 +5379,7 @@
       }
       cancel();
       var on = !offersArmed();
-      try { localStorage.setItem("sn:offers", on ? "1" : "0"); } catch (e) { return; }
+      powerOn=on;
       paint();
       refreshDispatch();
       if (on && testOrder && !testOrder.accepted && !pendingOffer) showTestOffer(testOrder, testOrder.drivers[0]);
@@ -6668,7 +6689,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4472 = true;
+    window.__SN_4473 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
