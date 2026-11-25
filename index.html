@@ -4,13 +4,13 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4460"/>
+<meta name="astranov-build" content="4461"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
-<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4460"/>
+<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4461"/>
 <style>
 :root{
   --bg:#02040a; --fg:#e8fbff; --muted:#8ec8d8; --accent:#4df0ff;
@@ -419,7 +419,7 @@ textarea.field,#sn-support-matter{min-height:88px}
 .news-tile .moving-preview{position:absolute;pointer-events:none;border:0;width:240px;height:200px;transform:scale(.13);transform-origin:top left;left:3px;top:5px}
 .news-desk-tabs{display:flex;flex-wrap:wrap;gap:4px;padding:0 8px}
 .news-desk-tabs .sheet-go[aria-pressed="true"]{background:#4df0ff;color:#041018}
-.news-desk-clip{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(126,233,255,.23);color:#e8fbff;text-decoration:none;font:600 13px/1.25 system-ui}
+.news-desk-clip{width:100%;text-align:left;background:transparent;border:0;cursor:pointer;display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(126,233,255,.23);color:#e8fbff;text-decoration:none;font:600 13px/1.25 system-ui}
 .news-desk-clip img{width:68px;height:44px;object-fit:cover;border-radius:6px}
 .news-desk-clip small,.market-row small{display:block;color:#9ad7e8;font:500 11px system-ui;margin-top:2px}
 .market-row{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid rgba(126,233,255,.18);font:600 13px system-ui}
@@ -427,13 +427,11 @@ textarea.field,#sn-support-matter{min-height:88px}
 .fanes-feature{margin:8px;overflow:hidden;border:1px solid rgba(126,233,255,.28);border-radius:10px}
 .fanes-feature img{display:block;width:100%;max-height:150px;object-fit:cover}
 .fanes-feature>div{padding:8px}
-#sn-news-player{
-  position:absolute;left:0;top:0;pointer-events:auto;width:min(238px,calc(100vw - 16px));box-sizing:border-box;
-  padding:5px;border:1px solid rgba(77,240,255,.65);border-radius:9px;background:#040e1c;
-}
+#sn-news-player{flex:1;min-height:0;overflow:auto;width:min(100%,820px);margin:auto;padding:4px 10px;box-sizing:border-box}
+#drawer.playing-news #sheet,#drawer.playing-news #sn-drawer-cart,#drawer:not(.open) #sn-news-player{display:none}
 #sn-news-player header{display:flex;align-items:center;gap:4px}
 #sn-news-title{flex:1;font:700 11px/1.2 system-ui;color:#e8fbff;max-height:28px;overflow:hidden}
-#sn-news-preview iframe{display:block;width:100%;height:200px;border:0}
+#sn-news-preview iframe{display:block;width:100%;height:auto;aspect-ratio:16/9;max-height:calc(var(--drawer-h) - 110px);border:0}
 #sn-news-status{margin:2px 0;font-size:11px}
 #sn-news-status:empty{display:none}
 #sn-news .sheet-go,#sn-news .sheet-x{min-height:24px;padding:2px 6px;font-size:10px}
@@ -528,12 +526,6 @@ textarea.field,#sn-support-matter{min-height:88px}
 <aside id="sn-news" aria-label="Video news" hidden>
   <button type="button" class="sheet-go" id="sn-news-desk-open" data-act="news-desk" aria-label="News" title="News">📰</button>
   <div id="sn-news-pins"></div>
-  <section id="sn-news-player" aria-labelledby="sn-news-title" hidden>
-    <header><b id="sn-news-title"></b><button id="sn-news-close" class="sheet-x" type="button" aria-label="Close news preview">×</button></header>
-    <div id="sn-news-preview"></div>
-    <p id="sn-news-status" class="note" role="status"></p>
-    <a id="sn-news-open" class="sheet-go" target="_blank" rel="noopener noreferrer">Open on YouTube</a>
-  </section>
 </aside>
 <button type="button" id="sn-support" aria-label="Support">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 13v-2a8 8 0 0 1 16 0v5a5 5 0 0 1-5 5h-3"/><rect x="3" y="11" width="4" height="6" rx="1"/><rect x="17" y="11" width="4" height="6" rx="1"/></svg>
@@ -570,6 +562,11 @@ textarea.field,#sn-support-matter{min-height:88px}
     <button type="button" id="dictate" aria-label="Dictate into search">🎤</button>
   </form>
   <span id="sn-ai-live" class="sr-only" role="status"></span>
+  <section id="sn-news-player" aria-labelledby="sn-news-title" hidden>
+    <header><b id="sn-news-title"></b><button id="sn-news-close" class="sheet-x" type="button" aria-label="Close news preview">×</button></header>
+    <div id="sn-news-preview"></div>
+    <p id="sn-news-status" class="note" role="status"></p>
+  </section>
   <div id="sheet"></div>
   <div id="sn-drawer-cart" hidden></div>
 </div>
@@ -580,10 +577,10 @@ textarea.field,#sn-support-matter{min-height:88px}
 <div id="toast" role="status"></div>
 <div id="line" role="status"></div>
 
-<script src="/js/vendor/leaflet.js?v=4460"></script>
-<script src="/js/spacenet/partners/types.js?v=4460"></script>
-<script src="/js/spacenet/partners/client.js?v=4460"></script>
-<script src="/js/spacenet/app.js?v=4460"></script>
-<script src="/js/spacenet/auth.js?v=4460"></script>
+<script src="/js/vendor/leaflet.js?v=4461"></script>
+<script src="/js/spacenet/partners/types.js?v=4461"></script>
+<script src="/js/spacenet/partners/client.js?v=4461"></script>
+<script src="/js/spacenet/app.js?v=4461"></script>
+<script src="/js/spacenet/auth.js?v=4461"></script>
 </body>
 </html>
