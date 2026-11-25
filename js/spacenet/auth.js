@@ -91,7 +91,7 @@
       }
     } catch (e) { saved = {}; }
     var activity = {};
-    ["client", "vendor", "driver", "ambassador", "partner", "owner"].forEach(function (role) {
+    ["client", "vendor", "driver", "ambassador", "partner", "admin", "owner"].forEach(function (role) {
       var granted = Array.isArray(account.roles) && account.roles.includes(role);
       if (["client", "vendor", "driver"].includes(role) || granted) {
         activity[role] = saved && typeof saved[role] === "boolean" ? saved[role] : granted || role === "client";
@@ -120,6 +120,8 @@
       address: u.user_metadata && u.user_metadata.address,
       cover: u.user_metadata && (u.user_metadata.cover_url || u.user_metadata.cover),
       phone: u.phone || (u.user_metadata && u.user_metadata.phone) || read("sn:phone", "") || "",
+      googleLinked: (u.identities || []).some(identity => identity.provider === "google") || u.app_metadata?.provider === "google",
+      phoneConfirmed: !!(u.phone && u.phone_confirmed_at),
       verified: !!(u.email_confirmed_at || (u.app_metadata && u.app_metadata.provider === "google") || (u.identities && u.identities.length))
     };
     write("sn:user", JSON.stringify(row));
@@ -253,11 +255,24 @@
       return { ok: false, error: (x.j && (x.j.error_description || x.j.msg || x.j.error)) || "Password was not set." };
     }).catch(function () { return { ok: false, error: "Password was not set." }; });
   }
+  async function verifyPhone(phone, code) {
+    if (!/^\+[1-9]\d{6,14}$/.test(phone)) return "Enter the number with its country code.";
+    if (!token()) return "Sign in first.";
+    try {
+      var response = await fetch(SB + "/auth/v1/" + (code ? "verify" : "user"), {
+        method: code ? "POST" : "PUT", headers: headers(),
+        body: JSON.stringify(code ? { phone: phone, token: code, type: "phone_change" } : { phone: phone, channel: "whatsapp" })
+      });
+      if (!response.ok) return code ? "Code could not be verified." : "WhatsApp verification unavailable.";
+      if (code) { await takeUser(token(), true); return "Verification submitted. Reopen your profile for the current status."; }
+      return "Enter the code sent through WhatsApp.";
+    } catch { return "Verification unavailable."; }
+  }
   function savePhone(raw) {
     var tel = String(raw || "").replace(/[^\d+ ]/g, "").trim();
     write("sn:phone", tel);
     var u = user() || {};
-    u.phone = tel; u.verified = false;
+    u.phone = tel; u.phoneConfirmed = false;
     write("sn:user", JSON.stringify(u));
     talk(tel ? "Phone stored. It does not verify this id." : "Phone cleared.");
     paintMe();
@@ -497,7 +512,7 @@
       applyReturn().then(function () { paintMe(); });
     });
   }
-  window.SNAuth = { activeRoles: activeRoles, toggleRole: toggleRole, google: google, mailIn: mailIn, mailUp: mailUp, password: password, setPassword: setPassword, remember: remember, session: session, youtube: youtube, yt: yt, x: x, out: out, savePhone: savePhone, user: user, token: token, boot: boot, paint: paintMe, open: openMe };
+  window.SNAuth = { verifyPhone: verifyPhone, activeRoles: activeRoles, toggleRole: toggleRole, google: google, mailIn: mailIn, mailUp: mailUp, password: password, setPassword: setPassword, remember: remember, session: session, youtube: youtube, yt: yt, x: x, out: out, savePhone: savePhone, user: user, token: token, boot: boot, paint: paintMe, open: openMe };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
 })();

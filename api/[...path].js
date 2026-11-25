@@ -1,5 +1,6 @@
 const handlers = {
   "ai": require("../lib/http/ai"),
+  "ai-settings": require("../lib/http/ai-settings"),
   "find": require("../lib/http/find"),
   "live": require("../lib/http/live"),
   "news": require("../lib/http/news"),

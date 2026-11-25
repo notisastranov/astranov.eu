@@ -1,14 +1,14 @@
-/* SpaceNet SW 4456 — one entity. Tree lock. */
-var CACHE = "sn-shell-4456";
-var VER = "4456";
+/* SpaceNet SW 4457 — one entity. Tree lock. */
+var CACHE = "sn-shell-4457";
+var VER = "4457";
 var SHELL = [
   "/",
   "/index.html",
-  "/js/spacenet/app.js?v=4456",
-  "/js/spacenet/land.pack?v=4456",
-  "/js/spacenet/assets/borders.pack?v=4456",
-  "/js/spacenet/assets/news-regions.json?v=4456",
-  "/js/spacenet/assets/country-outlines.json?v=4456",
+  "/js/spacenet/app.js?v=4457",
+  "/js/spacenet/land.pack?v=4457",
+  "/js/spacenet/assets/borders.pack?v=4457",
+  "/js/spacenet/assets/news-regions.json?v=4457",
+  "/js/spacenet/assets/country-outlines.json?v=4457",
   "/js/spacenet/assets/fanes-illustration.webp",
   "/js/spacenet/assets/products/pizza.webp",
   "/js/spacenet/assets/products/coffee.webp",
@@ -16,11 +16,11 @@ var SHELL = [
   "/js/spacenet/assets/vendors/pizzeria.webp",
   "/js/spacenet/assets/vendors/cafe.webp",
   "/js/spacenet/assets/vendors/taproom.webp",
-  "/js/spacenet/auth.js?v=4456",
-  "/js/spacenet/partners/types.js?v=4456",
-  "/js/spacenet/partners/client.js?v=4456",
-  "/js/vendor/leaflet.js?v=4456",
-  "/js/vendor/leaflet.css?v=4456",
+  "/js/spacenet/auth.js?v=4457",
+  "/js/spacenet/partners/types.js?v=4457",
+  "/js/spacenet/partners/client.js?v=4457",
+  "/js/vendor/leaflet.js?v=4457",
+  "/js/vendor/leaflet.css?v=4457",
   "/icon-192.png",
   "/manifest.webmanifest"
 ];
@@ -65,7 +65,7 @@ self.addEventListener("fetch", function (e) {
   if (url.origin !== location.origin) return;
   if (e.request.headers.has("Authorization") || e.request.cache === "no-store" || url.pathname === "/api/version") return;
   if (isOverlay(url.pathname)) {
-    e.respondWith(new Response("/* TREE LOCK 4456: overlay blocked */", { headers: { "Content-Type": "application/javascript" }, status: 200 }));
+    e.respondWith(new Response("/* TREE LOCK 4457: overlay blocked */", { headers: { "Content-Type": "application/javascript" }, status: 200 }));
     return;
   }
   if (e.request.mode === "navigate" || url.pathname === "/" || url.pathname === "/index.html") {

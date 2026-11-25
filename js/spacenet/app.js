@@ -1,7 +1,17 @@
-/* SpaceNet 4456 */
+/*
+ * SpaceNet 4457
+ *
+ * Astranov Script is the project's name for this stack:
+ * - JavaScript for the SpaceNet browser app and Node.js API handlers.
+ * - TypeScript for React apps and Supabase Edge Functions.
+ * - SQL and PL/pgSQL for PostgreSQL schemas, access rules, and transactions.
+ * - HTML and CSS for page structure and styling.
+ *
+ * Each file uses the standard syntax and tooling for its language.
+ */
 (function () {
   "use strict";
-  var VER = "4456";
+  var VER = "4457";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -1537,14 +1547,14 @@
     showDrawerPlacement("Place a test pin",
       '<p class="note">Saved on this device.</p>' +
       '<div class="sheet-actions">' +
-      '<button type="button" class="sheet-go primary" data-act="test-pin" data-role="vendor">Vendor</button>' +
-      '<button type="button" class="sheet-go primary" data-act="test-pin" data-role="driver">Driver</button>' +
-      '<button type="button" class="sheet-go primary" data-act="test-pin" data-role="client">Client</button>' +
+      '<button type="button" class="sheet-go primary" data-act="test-pin" data-role="vendor">🏪 Vendor</button>' +
+      '<button type="button" class="sheet-go primary" data-act="test-pin" data-role="driver">🚚 Driver</button>' +
+      '<button type="button" class="sheet-go primary" data-act="test-pin" data-role="client">🏠 Client</button>' +
       '</div><details class="listing-options"><summary>Listing and plot tools</summary>' +
-      '<button type="button" class="sheet-go" data-act="insert-actor" data-role="vendor">List vendor</button>' +
-      '<button type="button" class="sheet-go" data-act="insert-actor" data-role="delivery_services">List delivery service</button>' +
-      '<button type="button" class="sheet-go" data-act="insert-actor" data-role="driver">List driver</button>' +
-      '<button type="button" class="sheet-go" data-act="insert-actor" data-role="client">List client</button>' +
+      '<button type="button" class="sheet-go" data-act="insert-actor" data-role="vendor">🏪 List vendor</button>' +
+      '<button type="button" class="sheet-go" data-act="insert-actor" data-role="delivery_services">📦 List delivery service</button>' +
+      '<button type="button" class="sheet-go" data-act="insert-actor" data-role="driver">🚚 List driver</button>' +
+      '<button type="button" class="sheet-go" data-act="insert-actor" data-role="client">🏠 List client</button>' +
       '<button type="button" class="sheet-go" data-act="open-architect">Open Architect</button></details>');
   }
   var testRoles = { vendor: "Vendor", driver: "Driver", client: "Client" };
@@ -1558,6 +1568,7 @@
     pins.unshift({
       id: "test-" + crypto.randomUUID(),
       role: role, name: "Test " + testRoles[role].toLowerCase(),
+      menu: role === "vendor" ? starterProducts.map(function (item) { return Object.assign({}, item); }) : undefined,
       brandIndex: role === "vendor" ? pins.filter(function (pin) { return pin.role === "vendor"; }).length : undefined,
       lat: listPt.lat, lng: listPt.lng, test: true,
       accountId: role === "client" ? checkoutAccount() : undefined
@@ -1946,9 +1957,25 @@
   }
   function openOwnProfile() {
     var person = checkoutAccount() && SNAuth.user();
-    if (!person) return false;
+    if (!person) {
+      showDrawerProfile({id:"guest",self:true,role:"client",name:"Your account"},
+        '<button type="button" class="sheet-go primary" data-act="google-login">Sign in with Google</button>');
+      return true;
+    }
     var addresses = deliveryLocations().filter(function (pin) { return pin.savedDelivery || pin.accountId === checkoutAccount(); });
-    var menu = '<h3>Delivery addresses</h3><p class="note">' + escHtml(person.address || "") + '</p>' +
+    var prefs = routePreferences();
+    var providerSettings = (person.roles || []).some(role => ["owner","super_admin","admin"].includes(role))
+      ? '<h3>Free AI providers</h3><select id="sn-provider"><option value="groq">Groq</option><option value="gemini">Gemini</option><option value="openrouter">OpenRouter Free</option></select>' +
+        '<input class="field" id="sn-provider-key" type="password" autocomplete="off" placeholder="Provider API key">' +
+        '<button class="sheet-go" data-act="save-provider">Save provider key</button><p id="sn-provider-status" role="status"></p>' : "";
+    var menu = providerSettings + '<p>Google account · ' + (person.googleLinked ? 'Linked' : 'Unconfirmed') + '</p><p>Phone · ' +
+      (person.phoneConfirmed ? 'Verified' : 'Unconfirmed') + '</p>' +
+      '<label>Phone with country code<input id="sn-phone-number" type="tel" class="field" value="' + escHtml(person.phone || "") + '"></label>' +
+      '<label>WhatsApp verification code<input id="sn-phone-code" inputmode="numeric" class="field"></label>' +
+      '<button class="sheet-go" data-act="verify-phone">Send or confirm WhatsApp code</button><p id="sn-phone-result" role="status"></p>' + userRoleMarkup() + '<h3>Route preferences</h3>' + Object.keys(routeOptions).map(function (key) {
+      return '<button class="sheet-go" data-act="route-pref" data-id="' + key + '" aria-pressed="' + !!prefs[key] + '">' +
+        routeOptions[key] + ' · ' + (prefs[key] ? 'On' : 'Off') + '</button>';
+    }).join("") + '<button class="sheet-go" data-act="profile-transactions">Transactions</button><h3>Delivery addresses</h3><p class="note">' + escHtml(person.address || "") + '</p>' +
       addresses.map(function (pin) {
         return '<p><button type="button" class="sheet-go" data-act="profile-address" data-id="' +
           escHtml(pin.id) + '">' + escHtml(pin.name) + ' · Show on map</button></p>';
@@ -2798,7 +2825,7 @@
     startOfferCountdown(13, function () { declineOffer(job.id); });
   }
   function openOfferDrawer() {
-    setDrawerHeight(offerDrawerH());
+    setDrawerHeight(Math.round(window.innerHeight / 3));
   }
   function offerDrawerH() {
     return Math.max(collapsedDrawerH(), Math.min(maxDrawerH(), Math.round(window.innerHeight * (2 / 3))));
@@ -4055,6 +4082,28 @@
     }
     routeLayer = null;
   }
+  var routeOptions = { signals: "Avoid traffic lights", highways: "Avoid highways", major: "Avoid major streets" };
+  function routePreferences() {
+    try { return JSON.parse(localStorage.getItem("sn:routes:" + checkoutAccount()) || "{}") || {}; }
+    catch { return {}; }
+  }
+  async function preferredRoute(routes, prefs) {
+    if (routes.length < 2 || !Object.keys(routeOptions).some(key => prefs[key])) return routes[0];
+    var paths = routes.map(route => new Set(route.legs.flatMap(leg => leg.annotation?.nodes || [])));
+    var ids = Array.from(new Set(paths.flatMap(path => Array.from(path))));
+    if (!ids.length || ids.length > 12000) return routes[0];
+    var filters = [];
+    if (prefs.signals) filters.push('node.n[highway=traffic_signals];');
+    if (prefs.highways) filters.push('way(bn.n)[highway~"^(motorway|trunk)(_link)?$"];');
+    if (prefs.major) filters.push('way(bn.n)[highway~"^(primary|secondary)(_link)?$"];');
+    var query = '[out:json][timeout:6];node(id:' + ids.join(",") + ')->.n;(' + filters.join("") + ');out body;';
+    var data = await fetchJson("https://overpass-api.de/api/interpreter", { method: "POST",
+      body: new URLSearchParams({ data: query }), signal: AbortSignal.timeout(8000) });
+    if (!data || !Array.isArray(data.elements)) return routes[0];
+    var penalties = new Set(data.elements.flatMap(el => el.nodes || [el.id]));
+    var scores = paths.map(path => Array.from(path).filter(id => penalties.has(id)).length);
+    return routes[scores.indexOf(Math.min(...scores))];
+  }
   function drawRoute(from, to, driver) {
     if (!map || typeof L === "undefined") return;
     clearRoute();
@@ -4062,14 +4111,18 @@
     var revision = routeRevision;
     var stops = driver ? [driver, from, to] : [from, to];
     routeLayer = L.polyline(stops.map(function (p) { return [p.lat, p.lng]; }), {
-      color: "#4df0ff", weight: 4, opacity: 0.85, dashArray: "6 5"
+      className: "sn-route-line", color: "#79dfff", weight: 4, opacity: 0.95, dashArray: "6 5"
     }).addTo(map);
     fitOfferRoute();
     var coords = stops.map(function (p) { return p.lng + "," + p.lat; }).join(";");
     var url = "https://router.project-osrm.org/route/v1/driving/" + coords + "?overview=full&geometries=geojson";
-    fetchJson(url).then(function (j) {
+    var prefs = routePreferences();
+    if (Object.keys(routeOptions).some(key => prefs[key])) url += "&alternatives=true&annotations=nodes";
+    fetchJson(url).then(async function (j) {
       if (revision !== routeRevision) return;
-      var geo = j && j.routes && j.routes[0] && j.routes[0].geometry;
+      var best = j && j.routes && j.routes.length && await preferredRoute(j.routes, prefs);
+      if (revision !== routeRevision) return;
+      var geo = best && best.geometry;
       if (geo && geo.coordinates && geo.coordinates.length > 1) {
         routeLayer.setLatLngs(geo.coordinates.map(function (c) { return [c[1], c[0]]; }));
         routeLayer.setStyle({ dashArray: null });
@@ -4299,6 +4352,7 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         message: q,
+        free_only: true,
         history: conversation,
         here: {
           lat: here && here.lat,
@@ -5131,7 +5185,7 @@
     d.addEventListener("touchend", finishTouch);
     d.addEventListener("touchcancel", finishTouch);
     window.addEventListener("resize", function () {
-      if (pendingOffer || offerActiveId) setDrawerHeight(offerDrawerH());
+      if (pendingOffer || offerActiveId) setDrawerHeight(Math.round(window.innerHeight / 3));
       else setDrawerHeight(drawerH);
     });
   }
@@ -5278,37 +5332,34 @@
     client: "User", vendor: "Vendor", driver: "Delivery driver",
     ambassador: "Ambassador", partner: "Partner", owner: "Owner", admin: "Admin"
   };
-  function homeMarkup() {
-    var auth = window.SNAuth;
-    var account = checkoutAccount() && auth.user();
-    var assigned = account && Array.isArray(account.roles) ? account.roles : [];
-    var active = account && auth.activeRoles ? auth.activeRoles() : {};
-    var photo = account ? profileImage(account.photo) : "";
-    var roleList = ["client", "vendor", "driver", "ambassador", "partner", "owner"];
-    return '<article class="drawer-profile home-panel"><header class="home-title">' +
-      '<h2>SpaceNet Home</h2><button type="button" class="sheet-x" data-act="home-close" aria-label="Close Home">×</button></header>' +
-      '<div class="home-account"><div class="profile-avatar">' +
-      (photo ? '<img src="' + escHtml(photo) + '" alt="">' : '<span aria-hidden="true">' + (account ? "👤" : "◎") + '</span>') +
-      '</div><div><b>' + escHtml(account ? account.name || account.email : "Guest") + '</b>' +
-      (account ? '<p class="note">ID <span class="home-account-id">' + escHtml(account.id || "Unavailable") + '</span></p>' +
-        '<p class="note">Account roles · ' + escHtml(assigned.map(function (role) { return homeRoleLabels[role]; }).filter(Boolean).join(", ") || "User") + '</p>'
-        : '<button type="button" class="sheet-go" data-act="home-account">Sign in</button>') + '</div></div>' +
+  function userRoleMarkup() {
+    var account = SNAuth.user(), assigned = account.roles || [];
+    var active = SNAuth.activeRoles();
+    var roleList = ["client", "vendor", "driver", "ambassador", "partner", "admin", "owner"];
+    return '<p class="note">Account roles · ' + escHtml(assigned.join(", ") || "Client") + '</p>' +
       (account ? '<section class="profile-section"><h3>Role availability</h3><div class="home-roles">' + roleList.map(function (role) {
         var allowed = role === "client" || role === "vendor" || role === "driver" || assigned.includes(role);
         return '<button type="button" class="sheet-go" data-act="home-role" data-role="' + role + '" aria-pressed="' + !!active[role] + '"' +
           (allowed ? '' : ' disabled') + '><span>' + homeRoleLabels[role] + '</span><small>' +
           (allowed ? active[role] ? 'On' : 'Off' : 'Unassigned') + '</small></button>';
-      }).join("") + '</div></section>' : '') +
-      '<button type="button" class="sheet-go" data-act="news-desk" data-id="spacenet">SpaceNet videos &amp; social</button>' +
+      }).join("") + '</div></section>' : '');
+  }
+  var installEvent;
+  window.addEventListener("beforeinstallprompt", function (event) {
+    event.preventDefault();
+    installEvent = event;
+  });
+  function homeMarkup() {
+    return '<article class="drawer-profile home-panel"><header class="home-title">' +
+      '<h2>SpaceNet Home</h2><button type="button" class="sheet-x" data-act="home-close" aria-label="Close Home">×</button></header>' +
+      '<section class="profile-section"><h3>Installation</h3><button class="sheet-go" data-act="install-app">Install on computer or phone</button> ' +
+      '<a class="sheet-go" href="/" target="_blank" rel="noopener">Open web version</a></section>' +
       '<section class="profile-section"><h3>Version</h3>' +
       '<div class="home-build"><span>Loaded <b>' + escHtml(VER) + '</b></span>' +
       '<span>Latest <b>' + escHtml(homeVersion || (homeLoading ? 'Checking…' : 'Unavailable')) + '</b></span></div>' +
       '<button type="button" class="sheet-go primary" data-act="home-update">Force update</button>' +
       '<button type="button" class="sheet-go" data-act="home-clear-cache">Clear cache</button>' +
-      '<p class="note" role="status">' + escHtml(homeStatus) + '</p></section>' +
-      '<section class="profile-section"><h3>Account</h3>' +
-      (account ? '<button type="button" class="sheet-go" data-act="home-account">Manage account</button>' : '') +
-      '<button type="button" class="sheet-go" data-act="profile-transactions">Transactions</button></section></article>';
+      '<p class="note" role="status">' + escHtml(homeStatus) + '</p></section>'  + '</article>';
   }
   async function checkHomeVersion() {
     if (homeLoading) return;
@@ -5366,6 +5417,9 @@
     if (!mic || !inp || mic.__sn) return;
     mic.__sn = true;
     var recognition = null;
+    var voiceAI = false, dictating = false;
+    $("dictate").addEventListener("click", function () { dictating = true; mic.click(); dictating = false; });
+
     var errors = {
       "not-allowed": "Microphone access was denied. Allow access or type your question.",
       "audio-capture": "No microphone was detected. You can type your question.",
@@ -5387,7 +5441,8 @@
     }
     form.addEventListener("submit", cancelListening, true);
     mic.addEventListener("sn-cancel-listening", cancelListening);
-    mic.addEventListener("click", function () {
+    mic.addEventListener("click", function (event) {
+      if (!recognition) voiceAI = !dictating;
       if (recognition) {
         var current = recognition;
         updateAIStatus("Finishing transcription…");
@@ -5406,14 +5461,18 @@
       rec.continuous = false;
       mic.setAttribute("aria-pressed", "true");
       mic.textContent = "Stop";
-      showAI("Listening…");
+      if (voiceAI) showAI("Listening…");
+      else $("sn-ai-live").textContent = "Listening…";
       rec.onresult = function (event) {
         if (recognition !== rec) return;
         var result = event.results[event.resultIndex];
         var transcript = result && result[0] && result[0].transcript.trim();
         if (!transcript) return;
         inp.value = transcript;
-        if (result.isFinal && finish(rec)) talk(transcript, true);
+        if (result.isFinal && finish(rec)) {
+          if (voiceAI) talk(transcript, true);
+          else { updateAIStatus(""); inp.focus(); }
+        }
       };
       rec.onerror = function (event) {
         if (finish(rec)) {
@@ -5627,7 +5686,32 @@
       if (act === "home-account" && window.SNAuth && SNAuth.open) SNAuth.open();
       if (act === "home-role" && window.SNAuth && SNAuth.toggleRole) {
         SNAuth.toggleRole(t.getAttribute("data-role"));
-        paintDrawerContent();
+        openOwnProfile();
+      }
+      if (act === "route-pref" && checkoutAccount() && Object.hasOwn(routeOptions,id)) {
+        var prefs = routePreferences();
+        prefs[id] = !prefs[id];
+        localStorage.setItem("sn:routes:" + checkoutAccount(), JSON.stringify(prefs));
+        openOwnProfile();
+      }
+      if (act === "save-provider") {
+        var input = $("sn-provider-key"), result = $("sn-provider-status");
+        var credential = input.value.trim();
+        input.value = "";
+        fetchJson("/api/ai-settings", { method:"POST", headers:{ Authorization:"Bearer " + authToken(),"Content-Type":"application/json" },
+          body:JSON.stringify({provider:$("sn-provider").value,key:credential}) }).then(function (reply) {
+          result.textContent = reply && reply.ok ? "Provider key saved." : "Could not save provider key.";
+        });
+      }
+      if (act === "google-login" && window.SNAuth) SNAuth.google();
+      if (act === "verify-phone") {
+        var phone = $("sn-phone-number").value.trim(), code = $("sn-phone-code").value.trim();
+        var status = $("sn-phone-result");
+        SNAuth.verifyPhone(phone, code).then(function (message) { status.textContent = message; });
+      }
+      if (act === "install-app") {
+        if (installEvent) { installEvent.prompt(); installEvent = null; }
+        else { homeStatus = "Use your browser menu to install SpaceNet or add it to your home screen."; paintDrawerContent(); }
       }
       if (act === "home-update") hardReset();
       if (act === "home-clear-cache") {
@@ -5931,7 +6015,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4456 = true;
+    window.__SN_4457 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
