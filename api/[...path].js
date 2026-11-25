@@ -3,6 +3,8 @@ const handlers = {
   "ai-settings": require("../lib/http/ai-settings"),
   "find": require("../lib/http/find"),
   "live": require("../lib/http/live"),
+  "nearby-vendors": require("../lib/http/nearby-vendors"),
+  "listing-action": require("../lib/http/listing-action"),
   "news": require("../lib/http/news"),
   "market-news": require("../lib/http/market-news"),
   "test-checkout": require("../lib/http/test-checkout"),

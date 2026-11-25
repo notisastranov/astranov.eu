@@ -365,29 +365,27 @@ serve(async (req) => {
     let upserted = 0
     let dbError: string | null = null
 
-    if (rows.length > 0 && sbUrl && sbKey) {
+    let published = rows
+    if (rows.length && sbUrl && sbKey) {
       const sb = createClient(sbUrl, sbKey)
-      const { error } = await sb.from('vendors').upsert(rows, { onConflict: 'osm_id', ignoreDuplicates: false })
-      if (error) dbError = error.message
-      else upserted = rows.length
+      const ids = rows.map(r => r.osm_id)
+      const { data: existing, error: readError } = await sb.from('vendors').select('osm_id').in('osm_id', ids)
+      if (readError) throw readError
+      const known = new Set((existing || []).map(r => r.osm_id))
+      const fresh = rows.filter(r => !known.has(r.osm_id)).map(r => ({ ...r, id: r.osm_id }))
+      if (fresh.length) {
+        const { error } = await sb.from('vendors').upsert(fresh, { onConflict: 'id', ignoreDuplicates: true })
+        if (error) dbError = error.message
+        else upserted = fresh.length
+      }
+      const { data, error } = await sb.from('vendors').select('id,osm_id,name,category,emoji,lat,lng,address,tags,items,is_active').in('osm_id', ids).eq('is_active',true)
+      if (error) throw error
+      published = data || []
     }
-
-    // Client-ready shape (stable local ids when DB not yet applied)
-    const vendors = rows.map((r) => ({
-      id: r.osm_id,
-      osm_id: r.osm_id,
-      name: r.name,
-      emoji: r.emoji,
-      category: r.category,
-      lat: r.lat,
-      lng: r.lng,
-      address: r.address,
-      tags: r.tags,
-      items: r.items || [],
-      delivery_enabled: r.delivery_enabled !== false,
-      is_active: true,
-      cover_url: r.tags?.cover_url || r.tags?.google_photo_url || null,
-      logo_url: r.tags?.profile_url || r.tags?.google_photo_url || null,
+    const vendors = published.map(r => ({
+      id:r.id || r.osm_id, name:r.name, category:r.category, emoji:r.emoji, lat:r.lat, lng:r.lng,
+      phone:r.address?.phone, website:r.address?.website, menu:r.items || [],
+      logo:r.tags?.profile_url, cover:r.tags?.cover_url
     }))
 
     return new Response(

@@ -1,5 +1,5 @@
 /*
- * SpaceNet 4457
+ * SpaceNet 4458
  *
  * Astranov Script is the project's name for this stack:
  * - JavaScript for the SpaceNet browser app and Node.js API handlers.
@@ -11,7 +11,7 @@
  */
 (function () {
   "use strict";
-  var VER = "4457";
+  var VER = "4458";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -122,13 +122,6 @@
   var globeDaySeconds = matchMedia("(prefers-reduced-motion: reduce)").matches ? SIDEREAL_DAY_S : 300;
   var listPt = null;
   var listAlt = "street";
-  var FAMOUS_VENDORS = [
-    { name: "Pizzarium Analipsi", lat: 36.4251, lng: 28.2111, kind: "vendor", phone: "+302241601878", address: "Athinas Tarsouli 1, Analipsi, Rhodes", famous: true, menu: [{ name: "Margherita", price: "12", note: "Wood oven", hours: "12:00–23:00", stock: "in" }, { name: "Diavola", price: "14", note: "Spicy", hours: "12:00–23:00", stock: "in" }] },
-    { name: "Marmarades Olive Grove", lat: 36.38752, lng: 28.2225, kind: "vendor", famous: true },
-    { name: "Lindos Bay Market", lat: 36.0917, lng: 28.0856, kind: "vendor", famous: true },
-    { name: "Rhodes Old Town Bakery", lat: 36.4432, lng: 28.2275, kind: "vendor", famous: true },
-    { name: "Ialysos Pharmacy", lat: 36.4135, lng: 28.1558, kind: "vendor", famous: true }
-  ];
   function loadActors() {
     try {
       var rows = JSON.parse(localStorage.getItem("sn:actors") || "[]") || [];
@@ -1386,6 +1379,34 @@
       locate(function (pt) { land(pt, true); }); /* true = fly + open street map */
     }, true);
   }
+  var discoveredArea = "", discoveryUntil = 0;
+  function discoverNearby(pt) {
+    var area = pt.lat.toFixed(2) + "," + pt.lng.toFixed(2);
+    if (area === discoveredArea && Date.now() < discoveryUntil) return;
+    discoveredArea = area;
+    discoveryUntil = Date.now() + 300000;
+    fetchJson("/api/nearby-vendors?lat=" + pt.lat.toFixed(2) + "&lng=" + pt.lng.toFixed(2)).then(function(data) {
+      if (area !== discoveredArea) return;
+      if (!data || !data.vendors?.length) { discoveryUntil = Date.now() + 30000; return; }
+      shops = uniqPlaces(data.vendors.map(row => Object.assign(row,{discovered:true})).concat(shops.filter(row => !row.discovered)));
+      if (cityOn) paintShopsOnMap();
+      var listing = new URLSearchParams(location.search).get("listing");
+      var selected = listing && shops.find(shop=>shop.id===listing);
+      if (selected && !drawerProfile) openVendor(selected);
+    });
+  }
+  var streetLayer;
+  function setStreetLayer() {
+    if (!map) return;
+    var carto = localStorage.getItem("sn:basemap") === "carto";
+    var dark = localStorage.getItem("sn:dark-map") === "1";
+    $("city").classList.toggle("dark-basemap",dark && !carto);
+    if (streetLayer) map.removeLayer(streetLayer);
+    streetLayer = L.tileLayer(carto ? "https://{s}.basemaps.cartocdn.com/" + (dark ? "dark_all" : "light_all") + "/{z}/{x}/{y}.png" :
+      "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom:19,minZoom:12,
+      attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' +
+        (carto ? ' © <a href="https://carto.com/attributions">CARTO</a>' : '')}).addTo(map);
+  }
   function openCity(pt) {
     if (!pt || !isFinite(pt.lat) || !isFinite(pt.lng)) return;
     aim = { lat: pt.lat, lng: pt.lng };
@@ -1399,11 +1420,12 @@
     fly = null;
     el.classList.add("on");
     if (!map) {
-      map = L.map(el, { zoomControl: false, attributionControl: false, minZoom: 12, maxZoom: 19, scrollWheelZoom: true }).setView([pt.lat, pt.lng], 16);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, minZoom: 12 }).addTo(map);
+      map = L.map(el, { zoomControl: false, attributionControl: true, minZoom: 12, maxZoom: 19, scrollWheelZoom: true }).setView([pt.lat, pt.lng], 16);
+      setStreetLayer();
       map.on("click", function (e) {
         if (pickingDestination) nameDestination(e.latlng);
       });
+      map.on("moveend", function () { if (cityOn) discoverNearby(map.getCenter()); });
       map.on("zoomend", function () {
         if (cityOn && !fittingRoute && map.getZoom() <= map.getMinZoom()) closeCity();
       });
@@ -1454,6 +1476,7 @@
     }
     paintShopsOnMap();
     paintActorsOnMap();
+    discoverNearby(pt);
     paintCityRadar();
     paintViewBtn();
     setTimeout(function () { if (map) map.invalidateSize(); paintCityRadar(); }, 80);
@@ -1544,18 +1567,12 @@
     listPt = { lat: pt.lat, lng: pt.lng };
     listAlt = altitudeFromDist(cam.dist);
     if (cityOn) markPlot(listPt);
-    showDrawerPlacement("Place a test pin",
-      '<p class="note">Saved on this device.</p>' +
-      '<div class="sheet-actions">' +
-      '<button type="button" class="sheet-go primary" data-act="test-pin" data-role="vendor">🏪 Vendor</button>' +
-      '<button type="button" class="sheet-go primary" data-act="test-pin" data-role="driver">🚚 Driver</button>' +
-      '<button type="button" class="sheet-go primary" data-act="test-pin" data-role="client">🏠 Client</button>' +
-      '</div><details class="listing-options"><summary>Listing and plot tools</summary>' +
+    showDrawerPlacement("List on SpaceNet",
       '<button type="button" class="sheet-go" data-act="insert-actor" data-role="vendor">🏪 List vendor</button>' +
       '<button type="button" class="sheet-go" data-act="insert-actor" data-role="delivery_services">📦 List delivery service</button>' +
       '<button type="button" class="sheet-go" data-act="insert-actor" data-role="driver">🚚 List driver</button>' +
       '<button type="button" class="sheet-go" data-act="insert-actor" data-role="client">🏠 List client</button>' +
-      '<button type="button" class="sheet-go" data-act="open-architect">Open Architect</button></details>');
+      '<button type="button" class="sheet-go" data-act="open-architect">Open Architect</button>');
   }
   var testRoles = { vendor: "Vendor", driver: "Driver", client: "Client" };
   var actorIcons = { vendor: "🏪", delivery_services: "📦", driver: "🚚", client: "🏠" };
@@ -1577,10 +1594,7 @@
     dismissDrawerPlacement();
   }
   function loadTestPins() {
-    try {
-      var pins = JSON.parse(localStorage.getItem("sn:test-pins"));
-      return Array.isArray(pins) ? pins : [];
-    } catch (e) { return []; }
+    return [];
   }
   function updateTestPins(pins, keepSheet) {
     try {
@@ -1671,7 +1685,7 @@
           ? [{ name: "City delivery", price: "3", note: "Overflow / zone rate", hours: "24/7", stock: "in" }]
           : undefined
       });
-      shops = uniqPlaces(shops.concat(FAMOUS_VENDORS));
+      shops = uniqPlaces(shops);
     }
     persistListing({ id: actor.id, kind: role, name: actor.name, lat: actor.lat, lng: actor.lng, gbp: actor.gbp, vendor_type: actor.vendor_type });
     paintActorsOnMap();
@@ -1744,7 +1758,7 @@
       drop = { lat: actor.lat, lng: actor.lng, name: actor.name };
       if (!vendor && shops[0]) vendor = shops[0];
       if (!vendor) {
-        vendor = FAMOUS_VENDORS[0];
+        return;
       }
       showQuote();
       say("Transaction · client drop set. Confirm quote to walk the flow.");
@@ -2017,6 +2031,7 @@
       (actor.self ? '<section class="profile-section">' + profile.menu + '</section></article>' : '') +
       (actor.self ? '' :
        '<section class="profile-section"><h3>Menu</h3>' +
+        (stats && actor.discovered ? '<button class="sheet-go" data-act="review-listing">Review listing submissions</button>' : '') +
         (stats && stats.can_manage_menu ? '<button type="button" class="sheet-go" data-act="import-test-menu">Import menu</button>' : '') +
         profile.menu + '</section>'  +
       '<section class="profile-section"><h3>Posts</h3>' +
@@ -2109,9 +2124,7 @@
     showDrawerProfile(a, menu + (a.test ? '<button type="button" class="sheet-go" data-act="edit-test-vendor">Edit profile</button>' + removeTestPinButton(a) : ""));
   }
   function findActor(id) {
-    var rows = loadActors().concat(FAMOUS_VENDORS.map(function (f) {
-      return { id: "fam-" + f.name, role: "vendor", kind: "vendor", name: f.name, lat: f.lat, lng: f.lng, famous: true, verified: true, phone: f.phone, menu: [{ name: "Order", price: "12", note: "Famous" }] };
-    }));
+    var rows = loadActors();
     return rows.filter(function (a) { return String(a.id) === String(id); })[0] || null;
   }
   function goCityFromGlobe() {
@@ -3076,12 +3089,12 @@
     if (!map || typeof L === "undefined") return;
     shopMarks.forEach(function (m) { try { map.removeLayer(m); } catch (e) {} });
     shopMarks = [];
-    var list = uniqPlaces((shops || []).concat(FAMOUS_VENDORS));
+    var list = uniqPlaces(shops || []);
     list.forEach(function (s) {
       if (!isFinite(s.lat) || !isFinite(s.lng)) return;
       var mark = L.marker([s.lat, s.lng], {
         vendorId: s.id, title: s.name || "Vendor",
-        icon: L.divIcon({ className: "actor-pin", html: vendorLogo(s), iconSize: [32, 32], iconAnchor: [16, 16] })
+        icon: L.divIcon({ className: "actor-pin", html: s.logo ? vendorLogo(s) : escHtml(s.emoji || "🛰️"), iconSize: [32, 32], iconAnchor: [16, 16] })
       });
       mark.bindTooltip(function () {
         var name = document.createElement("span");
@@ -3131,7 +3144,7 @@
   }
   function suggestLocal(q) {
     q = String(q || "").trim().toLowerCase();
-    var pool = FAMOUS_VENDORS.concat(loadActors()).concat(shops || []);
+    var pool = loadActors().concat(shops || []);
     if (!q) return pool.slice(0, 8);
     return pool.filter(function (s) {
       return s && String(s.name || "").toLowerCase().indexOf(q) >= 0;
@@ -3152,7 +3165,7 @@
   function hunt(q) {
     q = String(q || "").trim();
     if (!q) {
-      shops = uniqPlaces(FAMOUS_VENDORS.concat(shops || []));
+      shops = uniqPlaces(shops || []);
       if (shops.length) { if (!cityOn) openCity(shops[0]); paintShopsOnMap(); showFound(); }
       return;
     }
@@ -3164,7 +3177,7 @@
     var go = function () {
       /* Lean: one server path (/api/find). No browser Nominatim/Overpass (CORS + triple work). */
       huntApi(q).then(function (rows) {
-        shops = uniqPlaces(local.concat(rows || [], FAMOUS_VENDORS));
+        shops = uniqPlaces(local.concat(rows || []));
         showFound();
       });
     };
@@ -3193,15 +3206,11 @@
     }
   }
   function vendorMenu(s) {
-    var base = s && (s.test || s.registered) ? (s.menu || []) : (s && s.menu && s.menu.length) ? s.menu : [
-      { name: "House special", price: "12", note: "Photo · fresh", hours: "11:00–22:00", stock: "in", photo: "" },
-      { name: "Daily tray", price: "8", note: "Limited", hours: "12:00–20:00", stock: "in", photo: "" },
-      { name: "Drink", price: "3", note: "Cold", hours: "all day", stock: "in", photo: "" }
-    ];
+    var base = s && Array.isArray(s.menu) ? s.menu : [];
     return base.map(function (m, i) {
       return {
         i: i,
-        name: m.name || ("Item " + (i + 1)),
+        source: m.source, name: m.name || ("Item " + (i + 1)),
         price: Number(m.price) || 0,
         note: m.note || m.desc || "",
         hours: m.hours || m.availability || "Today",
@@ -3231,9 +3240,9 @@
     if (s.test) { renderVendorShop(); return; }
     if (map && isFinite(s.lat)) map.setView([s.lat, s.lng], 17);
     renderVendorShop();
-    if (!s.registered && !s.menu) fetchJson("/api/vendor-menu?vendor=" + encodeURIComponent(profileId(s))).then(function (data) {
+    if (!s.registered && (!s.menu?.length || s.discovered)) fetchJson("/api/vendor-menu?vendor=" + encodeURIComponent(profileId(s))).then(function (data) {
       if (!data || !data.registered || vendor !== s || !drawerProfile || drawerProfile.actor !== s) return;
-      if (Object.keys(cart.items).length && !s.menu) {
+      if (Object.keys(cart.items).length && JSON.stringify(s.menu) !== JSON.stringify(data.items)) {
         cart.items = {};
         say("The vendor menu has loaded. Add items from the updated menu.");
       }
@@ -3771,6 +3780,9 @@
       '<button type="button" class="sheet-go" data-act="edit-test-vendor">Edit vendor</button>' +
       '<button type="button" class="sheet-go" data-act="import-test-menu">Import menu</button>' +
       removeTestPinButton(vendor) + '</div>' : '';
+    if (vendor.discovered) controls += '<button class="sheet-go" data-act="invite-listing">✉️ Invite vendor</button> ' +
+      '<button class="sheet-go" data-act="claim-listing">Request ownership review</button> ' +
+      '<button class="sheet-go" data-act="suggest-item">Suggest menu item</button>';
     var rows = vendorMenu(vendor).map(function (item) {
       var photo = profileImage(item.photo);
       var available = itemAvailable(item);
@@ -3780,6 +3792,7 @@
         (photo ? '<img width="58" height="58" src="' + escHtml(photo) + '" alt="" loading="lazy">' : '') +
         '<div class="profile-item-copy"><b>' + escHtml(item.name) + '</b><p class="note">' + escHtml(details.join(" · ")) + '</p>' +
         (item.note ? '<p class="note">' + escHtml(item.note) + '</p>' : '') +
+        (item.source && /^https:\/\//.test(item.source) ? '<a href="' + escHtml(item.source) + '" target="_blank" rel="noopener">Published menu</a>' : '') +
         '</div>' + menuQuantity(item, available) + '</article>';
     }).join("");
     showDrawerProfile(vendor, controls + (rows || '<p class="note">No menu items yet.</p>'));
@@ -3802,7 +3815,7 @@
       '<textarea id="sn-order-comment" class="field" placeholder="Order comments">' + escHtml(cart.comment || "") + '</textarea>' +
       '<div class="checkout test-form">' + deliveryPicker(clients) +
       '<p class="note" id="sn-cart-total"></p>' +
-      '<button type="button" id="sn-pay-cart" class="sheet-go primary" data-act="pay-avc" disabled>Pay and place order</button>' +
+      '<button type="button" id="sn-pay-cart" class="sheet-go primary" data-act="pay-avc" disabled>' + (vendor.discovered ? "Request order · pay after confirmation" : "Pay and place order") + '</button>' +
       '<button type="button" class="sheet-go" data-act="back-vendor">Back to menu</button></div>');
     function update() {
       var destinations = checkoutDeliveries(clients, quoteOpts);
@@ -3822,12 +3835,6 @@
     var rows = loadActors().filter(function (a) {
       return a && a.role === role && a.verified;
     });
-    /* Famous vendors always eligible as demo receivers when power is on for this device */
-    if (role === "vendor") {
-      FAMOUS_VENDORS.forEach(function (f) {
-        rows.push({ id: "fam-" + f.name, role: "vendor", name: f.name, lat: f.lat, lng: f.lng, verified: true, famous: true });
-      });
-    }
     return rows;
   }
   function routeOrderToLive(job) {
@@ -3987,7 +3994,10 @@
     say("Vendor confirmed · routed to " + (picks[0] ? picks[0].name : "drivers") + (job.route.pickReason ? " (" + job.route.pickReason + ")" : "") + ".");
   }
 
-  function payCartAvc() {
+  function listingAction(data) {
+    return fetchJson("/api/listing-action",{method:"POST",headers:{Authorization:"Bearer "+authToken(),"Content-Type":"application/json"},body:JSON.stringify(data)});
+  }
+  async function payCartAvc() {
     if (!requireCheckoutSignIn()) return;
     if (!$("sn-checkout-client")) return;
     var destinations = checkoutDeliveries(deliveryLocations(), quoteOpts);
@@ -4000,6 +4010,20 @@
       var qty = cartQty(item.i);
       return qty && (!itemAvailable(item) || item.limited && qty * destinations.length > item.quantity);
     })) { say("Check item availability for the selected addresses."); return; }
+    if (vendor.discovered) {
+      var button = $("sn-pay-cart");
+      if (!button || button.disabled) return;
+      button.disabled = true;
+      var request = {kind:"order",vendor_ref:vendor.id,items:vendorMenu(vendor).filter(m=>cartQty(m.i)).map(m=>({name:m.name,qty:cartQty(m.i)})),
+        drops:destinations.map(entry=>({name:entry.pin.name,lat:entry.pin.lat,lng:entry.pin.lng}))};
+      request.request_id = testOrderKey(request);
+      var result = await listingAction(request);
+      if (!result?.ok) { button.disabled=false; $("sn-cart-total").textContent="Order request unavailable. Retry to confirm."; return; }
+      cart.items={};
+      sessionStorage.removeItem("sn:test-submit");
+      openSheet("Order requested",'<p>Awaiting vendor confirmation. No payment collected.</p>');
+      return;
+    }
     var due = deliveryTotal(destinations) / 100;
     if (avcGet() < due) {
       openSheet("TOP UP AV€",
@@ -4310,9 +4334,9 @@
       return;
     }
     if (act === "menu" && vendor) {
-      vendor.menu = (j.items || []).map(function (it) { return { name: it.name, price: it.price, note: it.sample ? "sample" : "" }; });
-      openVendor(vendor);
+      renderVendorShop(); return;
     }
+
   }
   var drawerAI = false;
   var aiStatus = "";
@@ -5352,6 +5376,7 @@
   function homeMarkup() {
     return '<article class="drawer-profile home-panel"><header class="home-title">' +
       '<h2>SpaceNet Home</h2><button type="button" class="sheet-x" data-act="home-close" aria-label="Close Home">×</button></header>' +
+      '<section class="profile-section"><h3>City map layers</h3><button class="sheet-go" data-act="map-osm">OpenStreetMap</button> <button class="sheet-go" data-act="map-carto">CARTO</button> <button class="sheet-go" data-act="map-light">☀️ Bright</button> <button class="sheet-go" data-act="map-dark">🌌 Dark</button></section>' +
       '<section class="profile-section"><h3>Installation</h3><button class="sheet-go" data-act="install-app">Install on computer or phone</button> ' +
       '<a class="sheet-go" href="/" target="_blank" rel="noopener">Open web version</a></section>' +
       '<section class="profile-section"><h3>Version</h3>' +
@@ -5586,8 +5611,7 @@
           return;
         }
         var html = '<p class="note">' + avcGet().toLocaleString("en-GB") +
-          ' AV€ in wallet</p><p id="sn-test-credit" class="note">Loading test credit…</p>' +
-          '<p class="note">300 test credits at signup. A first confirmed PayPal top-up of €33 or more adds 3,000 test credits once.</p>';
+          ' AV€ in wallet</p>';
         if (ownerMail()) html += '<p class="note">Pool ' + Math.round(poolGet()).toLocaleString("en-GB") + " AV€ · owner only.</p>";
         html += '<input id="sn-add-eur" inputmode="decimal" placeholder="Euro to top up → AV€" />' +
           '<button type="button" class="sheet-go primary" data-act="topup" data-rail="paypal">TOP UP · PAYPAL</button>' +
@@ -5709,6 +5733,43 @@
         var status = $("sn-phone-result");
         SNAuth.verifyPhone(phone, code).then(function (message) { status.textContent = message; });
       }
+      if (act === "review-listing" && vendor) {
+        var ref = vendor.id;
+        listingAction({kind:"review",vendor_ref:ref}).then(function(result) {
+          if (vendor?.id !== ref) return;
+          openSheet("Listing submissions", !result?.ok ? "Review unavailable." : result.requests.map(function(row) {
+            return '<p>' + escHtml(row.kind + " · " + row.note) + '</p><button class="sheet-go" data-act="approve-listing" data-id="' +
+              escHtml(row.id) + '">Approve after verification</button>';
+          }).join("") || "No pending submissions.");
+        });
+      }
+      if (act === "approve-listing" && vendor) {
+        listingAction({kind:"approve",id:id,vendor_ref:vendor.id}).then(function(result) {
+          openSheet("Listing review",result?.ok ? "Approved." : "Approval unavailable.");
+        });
+      }
+      if (act === "invite-listing" && vendor) {
+        var invite = location.origin + "/?listing=" + encodeURIComponent(vendor.id) + "&lat=" + vendor.lat + "&lng=" + vendor.lng;
+        var message = "Review the SpaceNet listing for " + vendor.name + " and request ownership: " + invite;
+        if (navigator.share) navigator.share({text:message}).catch(function(){});
+        else location.href = "mailto:?subject=SpaceNet%20vendor%20invitation&body=" + encodeURIComponent(message);
+      }
+      if ((act === "claim-listing" || act === "suggest-item") && vendor && requireCheckoutSignIn()) {
+        var shop = vendor;
+        var claim = act === "claim-listing";
+        openSheet(claim ? "Ownership review" : "Suggest menu item", '<form id="listing-request"><label>' +
+          (claim ? "Business contact and evidence of ownership" : "Item name") +
+          '<textarea class="field" required maxlength="1200"></textarea></label>' +
+          (claim ? '' : '<label>Price in euros<input name="price" class="field" type="number" required min=".01" step=".01"></label><label>Menu source<input name="source" class="field" type="url"></label>') + '<button class="sheet-go">Submit for review</button><p role="status"></p></form>');
+        $("listing-request").onsubmit = async function(e) {
+          e.preventDefault();
+          var form=e.currentTarget;
+          var result=await listingAction({kind:claim?"claim":"menu",vendor_ref:shop.id,note:claim ? form.querySelector("textarea").value : JSON.stringify({name:form.querySelector("textarea").value,price:Number(form.elements.price.value),source:form.elements.source.value})});
+          form.querySelector("p").textContent=result?.ok?"Submitted for review.":"Submission unavailable.";
+        };
+      }
+      if (act === "map-osm" || act === "map-carto") {localStorage.setItem("sn:basemap",act.slice(4)); setStreetLayer();}
+      if (act === "map-dark" || act === "map-light") { localStorage.setItem("sn:dark-map",act==="map-dark"?"1":"0"); setStreetLayer(); }
       if (act === "install-app") {
         if (installEvent) { installEvent.prompt(); installEvent = null; }
         else { homeStatus = "Use your browser menu to install SpaceNet or add it to your home screen."; paintDrawerContent(); }
@@ -5800,7 +5861,7 @@
       if (act === "peer-msg") { openPeerMessage(findActor(id) || peerThread); }
       if (act === "peer-send") { sendPeerMessage(id); }
       if (act === "drv-walk") {
-        if (!vendor) vendor = FAMOUS_VENDORS[0];
+        if (!vendor) return;
         if (here) setDrop(here);
         else locate(function (pt) { land(pt, false); setDrop(pt); });
       }
@@ -6001,7 +6062,7 @@
     cam.dist = globalGlobeDistance;
     bindGlobe();
     loadVerify();
-    shops = uniqPlaces((shops || []).concat(FAMOUS_VENDORS));
+    shops = uniqPlaces(shops || []);
     bindChrome();
     loadTxns();
     pullTxnsRemote();
@@ -6015,7 +6076,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4457 = true;
+    window.__SN_4458 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
@@ -6061,6 +6122,11 @@
       if (event.key === "Escape" && pickingDestination) { endDestinationPick(); resumeCheckout(); }
     });
     restoreCheckoutAfterAuth();
+    var link = new URLSearchParams(location.search);
+    if (link.get("listing") && link.has("lat") && link.has("lng")) {
+      var lat=Number(link.get("lat")), lng=Number(link.get("lng"));
+      if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat)<=90 && Math.abs(lng)<=180) openCity({lat,lng});
+    }
     Object.defineProperty(window, "__SN_INTRO", { get: function () { return intro; } });
     requestAnimationFrame(loop);
   }

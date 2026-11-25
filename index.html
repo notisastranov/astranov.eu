@@ -4,13 +4,13 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4457"/>
+<meta name="astranov-build" content="4458"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
-<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4457"/>
+<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4458"/>
 <style>
 :root{
   --bg:#02040a; --fg:#e8fbff; --muted:#8ec8d8; --accent:#4df0ff;
@@ -230,6 +230,7 @@ body.drawer-covers-map-controls #gps,body.drawer-covers-map-controls #sn-me{visi
   font-size:0;line-height:0;cursor:grab;touch-action:none;
   display:flex;align-items:center;justify-content:center;user-select:none;padding:0;
 }
+.dark-basemap .leaflet-tile-pane{filter:invert(.9) hue-rotate(180deg) saturate(.65)}
 .sn-route-line{filter:drop-shadow(0 0 4px #42bdff)}
 #handle::before{
   content:"";width:36px;height:1px;background:rgba(126,176,255,.85);display:block;
@@ -572,10 +573,10 @@ textarea.field,#sn-support-matter{min-height:88px}
 <div id="toast" role="status"></div>
 <div id="line" role="status"></div>
 
-<script src="/js/vendor/leaflet.js?v=4457"></script>
-<script src="/js/spacenet/partners/types.js?v=4457"></script>
-<script src="/js/spacenet/partners/client.js?v=4457"></script>
-<script src="/js/spacenet/app.js?v=4457"></script>
-<script src="/js/spacenet/auth.js?v=4457"></script>
+<script src="/js/vendor/leaflet.js?v=4458"></script>
+<script src="/js/spacenet/partners/types.js?v=4458"></script>
+<script src="/js/spacenet/partners/client.js?v=4458"></script>
+<script src="/js/spacenet/app.js?v=4458"></script>
+<script src="/js/spacenet/auth.js?v=4458"></script>
 </body>
 </html>
