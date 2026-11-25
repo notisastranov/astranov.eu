@@ -1,5 +1,5 @@
 /*
- * SpaceNet 4464
+ * SpaceNet 4465
  *
  * Astranov Script is the project's name for this stack:
  * - JavaScript for the SpaceNet browser app and Node.js API handlers.
@@ -11,7 +11,7 @@
  */
 (function () {
   "use strict";
-  var VER = "4464";
+  var VER = "4465";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -1744,6 +1744,7 @@
     }
     return { ok: false, msg: "Unknown role." };
   }
+  var dispatchFix;
   function ensureDriverGps() {
     if (gpsWatchId || !navigator.geolocation) return;
     try {
@@ -1751,8 +1752,9 @@
         if (!pos || !pos.coords) return;
         here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         window.__SN_HERE = here;
+        dispatchFix = {lat:here.lat,lng:here.lng};
         if (youMark && map) try { youMark.setLatLng([here.lat, here.lng]); } catch (e) {}
-      }, function () {}, { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
+      }, function () { dispatchFix=null; }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
     } catch (e) {}
   }
   function startTransaction(actor) {
@@ -2753,6 +2755,8 @@
       body = '<p id="sn-offer-time" class="note" role="timer"></p><div class="offer-actions">' +
         '<button type="button" class="decline" data-act="decline" data-id="' + job.id + '">DECLINE</button>' +
         '<button type="button" class="accept" data-act="accept" data-id="' + job.id + '">ACCEPT</button></div>';
+    } else if (job.shared) {
+      body = mode === "paid" ? '<button class="sheet-go" data-act="dispatch-complete" data-id="'+escHtml(job.id)+'">Confirm delivery completed</button>' : '<p>Awaiting checkout confirmation.</p>';
     } else if (job.test) {
       body = '<button type="button" class="sheet-go primary" data-act="test-stage" data-id="' + escHtml(job.id) + '">' +
         testDeliveryStages[job.stage] + '</button>';
@@ -2782,6 +2786,7 @@
   }
   function declineOffer(jobId) {
     if (!pendingOffer || String(pendingOffer.id) !== String(jobId)) return;
+    if (pendingOffer.shared) { dispatchRequest("decline",{id:jobId}).then(data=>{if(data.ok) displayDispatch(data);}); return; }
     var queued = pendingOffer;
     closeOffer(jobId);
     if (queued.test) {
@@ -2792,6 +2797,7 @@
   }
   function acceptOffer(jobId) {
     if (!pendingOffer || String(pendingOffer.id) !== String(jobId)) return;
+    if (pendingOffer.shared) { dispatchRequest("accept",{id:jobId}).then(data=>{if(data.ok) displayDispatch(data);}); return; }
     clearOfferCountdown();
     if (pendingOffer.test) {
       pendingOffer = null;
@@ -2881,7 +2887,7 @@
     paintActiveOfferCard(job, "pending");
     $("sheet").scrollTop = 0;
     drawRoute(job.vendor, job.drop, job.driver);
-    startOfferCountdown(13, function () { declineOffer(job.id); });
+    if (!job.shared) startOfferCountdown(13, function () { declineOffer(job.id); });
   }
   function openOfferDrawer() {
     if (newsSelection) stopNews();
@@ -3729,7 +3735,7 @@
     if (!requireCheckoutSignIn()) return;
     var shop = vendor;
     var clients = deliveryLocations();
-    var drivers = loadTestPins().filter(function (pin) { return pin.role === "driver"; });
+
     openSheet("Test checkout", '<form id="test-order-form" class="test-form">' +
       deliveryPicker(clients) + '<p class="note" id="sn-test-total"></p>' +
       '<p class="note" id="sn-test-credit">Loading test credit…</p>' +
@@ -3762,10 +3768,6 @@
       }
       var destinations = checkoutDeliveries(clients, {});
       if (!destinations.length) return;
-      if (!drivers.length) {
-        alert.textContent = "Place a test driver on the map before paying.";
-        return;
-      }
       if (lines.some(function (item) { return cartQty(item.i) * destinations.length > item.quantity && item.limited; })) {
         alert.textContent = "There is insufficient stock for all selected addresses.";
         return;
@@ -3790,12 +3792,13 @@
       form.querySelector('[data-act="checkout-new-client"]').disabled = true;
       testSubmitting = true;
       alert.textContent = "";
-      var result = await testCheckoutRequest(orders.length > 1 ? { batch: orders } : orders[0]);
+      await refreshDispatch();
+      var result = await dispatchRequest("create",{orders:orders});
       button.disabled = false;
       form.querySelector("fieldset").disabled = false;
       form.querySelector('[data-act="checkout-new-client"]').disabled = false;
       testSubmitting = false;
-      if (!result.id && !Array.isArray(result.orders)) {
+      if (!result.ok) {
         alert.textContent = result.error === "insufficient_test_credit" ? "Not enough test credit for this order." :
           result.error === "auth_required" || result.error === "auth_changed" ? "Sign in again to use test credit." :
           "Order confirmation unavailable. Retry to check the same order.";
@@ -3803,17 +3806,10 @@
       }
       try { sessionStorage.removeItem("sn:test-submit"); } catch (err) {}
       if (form.isConnected && vendor === shop) cart.items = {};
-      drivers.sort(function (a, b) { return haversineKm(a, shop) - haversineKm(b, shop); });
-      testOrderQueue.push.apply(testOrderQueue, destinations.map(function (entry, i) {
-        return {
-          id: "test-order-" + orders[i].order_id, test: true, stage: 0,
-          vendor: shop, drop: entry.pin, fee: entry.quote.driver, km: entry.quote.km,
-          item: items.map(function (item) { return item.qty + " × " + item.name; }).join(", "),
-          drivers: drivers
-        };
-      }));
-      advanceTestOrder();
-      if (!offersArmed()) openSheet("Test order queued", '<p class="note">Turn on power to send the offer to the nearest test driver.</p>');
+      closeSheet();
+      say("Delivery requested.");
+      await displayDispatch(result);
+
     });
   }
   var testDeliveryStages = ["Confirm pickup", "Confirm delivery", "Client received"];
@@ -3887,6 +3883,58 @@
     update();
   }
 
+  var dispatchBusy = false, dispatchPickup = "", dispatchView = "", dispatchAccount = "";
+  function dispatchRequest(action, details) {
+    return testCheckoutRequest({action:action, details:details || {}});
+  }
+  function driverAvailable() {
+    return !!(offersArmed() && checkoutAccount() && window.SNAuth?.activeRoles().driver);
+  }
+  async function refreshDispatch() {
+    if (dispatchBusy || !checkoutAccount()) return;
+    dispatchBusy = true;
+    try {
+      if (driverAvailable()) ensureDriverGps();
+      var account = checkoutAccount();
+      if (dispatchAccount !== account) { dispatchPickup = ""; dispatchView = ""; dispatchAccount = account; }
+      var active = driverAvailable() && !!dispatchFix;
+      var data = await dispatchRequest("presence",{active:active,lat:dispatchFix?.lat,lng:dispatchFix?.lng});
+      if (data.ok && account === checkoutAccount()) await displayDispatch(data);
+    } finally { dispatchBusy = false; }
+  }
+  async function displayDispatch(data) {
+    var assignment = data.assignment;
+    var waiting = (data.checkout || []).find(row => row.state === "accepted");
+    if (waiting) {
+      var settled = await dispatchRequest("settle",{id:waiting.id});
+      if (settled.error) { say("Order payment unavailable: " + settled.error); return; }
+      assignment = settled.assignment;
+    }
+    if (assignment) {
+      var key = assignment.id + assignment.state;
+      if (dispatchView === key) return;
+      var payload = assignment.payload;
+      var job = {id:assignment.id,shared:true,vendor:payload.vendor,drop:payload.drop,
+        fee:payload.delivery_cents/100,driver:dispatchFix,item:payload.items.map(row=>row.qty+" × "+row.name).join(", ")};
+      if (assignment.state === "offered") {
+        if (!driverAvailable()) return;
+        throwOffer(job);
+        startOfferCountdown(Math.max(1,Math.ceil((Date.parse(assignment.deadline)-Date.now())/1000)),refreshDispatch);
+      } else {
+        clearOfferCountdown(); pendingOffer=null; offerActiveId=job.id;
+        paintActiveOfferCard(job,assignment.state);
+      }
+      dispatchView=key;
+      return;
+    }
+    if (dispatchView && offerActiveId) closeOffer(offerActiveId);
+    dispatchView="";
+    var pickup=(data.checkout || []).find(row=>row.state==="pickup");
+    if (pickup && pickup.id !== dispatchPickup) {
+      dispatchPickup=pickup.id;
+      showDrawerPlacement("Pickup checkout",'<p>No available driver. Delivery was canceled.</p><p>'+escHtml(pickup.vendor.name)+' · '+escHtml(pickup.items.map(row=>row.qty+' × '+row.name).join(", "))+'</p><button class="sheet-go" data-act="dispatch-pickup" data-id="'+escHtml(pickup.id)+'">Confirm pickup from vendor</button>');
+    }
+  }
   function offersArmed() {
     try { return localStorage.getItem("sn:offers") === "1"; } catch (e) { return false; }
   }
@@ -5171,6 +5219,7 @@
       var on = !offersArmed();
       try { localStorage.setItem("sn:offers", on ? "1" : "0"); } catch (e) { return; }
       paint();
+      refreshDispatch();
       if (on && testOrder && !testOrder.accepted && !pendingOffer) showTestOffer(testOrder, testOrder.drivers[0]);
       if (!on && pendingOffer) closeOffer(pendingOffer.id);
     }
@@ -5921,9 +5970,18 @@
         setDrawerHeight(collapsedDrawerH());
       }
       if (act === "home-close") openHomeDrawer();
+      if (act === "dispatch-pickup" || act === "dispatch-complete") {
+        t.disabled=true;
+        dispatchRequest(act==="dispatch-pickup"?"pickup":"complete",{id:id}).then(function(result){
+          if (!result.ok) {t.disabled=false;say(result.error || "Please retry.");return;}
+          if(act==="dispatch-pickup") {dismissDrawerPlacement();say("Pickup order confirmed.");}
+          displayDispatch(result);
+        });
+      }
       if (act === "home-account" && window.SNAuth && SNAuth.open) SNAuth.open();
       if (act === "home-role" && window.SNAuth && SNAuth.toggleRole) {
         SNAuth.toggleRole(t.getAttribute("data-role"));
+        refreshDispatch();
         openOwnProfile();
       }
       if (act === "route-pref" && checkoutAccount() && Object.hasOwn(routeOptions,id)) {
@@ -6308,6 +6366,7 @@
   function bindSky() {}
 
   function boot() {
+    setInterval(refreshDispatch,2000);
     loadLand();
     loadBorders();
     canvas = $("g");
@@ -6333,7 +6392,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4464 = true;
+    window.__SN_4465 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
