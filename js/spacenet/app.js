@@ -1,5 +1,5 @@
 /*
- * SpaceNet 4465
+ * SpaceNet 4466
  *
  * Astranov Script is the project's name for this stack:
  * - JavaScript for the SpaceNet browser app and Node.js API handlers.
@@ -11,7 +11,7 @@
  */
 (function () {
   "use strict";
-  var VER = "4465";
+  var VER = "4466";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -1615,6 +1615,11 @@
     localStorage.setItem("sn:pin-role",role);
     openActorSheet(pin);
   }
+  function publishQuickVendor() {
+    if (!vendor?.quick || !signed()) return;
+    persistListing({id:vendor.id,kind:"shop",name:vendor.name,lat:vendor.lat,lng:vendor.lng,
+      how:"admin-put",shop:{quickCheckout:true,menu:vendor.menu || []}});
+  }
   function loadTestPins() {
     try { return JSON.parse(localStorage.getItem("sn:quick-pins") || "[]"); }
     catch { return []; }
@@ -3060,7 +3065,8 @@
       phone: row.phone || tags.phone || tags["contact:phone"] || "",
       logo: row.logo || row.photo || row.image || "",
       cover: row.cover, profile: row.profile, peer: row.peer, posts: row.posts,
-      menu: Array.isArray(row.menu) ? row.menu : undefined,
+      quickCheckout:row.shop?.quickCheckout === true,
+      menu: Array.isArray(row.shop?.menu) ? row.shop.menu : Array.isArray(row.menu) ? row.menu : undefined,
       src: row.src || "osm"
     };
   }
@@ -3244,7 +3250,7 @@
       var rows = (j && (j.shops || j.rows || [])) || [];
       rows.forEach(function (r) {
         var p = asPlace(r);
-        if (p) shops.push(p);
+        if (p && !loadTestPins().some(pin => pin.id === p.id)) shops.push(p);
       });
       shops = uniqPlaces(shops);
       if (shops.length) paintShopsOnMap();
@@ -3290,7 +3296,7 @@
   function openVendor(s) {
     if (!vendor || profileId(s) !== profileId(vendor)) cart = { items: {}, comment: "" };
     vendor = s;
-    if (s.test) { renderVendorShop(); return; }
+    if (s.test || s.quickCheckout) { renderVendorShop(); return; }
     if (map && isFinite(s.lat)) map.setView([s.lat, s.lng], 17);
     renderVendorShop();
     if (s.discovered || !s.registered && !s.menu?.length) fetchJson("/api/vendor-menu?vendor=" + encodeURIComponent(profileId(s)),{headers:authToken()?{Authorization:"Bearer "+authToken()}:{}}).then(function (data) {
@@ -3509,7 +3515,7 @@
       form.elements.stock.checked = item.stock !== "out";
       form.elements.photo.value = "";
       galleryPhoto = item.photo || "";
-      $("sn-product-selected").textContent = item.name + " filled in.";
+      form.requestSubmit();
     });
     form.addEventListener("submit", async function (e) {
       e.preventDefault();
@@ -3534,6 +3540,7 @@
         });
         if (updateTestPins(pins, true)) {
           vendor = pin;
+          publishQuickVendor();
           renderVendorShop();
         }
       } catch (error) {
@@ -3598,7 +3605,7 @@
   }
   function resumeCheckout() {
     if (!vendor) return;
-    if (vendor.test) openTestCheckout();
+    if (vendor.test || vendor.quickCheckout) openTestCheckout();
     else openOrderScreen();
   }
   function requireCheckoutSignIn() {
@@ -3731,7 +3738,7 @@
     });
   }
   function openTestCheckout() {
-    if (!vendor || !vendor.test || !cartSubtotal()) return;
+    if (!vendor || !(vendor.test || vendor.quickCheckout) || !cartSubtotal()) return;
     if (!requireCheckoutSignIn()) return;
     var shop = vendor;
     var clients = deliveryLocations();
@@ -3891,18 +3898,22 @@
     return !!(offersArmed() && checkoutAccount() && window.SNAuth?.activeRoles().driver);
   }
   async function refreshDispatch() {
-    if (dispatchBusy || !checkoutAccount()) return;
+    if (!checkoutAccount()) { $("sn-pending-orders").hidden=true; return; }
+    if (dispatchBusy) return;
     dispatchBusy = true;
     try {
       if (driverAvailable()) ensureDriverGps();
       var account = checkoutAccount();
       if (dispatchAccount !== account) { dispatchPickup = ""; dispatchView = ""; dispatchAccount = account; }
       var active = driverAvailable() && !!dispatchFix;
-      var data = await dispatchRequest("presence",{active:active,lat:dispatchFix?.lat,lng:dispatchFix?.lng});
+      var data = await dispatchRequest("presence",{active:active,lat:(dispatchFix || here)?.lat,lng:(dispatchFix || here)?.lng});
       if (data.ok && account === checkoutAccount()) await displayDispatch(data);
     } finally { dispatchBusy = false; }
   }
   async function displayDispatch(data) {
+    var ordersButton = $("sn-pending-orders");
+    ordersButton.hidden = !data.pending_count;
+    ordersButton.textContent = "Orders · " + (data.pending_count || 0);
     var assignment = data.assignment;
     var waiting = (data.checkout || []).find(row => row.state === "accepted");
     if (waiting) {
@@ -5132,7 +5143,7 @@
     var items = Object.values(cart.items).reduce(function (count, qty) { return count + qty; }, 0);
     var html = '<div class="drawer-cart-line"><span>Cart · ' + items + (items === 1 ? ' item' : ' items') +
       ' · <b>' + subtotal + ' AV€</b></span>' +
-      '<button type="button" class="sheet-go primary" data-act="' + (profile.actor.test ? "test-checkout" : "open-order") + '"' +
+      '<button type="button" class="sheet-go primary" data-act="' + (profile.actor.test || profile.actor.quickCheckout ? "test-checkout" : "open-order") + '"' +
       (subtotal > 0 ? '' : ' disabled') + '>Checkout</button></div>' +
       '<nav class="drawer-cart-links" aria-label="Profile sections">' +
       (state && state.data ? '<button type="button" class="sheet-go" data-act="profile-orders">History</button>' : '<span></span>') +
@@ -5411,6 +5422,20 @@
       setOpen(false);
       openTransactionHistory();
     });
+    $("sn-pending-orders").onclick = function () {
+      var active = window.SNAuth?.activeRoles().driver;
+      showDrawerPlacement("Pending delivery orders", '<p>' + (active ? 'Delivery driver role is on.' : 'Enable your delivery driver role to receive nearby orders.') + '</p>' +
+        (active ? '' : '<button class="sheet-go" data-act="enable-delivery">Enable delivery driver</button>') +
+        (offersArmed() ? '' : '<p>Hold the power button for three seconds to receive offers.</p>'));
+    };
+    $("sn-list-vendor").onclick = function () {
+      setOpen(false);
+      var pt = cityOn && map ? map.getCenter() : here || aim;
+      if (!pt) { locate(function(fix){land(fix);listPt=fix;placeTestPin("vendor");publishQuickVendor();}); return; }
+      listPt=pt;
+      if (!cityOn) openCity(pt);
+      placeTestPin("vendor"); publishQuickVendor();
+    };
     $("sn-news-menu").addEventListener("click", function () {
       setOpen(false);
       openNewsDesk("events");
@@ -6158,7 +6183,13 @@
         if (!signed()) { needLogin("Sign in to publish news."); return; }
         persistListing({id:post.id,kind:"post",name:headline,lat:post.lat,lng:post.lng});
       }
-      if (act === "insert-actor") { insertActor(t.getAttribute("data-role")); }
+      if (act === "enable-delivery" && checkoutAccount()) {
+        if (!SNAuth.activeRoles().driver) SNAuth.toggleRole("driver");
+        ensureDriverGps();
+        $("sn-pending-orders").click();
+        refreshDispatch();
+      }
+      if (act === "insert-actor") { placeTestPin(t.dataset.role); if(t.dataset.role==="vendor") publishQuickVendor(); }
       if (act === "save-actor") { saveActor(t.getAttribute("data-role")); }
       if (act === "retry-verify") {
         var rn = t.getAttribute("data-role");
@@ -6392,7 +6423,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4465 = true;
+    window.__SN_4466 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },

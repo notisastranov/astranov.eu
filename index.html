@@ -4,13 +4,13 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4465"/>
+<meta name="astranov-build" content="4466"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
-<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4465"/>
+<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4466"/>
 <style>
 :root{
   --bg:#02040a; --fg:#e8fbff; --muted:#8ec8d8; --accent:#4df0ff;
@@ -54,6 +54,7 @@ button{cursor:pointer}
   font:800 12px/1 system-ui;letter-spacing:.12em;padding:8px 6px;white-space:nowrap;
   text-shadow:none;
 }
+#sn-pending-orders{position:fixed;z-index:51;top:calc(var(--safe-t) + var(--top-row) + var(--gap));left:50%;transform:translateX(-50%);background:#071525;color:#4df0ff;border:1px solid #4df0ff;border-radius:10px;padding:4px 9px;font-weight:700}
 #sn-money{
   min-width:var(--ctrl);height:var(--ctrl);border-radius:10px;border:1px solid rgba(77,240,255,.7);
   background:rgba(4,16,28,.94);color:#4df0ff;display:inline-flex;flex-direction:row;
@@ -511,6 +512,7 @@ textarea.field,#sn-support-matter{min-height:88px}
   <span id="sn-radar-status" role="status"></span>
   <button type="button" id="sn-money" class="on" aria-label="Wallet"><span class="tgt">AV€</span></button>
 </header>
+<button type="button" id="sn-pending-orders" aria-controls="sheet" hidden>Orders</button>
 
 <button type="button" id="sn-power" class="off" aria-label="Receive offers" aria-description="Hold for three seconds to toggle" aria-pressed="false"><span id="sn-power-count" aria-live="polite"></span>
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 2v9M7 5a8 8 0 1 0 10 0"/></svg>
@@ -544,6 +546,7 @@ textarea.field,#sn-support-matter{min-height:88px}
 </dialog>
 
 <nav id="menu" hidden>
+  <button type="button" id="sn-list-vendor">🏪 List vendor here</button>
   <button type="button" id="sn-news-menu">News</button>
   <button type="button" id="sn-transactions-menu">Transactions</button>
   <button type="button" id="sn-support-menu">SUPPORT DESK</button>
@@ -580,10 +583,10 @@ textarea.field,#sn-support-matter{min-height:88px}
 <div id="toast" role="status"></div>
 <div id="line" role="status"></div>
 
-<script src="/js/vendor/leaflet.js?v=4465"></script>
-<script src="/js/spacenet/partners/types.js?v=4465"></script>
-<script src="/js/spacenet/partners/client.js?v=4465"></script>
-<script src="/js/spacenet/app.js?v=4465"></script>
-<script src="/js/spacenet/auth.js?v=4465"></script>
+<script src="/js/vendor/leaflet.js?v=4466"></script>
+<script src="/js/spacenet/partners/types.js?v=4466"></script>
+<script src="/js/spacenet/partners/client.js?v=4466"></script>
+<script src="/js/spacenet/app.js?v=4466"></script>
+<script src="/js/spacenet/auth.js?v=4466"></script>
 </body>
 </html>
