@@ -1,5 +1,5 @@
 /*
- * SpaceNet 4471
+ * SpaceNet 4472
  *
  * Astranov Script is the project's name for this stack:
  * - JavaScript for the SpaceNet browser app and Node.js API handlers.
@@ -11,7 +11,7 @@
  */
 (function () {
   "use strict";
-  var VER = "4471";
+  var VER = "4472";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -1444,9 +1444,18 @@
     });
   }
   var streetLayer;
+  function mapBrightness() {
+    var value=Number(localStorage.getItem("sn:map-brightness") || 100);
+    return Number.isFinite(value)?Math.max(35,Math.min(120,value)):100;
+  }
+  function applyMapTone(el) {
+    if(!el)return;
+    el.classList.toggle("dark-basemap",localStorage.getItem("sn:dark-map")==="1");
+    el.style.setProperty("--map-brightness",mapBrightness()+"%");
+  }
   function setStreetLayer() {
     if (!map) return;
-    $("city").classList.toggle("dark-basemap", localStorage.getItem("sn:dark-map") === "1");
+    applyMapTone($("city"));
     if (streetLayer) return;
     streetLayer = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19, minZoom: 12,
@@ -3636,7 +3645,7 @@
   }
   function resumeCheckout() {
     if (!vendor) return;
-    if (vendor.test || vendor.quickCheckout) openTestCheckout();
+    if (usesTestCheckout(vendor)) openTestCheckout();
     else openOrderScreen();
   }
   function requireCheckoutSignIn() {
@@ -3690,21 +3699,37 @@
     });
     return Array.from(new Map(savedDeliveryLocations().concat(known).map(function (pin) { return [pin.id, pin]; })).values());
   }
-  function deliveryPicker(clients) {
-    return '<fieldset id="sn-checkout-client"><legend>Deliver to</legend><p class="note">' +
-      (clients.length ? 'Select a client location or add a delivery address to place this order.' : 'This order needs a delivery address. Enable User / Client in your account and choose an address, or tap the map below.') + '</p>' + (!clients.length ? '<button type="button" class="sheet-go" data-act="checkout-profile">User account</button>' : '') + clients.map(function (pin) {
-      return '<label><input type="checkbox" value="' + escHtml(pin.id) + '"' +
-        (deliverySelection.has(pin.id) ? " checked" : "") + '> ' + escHtml(pin.name) + '</label>';
-    }).join("") + '<p class="note">Each address receives a full cart. Choose up to eight addresses.</p></fieldset>' +
-      '<button type="button" class="sheet-go" data-act="checkout-new-client">Add a delivery address on the map</button>';
+  var checkoutStops = [];
+  function deliveryPicker() {
+    return '<fieldset id="sn-checkout-client" aria-label="Delivery location"><div id="checkout-map"></div><div id="checkout-guide" role="status">Tap the map to choose your delivery spot</div><button type="button" id="checkout-add-stop" hidden>+ Add stop</button></fieldset>';
   }
-  function selectedDeliveries(clients) {
-    var picker = $("sn-checkout-client");
-    if (!picker) return [];
-    var checks = Array.from(picker.querySelectorAll('input:checked'));
-    if (checks.length > 8) checks.splice(8).forEach(function (input) { input.checked = false; });
-    deliverySelection = new Set(checks.map(function (input) { return input.value; }));
-    return clients.filter(function (pin) { return deliverySelection.has(pin.id); });
+  function selectedDeliveries() { return checkoutStops.slice(); }
+  function mountDeliveryPicker(clients,update) {
+    var center=here || vendor, field=$("sn-checkout-client"), guide=$("checkout-guide"), add=$("checkout-add-stop");
+    checkoutStops=clients.filter(pin=>deliverySelection.has(pin.id)).slice(0,8);
+    var mapView=checkoutMap=L.map("checkout-map",{scrollWheelZoom:false}).setView([center.lat,center.lng],16);
+    applyMapTone($("checkout-map"));
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(mapView);
+    var selected=L.layerGroup().addTo(mapView), adding=false;
+    function paint() {
+      selected.clearLayers();
+      checkoutStops.forEach((pin,index)=>L.circleMarker([pin.lat,pin.lng],{radius:8,color:"#073b66",fillColor:"#61dfff",fillOpacity:1}).addTo(selected).bindTooltip(String(index+1),{permanent:true,direction:"top"}));
+      guide.textContent=adding?"Tap another delivery spot":checkoutStops.length?(checkoutStops.length===1?"Delivery spot selected":checkoutStops.length+" delivery spots selected")+" · Place order below":"Tap the map to choose your delivery spot";
+      add.hidden=!checkoutStops.length || checkoutStops.length>=8;
+      update();
+    }
+    function choose(pin) {
+      if(field.disabled)return;
+      if(!adding) checkoutStops=[];
+      if(!checkoutStops.some(p=>p.id===pin.id)) checkoutStops.push(pin);
+      deliverySelection=new Set(checkoutStops.map(p=>p.id));adding=false;paint();
+    }
+    clients.forEach(pin=>L.marker([pin.lat,pin.lng],{title:pin.name}).addTo(mapView).on("click",()=>choose(pin)));
+    var initial=checkoutStops[0] || clients[0];
+    if(initial) mapView.setView([initial.lat,initial.lng],16);
+    mapView.on("click",e=>choose({id:crypto.randomUUID(),name:"Delivery pin",lat:e.latlng.lat,lng:e.latlng.lng}));
+    add.onclick=()=>{adding=true;paint();};
+    paint();
   }
   function deliveryTotal(entries) {
     var subtotal = cartSubtotal();
@@ -3781,8 +3806,11 @@
       resumeCheckout();
     });
   }
+  function usesTestCheckout(shop) {
+    return !!shop && (shop.test || shop.quickCheckout || shop.discovered && vendorMenu(shop).some(item=>item.sample && cartQty(item.i)>0));
+  }
   function openTestCheckout() {
-    if (!vendor || !(vendor.test || vendor.quickCheckout) || !cartSubtotal()) return;
+    if (!usesTestCheckout(vendor) || !cartSubtotal()) return;
     if (!requireCheckoutSignIn()) return;
     var shop = vendor;
     var clients = deliveryLocations();
@@ -3791,7 +3819,7 @@
       deliveryPicker(clients) + '<p class="note" id="sn-test-total"></p>' +
       '<p class="note" id="sn-test-credit">Loading test credit…</p>' +
       '<p role="alert" class="note"></p>' +
-      '<button class="sheet-go primary" disabled>Pay and place test order</button>' +
+      '<button class="sheet-go primary" disabled>Place test order</button>' +
       '<button type="button" class="sheet-go" data-act="test-menu">Back to menu</button></form>');
     var form = $("test-order-form");
     function showTotal() {
@@ -3800,8 +3828,7 @@
       $("sn-test-total").textContent = destinations.length
         ? destinations.length + (destinations.length === 1 ? ' delivery' : ' deliveries') + ' · total including 3% fee: ' + testCoinText(deliveryTotal(destinations)) : "";
     }
-    $("sn-checkout-client").addEventListener("change", showTotal);
-    showTotal();
+    mountDeliveryPicker(clients,showTotal);
     testCheckoutRequest().then(paintTestCredit);
     form.addEventListener("submit", async function (e) {
       e.preventDefault();
@@ -3840,14 +3867,12 @@
       });
       button.disabled = true;
       $("sn-checkout-client").disabled = true;
-      form.querySelector('[data-act="checkout-new-client"]').disabled = true;
       testSubmitting = true;
       alert.textContent = "";
       await refreshDispatch();
       var result = await dispatchRequest("create",{orders:orders});
       button.disabled = false;
       form.querySelector("fieldset").disabled = false;
-      form.querySelector('[data-act="checkout-new-client"]').disabled = false;
       testSubmitting = false;
       if (!result.ok) {
         alert.textContent = result.error === "insufficient_test_credit" ? "Not enough test credit for this order." :
@@ -3923,11 +3948,11 @@
         '<em>' + cartQty(m.i) + "</em>" +
         '<button type="button" data-act="qty-plus" data-i="' + m.i + '" data-order="1">+</button></div></div></div>';
     }).join("");
-    openSheet("Order · AV€", rows +
+    openSheet("Checkout", deliveryPicker() + rows +
       '<textarea id="sn-order-comment" class="field" placeholder="Order comments">' + escHtml(cart.comment || "") + '</textarea>' +
-      '<div class="checkout test-form">' + deliveryPicker(clients) +
+      '<div class="checkout test-form">' +
       '<p class="note" id="sn-cart-total"></p>' +
-      '<button type="button" id="sn-pay-cart" class="sheet-go primary" data-act="pay-avc" disabled>' + (vendor.discovered ? "Request order · pay after confirmation" : "Pay and place order") + '</button>' +
+      '<button type="button" id="sn-pay-cart" class="sheet-go primary" data-act="pay-avc" disabled>Place order</button>' +
       '<button type="button" class="sheet-go" data-act="back-vendor">Back to menu</button></div>');
     function update() {
       var destinations = checkoutDeliveries(clients, quoteOpts);
@@ -3936,8 +3961,7 @@
         ? destinations.length + (destinations.length === 1 ? ' delivery' : ' deliveries') + ' · total including 3% fee: ' + testCoinText(deliveryTotal(destinations))
         : "Cart " + cartSubtotal() + " AV€";
     }
-    $("sn-checkout-client").addEventListener("change", update);
-    update();
+    mountDeliveryPicker(clients,update);
   }
 
   var dispatchBusy = false, dispatchPickup = "", dispatchView = "", dispatchAccount = "";
@@ -4244,11 +4268,12 @@
       var button = $("sn-pay-cart");
       if (!button || button.disabled) return;
       button.disabled = true;
+      $("sn-checkout-client").disabled=true;
       var request = {kind:"order",vendor_ref:vendor.id,items:vendorMenu(vendor).filter(m=>cartQty(m.i)).map(m=>({name:m.name,qty:cartQty(m.i),sample:m.sample})),
         drops:destinations.map(entry=>({name:entry.pin.name,lat:entry.pin.lat,lng:entry.pin.lng}))};
       request.request_id = testOrderKey(request);
       var result = await listingAction(request);
-      if (!result?.ok) { button.disabled=false; $("sn-cart-total").textContent="Order request unavailable. Retry to confirm."; return; }
+      if (!result?.ok) { button.disabled=false; $("sn-checkout-client").disabled=false; $("sn-cart-total").textContent="Order request unavailable. Retry to confirm."; return; }
       cart.items={};
       sessionStorage.removeItem("sn:test-submit");
       openSheet("Order requested",'<p>Awaiting vendor confirmation. No payment collected.</p>');
@@ -5205,7 +5230,7 @@
     var items = Object.values(cart.items).reduce(function (count, qty) { return count + qty; }, 0);
     var html = (active && !state?.history ? '<div class="drawer-cart-line"><span>Cart · ' + items + (items === 1 ? ' item' : ' items') +
       ' · <b>' + subtotal + ' AV€</b></span>' +
-      '<button type="button" class="sheet-go primary" data-act="' + (profile.actor.test || profile.actor.quickCheckout ? "test-checkout" : "open-order") + '"' +
+      '<button type="button" class="sheet-go primary" data-act="' + (usesTestCheckout(profile.actor) ? "test-checkout" : "open-order") + '"' +
       (subtotal > 0 ? '' : ' disabled') + '>Checkout</button></div>' : '') +
       '<nav class="drawer-cart-links" aria-label="Profile sections">' +
       (state && state.data ? '<button type="button" class="sheet-go" data-act="profile-orders">History</button>' : '<span></span>') +
@@ -5771,7 +5796,7 @@
   function homeMarkup() {
     return '<article class="drawer-profile home-panel"><header class="home-title">' +
       '<h2>SpaceNet Home</h2><button type="button" class="sheet-x" data-act="home-close" aria-label="Close Home">×</button></header>' +
-      '<section class="profile-section"><h3>City map layers</h3><button class="sheet-go" aria-pressed="' + (localStorage.getItem("sn:dark-map")!=="1") + '" data-act="map-light">☀️ Bright</button> <button class="sheet-go" aria-pressed="' + (localStorage.getItem("sn:dark-map")==="1") + '" data-act="map-dark">🌌 Dark</button></section>' +
+      '<section class="profile-section"><h3>City map layers</h3><button class="sheet-go" aria-pressed="' + (localStorage.getItem("sn:dark-map")!=="1") + '" data-act="map-light">☀️ Bright</button> <button class="sheet-go" aria-pressed="' + (localStorage.getItem("sn:dark-map")==="1") + '" data-act="map-dark">🌌 Dark</button><label>Map brightness <output id="brightness-value">'+mapBrightness()+'%</output><input type="range" id="map-brightness" min="35" max="120" value="'+mapBrightness()+'"></label></section>' +
       '<section class="profile-section"><h3>Installation</h3><button class="sheet-go" data-act="install-app">Install on computer or phone</button> ' +
       '<a class="sheet-go" href="/" target="_blank" rel="noopener">Open web version</a></section>' +
       '<section class="profile-section"><h3>Version</h3>' +
@@ -6047,6 +6072,12 @@
   }
 
   function bindChrome() {
+    document.addEventListener("input",function(e){
+      if(e.target.id!=="map-brightness")return;
+      localStorage.setItem("sn:map-brightness",e.target.value);
+      $("brightness-value").textContent=e.target.value+"%";
+      applyMapTone($("city")); applyMapTone($("checkout-map"));
+    });
     bindGps();
     bindLogo();
     bindBurger();
@@ -6487,7 +6518,7 @@
         if (t.hasAttribute("data-order") && cartSubtotal()) openOrderScreen();
         else renderVendorShop();
       }
-      if (act === "open-order" && (!vendor || !vendor.test)) openOrderScreen();
+      if (act === "open-order") resumeCheckout();
       if (act === "back-vendor") renderVendorShop();
       if (act === "pay-avc") payCartAvc();
       if (act === "topup") {
@@ -6637,7 +6668,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4471 = true;
+    window.__SN_4472 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },

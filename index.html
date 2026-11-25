@@ -4,13 +4,13 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4471"/>
+<meta name="astranov-build" content="4472"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
-<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4471"/>
+<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4472"/>
 <style>
 :root{
   --bg:#02040a; --fg:#e8fbff; --muted:#8ec8d8; --accent:#4df0ff;
@@ -234,7 +234,8 @@ body.drawer-covers-map-controls #gps,body.drawer-covers-map-controls #sn-me{visi
   font-size:0;line-height:0;cursor:grab;touch-action:none;
   display:flex;align-items:center;justify-content:center;user-select:none;padding:0;
 }
-.dark-basemap .leaflet-tile-pane{filter:invert(.9) hue-rotate(180deg) saturate(.65)}
+.leaflet-tile-pane{filter:brightness(var(--map-brightness,100%))}
+.dark-basemap .leaflet-tile-pane{filter:invert(.9) hue-rotate(180deg) saturate(.65) brightness(var(--map-brightness,100%))}
 .notice-count{position:absolute;top:-10px;right:-8px;border-radius:99px;padding:1px 5px;background:#071b32;color:#abfaff;box-shadow:0 0 8px #4df0ff;font:700 12px system-ui;animation:notice-hop 1s ease-in-out infinite alternate}
 .actor-pin:has(.notice-count){filter:drop-shadow(0 0 4px #4df0ff)}
 @keyframes notice-hop{to{translate:0 -4px}}
@@ -475,7 +476,16 @@ textarea.field,#sn-support-matter{min-height:88px}
 .drawer-cart-line,.drawer-cart-links{display:flex;align-items:center;justify-content:space-between;gap:8px;width:min(100%,640px);margin:auto}
 .drawer-cart-line>span{font:650 13px system-ui}
 .drawer-cart-line .sheet-go,.drawer-cart-links .sheet-go{margin:0}
-#sn-checkout-client{display:grid;gap:4px;border:1px solid rgba(126,233,255,.3);max-height:185px;overflow:auto}
+#sn-checkout-client{position:relative;margin:0;padding:0;border:0;min-width:0}
+#checkout-guide,#checkout-add-stop{position:absolute;z-index:450;color:#eaf7ff;background:#073252;border:1px solid #74cbff;border-radius:8px;padding:5px 8px;box-shadow:0 0 5px #248ccc;font-weight:700}
+#checkout-guide{top:5px;left:43px;right:5px;pointer-events:none;text-align:center}
+#checkout-add-stop{bottom:18px;right:6px}
+#checkout-guide{color:#073052;background:#dfF3ff;border-color:#368fc1;text-shadow:0 1px 1px #fff}
+#drawer .sheet-go{color:#e2f2ff;background-color:#123650;border-color:#599fc6}
+#drawer .sheet-go.primary{color:#08283f;background-color:#9fd8f6;border-color:#6bbce9}
+.drawer-cart-links{width:100%;flex-wrap:wrap}
+.drawer-cart-links .chat-button{width:100%}
+.leaflet-tooltip{color:#113557;background:#ecf8ff;border:1px solid #5faada}
 #sn-checkout-client label{display:flex;align-items:center;gap:8px;margin:0;padding:3px}
 #sn-checkout-client input{width:auto;margin:0}
 .drawer-cart-links .sheet-go{min-height:23px;padding:1px 8px;font-size:11px}
@@ -595,10 +605,10 @@ textarea.field,#sn-support-matter{min-height:88px}
 <div id="toast" role="status"></div>
 <div id="line" role="status"></div>
 
-<script src="/js/vendor/leaflet.js?v=4471"></script>
-<script src="/js/spacenet/partners/types.js?v=4471"></script>
-<script src="/js/spacenet/partners/client.js?v=4471"></script>
-<script src="/js/spacenet/app.js?v=4471"></script>
-<script src="/js/spacenet/auth.js?v=4471"></script>
+<script src="/js/vendor/leaflet.js?v=4472"></script>
+<script src="/js/spacenet/partners/types.js?v=4472"></script>
+<script src="/js/spacenet/partners/client.js?v=4472"></script>
+<script src="/js/spacenet/app.js?v=4472"></script>
+<script src="/js/spacenet/auth.js?v=4472"></script>
 </body>
 </html>
