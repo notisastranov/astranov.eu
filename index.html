@@ -4,13 +4,13 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4459"/>
+<meta name="astranov-build" content="4460"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
-<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4459"/>
+<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4460"/>
 <style>
 :root{
   --bg:#02040a; --fg:#e8fbff; --muted:#8ec8d8; --accent:#4df0ff;
@@ -231,6 +231,14 @@ body.drawer-covers-map-controls #gps,body.drawer-covers-map-controls #sn-me{visi
   display:flex;align-items:center;justify-content:center;user-select:none;padding:0;
 }
 .dark-basemap .leaflet-tile-pane{filter:invert(.9) hue-rotate(180deg) saturate(.65)}
+.notice-count{position:absolute;top:-10px;right:-8px;border-radius:99px;padding:1px 5px;background:#071b32;color:#abfaff;box-shadow:0 0 8px #4df0ff;font:700 12px system-ui;animation:notice-hop 1s ease-in-out infinite alternate}
+.actor-pin:has(.notice-count){filter:drop-shadow(0 0 4px #4df0ff)}
+@keyframes notice-hop{to{translate:0 -4px}}
+@media(prefers-reduced-motion:reduce){.notice-count{animation:none}}
+.profile-arrows{position:sticky;top:0;background:#061524;z-index:1;display:flex;gap:5px;padding:4px}
+.profile-arrows button{background:#10283a;color:#acf5ff;border:1px solid #346072;border-radius:5px}
+#vendor-menu,#vendor-pending,#profile-messaging{scroll-margin-top:33px}
+@media(min-width:900px){#sheet .drawer-profile{max-width:1050px;margin:auto}#vendor-menu{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}#vendor-menu>h3,#vendor-menu>.vendor-menu-controls{grid-column:1/-1}}
 .sn-route-line{filter:drop-shadow(0 0 4px #42bdff)}
 #handle::before{
   content:"";width:36px;height:1px;background:rgba(126,176,255,.85);display:block;
@@ -558,7 +566,7 @@ textarea.field,#sn-support-matter{min-height:88px}
   <button type="button" id="handle" aria-label="Expand sheet" aria-controls="sheet" aria-expanded="false"></button>
   <form id="search" action="/" method="get">
     <button type="button" id="mic" aria-label="AI Talk" aria-pressed="false">AI Talk</button>
-    <input id="q" name="q" autocomplete="off" enterkeyhint="search" aria-label="Search or ask SpaceNet AI" placeholder="Search or ask SpaceNet AI"/>
+    <input id="q" name="q" autocomplete="off" enterkeyhint="search" aria-label="Search crawlers and commands" placeholder="Search crawlers and commands"/>
     <button type="button" id="dictate" aria-label="Dictate into search">🎤</button>
   </form>
   <span id="sn-ai-live" class="sr-only" role="status"></span>
@@ -572,10 +580,10 @@ textarea.field,#sn-support-matter{min-height:88px}
 <div id="toast" role="status"></div>
 <div id="line" role="status"></div>
 
-<script src="/js/vendor/leaflet.js?v=4459"></script>
-<script src="/js/spacenet/partners/types.js?v=4459"></script>
-<script src="/js/spacenet/partners/client.js?v=4459"></script>
-<script src="/js/spacenet/app.js?v=4459"></script>
-<script src="/js/spacenet/auth.js?v=4459"></script>
+<script src="/js/vendor/leaflet.js?v=4460"></script>
+<script src="/js/spacenet/partners/types.js?v=4460"></script>
+<script src="/js/spacenet/partners/client.js?v=4460"></script>
+<script src="/js/spacenet/app.js?v=4460"></script>
+<script src="/js/spacenet/auth.js?v=4460"></script>
 </body>
 </html>

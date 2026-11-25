@@ -1,5 +1,5 @@
 /*
- * SpaceNet 4459
+ * SpaceNet 4460
  *
  * Astranov Script is the project's name for this stack:
  * - JavaScript for the SpaceNet browser app and Node.js API handlers.
@@ -11,7 +11,7 @@
  */
 (function () {
   "use strict";
-  var VER = "4459";
+  var VER = "4460";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -1844,6 +1844,8 @@
     var phone = vendorBrand(row).phone;
     return '<p class="profile-contact">' +
       (phone ? '<a href="tel:' + escHtml(phone.replace(/[^+\d]/g, "")) + '">' + escHtml(phone) + '</a>' : 'Phone unavailable') +
+      (row.streetAddress ? ' · '+escHtml(row.streetAddress) : '') + (row.hours ? ' · '+escHtml(row.hours) : '') +
+      (row.website && /^https?:\/\//i.test(row.website) ? ' · <a href="'+escHtml(row.website)+'" target="_blank" rel="noopener">Website</a>' : '') +
       (row.test && row.phone == null ? ' <small>Test number</small>' : '') + '</p>';
   }
   function editTestVendorProfile() {
@@ -1919,7 +1921,9 @@
         openActorSheet(a);
       });
       mark.addTo(map);
+      mark.options.notificationKey=a.accountId || a.id;
       actorMarks.push(mark);
+      paintNoticePin(mark);
     });
   }
   var drawerProfile = null;
@@ -2047,10 +2051,12 @@
         (actor.self ? '<button type="button" class="sheet-go" data-act="profile-orders">Order history</button>' : '') + '</section>' : '') +
       (actor.self ? '<section class="profile-section">' + profile.menu + '</section></article>' : '') +
       (actor.self ? '' :
-       '<section class="profile-section"><h3>Menu</h3>' +
+       '<nav class="profile-arrows"><button data-act="scroll-profile" data-id="vendor-menu" aria-label="Up to menu">↑ Menu</button>' +
+        (stats ? '<button data-act="scroll-profile" data-id="vendor-pending">↓ Orders</button>' : '') +
+        '<button data-act="scroll-profile" data-id="profile-messaging">↓ Messages</button></nav><section class="profile-section" id="vendor-menu"><h3>Menu</h3>' +
         (stats && actor.discovered ? '<button class="sheet-go" data-act="review-listing">Review listing submissions</button>' : '') +
-        (stats && stats.can_manage_menu ? '<button type="button" class="sheet-go" data-act="import-test-menu">Import menu</button>' : '') +
-        profile.menu + '</section>'  +
+        ((stats?.can_manage_menu || actor.canEdit && actor.editorAccount===checkoutAccount()) ? '<button type="button" class="sheet-go" data-act="import-test-menu">Import menu</button>' : '') +
+        profile.menu + '</section>' + (stats ? pendingMarkup(actor) : '') +
       '<section class="profile-section"><h3>Posts</h3>' +
       posts.map(function (post) {
         return '<div class="profile-entry"><p>' + escHtml(post.text || post.note || post.title) + '</p>' +
@@ -2060,13 +2066,15 @@
       (actor.test ? '<form data-profile-action="post"><label class="profile-label">New test post<textarea class="field" name="text" maxlength="500" required></textarea></label>' +
         '<button type="submit" class="sheet-go">Post</button><p class="note" role="status"></p></form>' : '') + '</section>' +
       '<section class="profile-section" id="profile-messaging"><h3>Messaging</h3>' +
-      (profileMessages(actor).map(function (entry) {
+      (stats?.can_manage_menu ? '<button class="sheet-go" data-act="order-inbox">Order messages</button>' : '') +
+      ((noticeAccount===checkoutAccount() && privateNotices?.peer===profileId(actor) && privateNotices.thread?.length ?
+        privateNotices.thread.map(m=>({text:(m.outgoing?"You · ":"Received · ")+m.body,created_at:m.created_at})) : profileMessages(actor)).map(function (entry) {
         return '<div class="profile-entry"><p>' + escHtml(entry.text) + '</p><time>' +
           escHtml(transactionDate(entry.created_at)) + '</time></div>';
       }).join("") || '<p class="note">No messages yet.</p>') +
       (checkoutAccount()
-        ? '<form data-profile-action="message"><label class="profile-label">Message<textarea class="field" name="text" maxlength="1000" required></textarea></label>' +
-          '<button type="submit" class="sheet-go primary">Save message on this device</button><p class="note" role="status"></p></form>'
+        ? '<form data-profile-action="message"><label>To<select class="field" name="team"><option value="">This profile</option><option value="ambassador">Ambassadors</option><option value="admin">Administrators</option><option value="owner">Owners</option></select></label><label class="profile-label">Message<textarea class="field" name="text" maxlength="1000" required></textarea></label>' +
+          '<button type="submit" class="sheet-go primary">Send message</button><p class="note" role="status"></p></form>'
         : '<button type="button" class="sheet-go" data-act="profile-sign-in">Sign in to message</button>') + '</section></article>');
   }
   function showDrawerProfile(actor, menu) {
@@ -2084,6 +2092,7 @@
       profileOrderState = null;
       $("sheet").scrollTop = 0;
       loadProfileOrders(actor, false, 0);
+      if (checkoutAccount()) vendorInbox(undefined,true);
     }
     if (changed || drawerH <= collapsedDrawerH()) setDrawerHeight(offerDrawerH());
     loadProfilePosts(actor);
@@ -2103,7 +2112,7 @@
       paintDrawerContent();
     });
   }
-  function submitProfileEntry(event) {
+  async function submitProfileEntry(event) {
     var form = event.target;
     if (!form.matches("[data-profile-action]") || !drawerProfile) return;
     event.preventDefault();
@@ -2121,6 +2130,14 @@
       } catch (e) { saved = false; }
     } else if (form.dataset.profileAction === "message" && checkoutAccount()) {
       var account = checkoutAccount();
+      var button=form.querySelector("button");
+      if(button.disabled) return;
+      button.disabled=true;
+      var team=form.elements.team.value;
+      var result=await listingAction({kind:"message",team:team||null,vendor:!team && profileIsVendor(actor)?profileId(actor):null,recipient:actor.accountId || actor.id,text:text});
+      button.disabled=false;
+      if(account!==checkoutAccount()) return;
+      if(!result?.ok){form.querySelector('[role="status"]').textContent="Could not deliver. The recipient must have a linked account.";return;}
       saved = writeAccountRows("profile-messages", account, [entry].concat(loadAccountRows("profile-messages", account)).slice(0, 200));
     }
     if (saved) { form.reset(); paintDrawerContent(); }
@@ -3125,7 +3142,9 @@
         openVendor(s);
       });
       mark.addTo(map);
+      mark.options.notificationKey=s.id;
       shopMarks.push(mark);
+      paintNoticePin(mark);
     });
     paintActorsOnMap();
   }
@@ -3189,9 +3208,7 @@
     }
     materialize(true);
     say("Finding " + q + "…");
-    var local = suggestLocal(q).map(function (s) {
-      return { name: s.name, lat: s.lat, lng: s.lng, kind: s.kind || s.role || "shop", phone: s.phone || "", src: s.famous ? "famous" : "local", famous: !!s.famous };
-    });
+    var local = suggestLocal(q);
     var go = function () {
       /* Lean: one server path (/api/find). No browser Nominatim/Overpass (CORS + triple work). */
       huntApi(q).then(function (rows) {
@@ -3228,7 +3245,7 @@
     return base.map(function (m, i) {
       return {
         i: i,
-        source: m.source, name: m.name || ("Item " + (i + 1)),
+        sample:!!m.sample, weight_g:m.weight_g, temperature_c:m.temperature_c, expires:m.produced_at && m.lifetime_minutes ? Date.parse(m.produced_at)+60000*m.lifetime_minutes : null, source: m.source, name: m.name || ("Item " + (i + 1)),
         price: Number(m.price) || 0,
         note: m.note || m.desc || "",
         hours: m.hours || m.availability || "Today",
@@ -3258,12 +3275,19 @@
     if (s.test) { renderVendorShop(); return; }
     if (map && isFinite(s.lat)) map.setView([s.lat, s.lng], 17);
     renderVendorShop();
-    if (!s.registered && (!s.menu?.length || s.discovered)) fetchJson("/api/vendor-menu?vendor=" + encodeURIComponent(profileId(s))).then(function (data) {
+    if (s.discovered || !s.registered && !s.menu?.length) fetchJson("/api/vendor-menu?vendor=" + encodeURIComponent(profileId(s)),{headers:authToken()?{Authorization:"Bearer "+authToken()}:{}}).then(function (data) {
       if (!data || !data.registered || vendor !== s || !drawerProfile || drawerProfile.actor !== s) return;
       if (Object.keys(cart.items).length && JSON.stringify(s.menu) !== JSON.stringify(data.items)) {
         cart.items = {};
         say("The vendor menu has loaded. Add items from the updated menu.");
       }
+      s.menuStored=data.stored;
+      s.canEdit = data.canEdit;
+      s.editorAccount = checkoutAccount();
+      s.phone = data.phone || s.phone;
+      s.website = data.website || s.website;
+      s.streetAddress = [data.address?.street,data.address?.housenumber,data.address?.city].filter(Boolean).join(" ");
+      s.hours = data.hours;
       s.registered = true;
       s.menu = data.items;
       renderVendorShop();
@@ -3275,7 +3299,7 @@
     return '<button type="button" class="sheet-go" data-act="remove-test-pin" data-id="' + escHtml(pin.id) + '">Remove pin</button>';
   }
   function itemAvailable(item) {
-    if (!item || item.stock === "out" || item.quantity === 0 || item.price <= 0) return false;
+    if (!item || item.stock === "out" || item.quantity === 0 || item.price <= 0 || item.expires && Date.now()>=item.expires) return false;
     if (item.days && !item.days.includes(new Date().getDay())) return false;
     if (!item.from || !item.until || item.from === item.until) return true;
     var now = new Date();
@@ -3329,11 +3353,11 @@
       return '<button type="button" data-product="' + i + '">' + photo + '<span>' + escHtml(item.name) + '</span></button>';
     }).join("") + '</div>';
   }
-  var menuColumns = ["photo", "description", "category", "price", "quantity", "available_from", "available_until", "days", "name"];
+  var menuColumns = ["photo", "description", "category", "price", "quantity", "available_from", "available_until", "days", "name","weight_g","temperature_c","produced_at","lifetime_minutes"];
   var menuDays = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
   function downloadMenuTemplate() {
     var csv = menuColumns.join(",") + "\r\n" +
-      ",Tomato and mozzarella,Pizza,12.00,20,11:00,22:00,Mon Tue Wed Thu Fri Sat Sun,Margherita pizza\r\n";
+      ",Tomato and mozzarella,Pizza,12.00,20,11:00,22:00,Mon Tue Wed Thu Fri Sat Sun,Margherita pizza,350,60," + new Date().toISOString() + ",60\r\n";
     var url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     var download = document.createElement("a");
     download.href = url;
@@ -3365,15 +3389,18 @@
     }
     if (quoted) throw new Error("An item has an unclosed quote.");
     var header = rows.shift();
-    if (!header || header.map(function (cell) { return cell.toLowerCase(); }).join(",") !== menuColumns.join(",")) {
+    var columns = header?.length === 9 ? menuColumns.slice(0,9) : menuColumns;
+    if (!header || header.map(function (cell) { return cell.toLowerCase(); }).join(",") !== columns.join(",")) {
       throw new Error("Use the column names and order in the sample CSV.");
     }
     if (!rows.length || rows.length > 200) throw new Error("Upload between 1 and 200 items.");
     return rows.map(function (cells, i) {
-      var [photo, note, category, price, quantity, from, until, days, name] = cells;
+      var [photo, note, category, price, quantity, from, until, days, name, weight, temperature, produced, lifetime] = cells;
       var weekdays = days ? Array.from(new Set(days.toLowerCase().split(/[\s;,]+/).filter(Boolean).map(function (day) { return menuDays.indexOf(day); }))) : null;
       var clock = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
-      if (cells.length !== menuColumns.length || !name || name.length > 80 || note.length > 300 || category.length > 60 ||
+      if (cells.length !== columns.length || weight && (!Number.isFinite(Number(weight)) || Number(weight)<=0) ||
+          temperature && !Number.isFinite(Number(temperature)) || !!produced !== !!lifetime ||
+          produced && (!/(Z|[+-]\d\d:\d\d)$/i.test(produced) || !Number.isFinite(Date.parse(produced)) || !/^\d+$/.test(lifetime) || Number(lifetime)<1 || Number(lifetime)>5256000) || !name || name.length > 80 || note.length > 300 || category.length > 60 ||
           photo && (photo.length > 2048 || !/^https:\/\/[^\s]+$/i.test(photo)) ||
           !/^\d{1,4}(?:\.\d{1,2})?$/.test(price) || Number(price) <= 0 ||
           !/^\d{1,5}$/.test(quantity) || !!from !== !!until || from && (!clock.test(from) || !clock.test(until)) ||
@@ -3381,7 +3408,7 @@
         throw new Error("Check item " + (i + 1) + " for missing or invalid values.");
       }
       return { name: name, photo: photo, note: note, category: category, price: Number(price),
-        quantity: Number(quantity), days: weekdays, from: from, until: until, savedAt: Date.now(),
+        weight_g:weight?Number(weight):null, temperature_c:temperature?Number(temperature):null, produced_at:produced || null,lifetime_minutes:lifetime?Number(lifetime):null, quantity: Number(quantity), days: weekdays, from: from, until: until, savedAt: Date.now(),
         hours: from && from !== until ? from + "–" + until : "All day" };
     });
   }
@@ -3389,7 +3416,7 @@
     if (!vendor) return;
     var shop = vendor;
     var state = profileOrdersFor(shop);
-    if (!shop.test && !(state && state.data && state.data.can_manage_menu)) return;
+    if (!shop.test && !(state?.data?.can_manage_menu || shop.canEdit && shop.editorAccount===checkoutAccount())) return;
     var vendorId = vendor.id;
     openSheet("Import menu", '<form id="sn-import-menu" class="test-form">' +
       '<p class="note">Use HTTPS photo links and save your spreadsheet as comma-separated CSV. Imported rows are added to your menu.</p>' +
@@ -3801,16 +3828,18 @@
     if (vendor.discovered) controls += '<button class="sheet-go" data-act="invite-listing">✉️ Invite vendor</button> ' +
       '<button class="sheet-go" data-act="claim-listing">Request ownership review</button> ' +
       '<button class="sheet-go" data-act="suggest-item">Suggest menu item</button>';
+    if (vendor.canEdit && vendor.editorAccount===checkoutAccount()) controls += '<button class="sheet-go" data-act="editor-add-item">Add menu item</button>';
     var rows = vendorMenu(vendor).map(function (item) {
       var photo = profileImage(item.photo);
       var available = itemAvailable(item);
-      var details = [item.price + " AV€", item.hours, item.category,
+      var details = [item.price + " AV€", item.hours, item.category, item.weight_g && item.weight_g+" g", item.temperature_c!=null ? item.temperature_c+" °C" : "", item.expires ? (item.expires<=Date.now()?"Spoiled":"Deliver by "+new Date(item.expires).toLocaleString()) : "",
         item.limited ? item.quantity + " in stock" : "", available ? "" : "Unavailable"].filter(Boolean);
       return '<article class="test-item profile-menu-item">' +
         (photo ? '<img width="58" height="58" src="' + escHtml(photo) + '" alt="" loading="lazy">' : '') +
         '<div class="profile-item-copy"><b>' + escHtml(item.name) + '</b><p class="note">' + escHtml(details.join(" · ")) + '</p>' +
         (item.note ? '<p class="note">' + escHtml(item.note) + '</p>' : '') +
         (item.source && /^https:\/\//.test(item.source) ? '<a href="' + escHtml(item.source) + '" target="_blank" rel="noopener">Published menu</a>' : '') +
+        (vendor.canEdit && vendor.editorAccount===checkoutAccount() && vendor.menuStored && !item.sample ? '<button class="sheet-go" data-act="editor-edit-item" data-i="'+item.i+'">Edit</button>' : '') +
         '</div>' + menuQuantity(item, available) + '</article>';
     }).join("");
     showDrawerProfile(vendor, controls + (rows || '<p class="note">No menu items yet.</p>'));
@@ -4012,6 +4041,56 @@
     say("Vendor confirmed · routed to " + (picks[0] ? picks[0].name : "drivers") + (job.route.pickReason ? " (" + job.route.pickReason + ")" : "") + ".");
   }
 
+  var inboxBusy=false, displayedNotice="", privateNotices=null, noticeAccount="";
+  function paintNoticePin(mark) {
+    var el=mark.getElement(), key=mark.options.notificationKey;
+    if(!el) return;
+    var count=noticeAccount===checkoutAccount()? privateNotices?.counts?.[key] || 0 : 0;
+    var badge=el.querySelector(".notice-count");
+    if(!count){badge?.remove();return;}
+    if(!badge){badge=document.createElement("span");badge.className="notice-count";el.append(badge);}
+    badge.textContent=count;
+    badge.setAttribute("aria-label",count+" pending notifications");
+  }
+  function pendingMarkup(actor) {
+    if(noticeAccount!==checkoutAccount() || privateNotices?.vendor!==profileId(actor)) return "";
+    return '<section id="vendor-pending" class="profile-section"><h3>Pending orders</h3>'+ (privateNotices.pending.map(function(order) {
+      return '<article><time>'+escHtml(transactionDate(order.created_at))+'</time> '+escHtml(order.items.map(i=>(i.qty || 1)+" × "+(i.name || "Item")).join(", "))+
+        (order.channel==="listing_request" ? ' <button class="sheet-go" data-act="order-accept" data-id="'+escHtml(order.id)+'">Accept</button> <button class="sheet-go" data-act="order-decline" data-id="'+escHtml(order.id)+'">Decline</button>' : '')+'</article>';
+    }).join("") || '<p class="note">No pending orders.</p>')+'</section>';
+  }
+  async function vendorInbox(vendorId, quiet) {
+    var account=checkoutAccount();
+    if(!account || inboxBusy || document.hidden) return;
+    inboxBusy=true;
+    try {
+      var peer=drawerProfile?.actor && profileId(drawerProfile.actor);
+      var scope=vendorId || (drawerProfile && profileIsVendor(drawerProfile.actor) ? profileId(drawerProfile.actor) : null);
+      var [result,notices]=await Promise.all([listingAction({kind:"inbox",vendor:vendorId}),listingAction({kind:"notifications",vendor:scope,peer:drawerProfile?.actor?.accountId || drawerProfile?.actor?.id})]);
+      if(account!==checkoutAccount() || !Array.isArray(result?.items) || !notices?.ok) return;
+      notices.peer=peer;
+      notices.vendor=scope;
+      notices.messages.forEach(m=>{notices.counts[m.sender]=(notices.counts[m.sender]||0)+1;});
+      privateNotices=notices;
+      noticeAccount=account;
+      shopMarks.concat(actorMarks).forEach(paintNoticePin);
+      if(!document.activeElement?.closest("form")) paintDrawerContent();
+      var signature=account+":"+result.items.concat(notices.messages).map(row=>row.id).join(",");
+      if(!vendorId && (quiet || signature===displayedNotice || !(result.items.length+notices.messages.length) ||
+        pendingOffer || $("sn-sheet").classList.contains("on") || document.activeElement?.matches("input,textarea,select") ||
+        drawerPlacement && !$("notification-list"))) return;
+      displayedNotice=signature;
+      var rows=result.items.map(function(order){
+        var expired=order.delivery_deadline && Date.parse(order.delivery_deadline)<=Date.now();
+        return '<article><b>'+escHtml(order.name)+'</b><p>'+escHtml(transactionDate(order.created_at))+' · '+escHtml(order.items.map(i=>i.qty+" × "+i.name+(i.sample?" (sample)":"")).join(", "))+'</p>'+
+          (expired?"<p>Delivery deadline passed</p>":"")+
+          (!order.vendor_seen_at?'<button class="sheet-go" data-act="order-seen" data-id="'+escHtml(order.id)+'">Mark read</button>':'')+'</article>';
+      }).join("");
+      if(!vendorId) rows+=notices.messages.map(m=>'<article><b>'+escHtml(m.name)+'</b><p>'+escHtml(m.body)+'</p><button class="sheet-go" data-act="message-read" data-id="'+escHtml(m.id)+'">Mark read</button> <button class="sheet-go" data-act="reply-message" data-id="'+escHtml(m.sender)+'">Reply</button></article>').join("");
+      showDrawerPlacement(vendorId?"Vendor messages":"Notifications · "+(result.items.length+notices.messages.length),'<div id="notification-list">'+(rows||"<p>No orders yet.</p>")+'</div>');
+      setDrawerHeight(Math.round(innerHeight/3));
+    } finally {inboxBusy=false;}
+  }
   function listingAction(data) {
     return fetchJson("/api/listing-action",{method:"POST",headers:{Authorization:"Bearer "+authToken(),"Content-Type":"application/json"},body:JSON.stringify(data)});
   }
@@ -4032,7 +4111,7 @@
       var button = $("sn-pay-cart");
       if (!button || button.disabled) return;
       button.disabled = true;
-      var request = {kind:"order",vendor_ref:vendor.id,items:vendorMenu(vendor).filter(m=>cartQty(m.i)).map(m=>({name:m.name,qty:cartQty(m.i)})),
+      var request = {kind:"order",vendor_ref:vendor.id,items:vendorMenu(vendor).filter(m=>cartQty(m.i)).map(m=>({name:m.name,qty:cartQty(m.i),sample:m.sample})),
         drops:destinations.map(entry=>({name:entry.pin.name,lat:entry.pin.lat,lng:entry.pin.lng}))};
       request.request_id = testOrderKey(request);
       var result = await listingAction(request);
@@ -5449,7 +5528,22 @@
         if (aiPending) { showAI("Wait for SpaceNet AI to finish answering."); return; }
         var v = inp && inp.value;
         if (inp) inp.value = "";
-        talk(v, false);
+        var command=String(v || "").trim();
+        switch(command.toLowerCase().replace(/^\//,"")) {
+          case "": break;
+          case "help": case "commands":
+            showDrawerPlacement("Crawler and system commands","<p>Scan nearby · Menu · Orders · News · Home</p><p>Enter a vendor name or product to search.</p>");break;
+          case "scan": case "scan nearby": case "nearby":
+            discoveryUntil=0;
+            if(cityOn && map) discoverNearby(map.getCenter());
+            else locate(function(pt){openCity(pt);});
+            break;
+          case "menu": if(vendor) openVendor(vendor); else showDrawerPlacement("Menu","<p>Select a vendor on the map.</p>");break;
+          case "orders": openJobs();break;
+          case "news": openNewsDesk("events");break;
+          case "home": openHomeDrawer();break;
+          default: hunt(command);
+        }
         materialize(needFilter());
       });
     }
@@ -5764,6 +5858,23 @@
         var status = $("sn-phone-result");
         SNAuth.verifyPhone(phone, code).then(function (message) { status.textContent = message; });
       }
+      if (act === "scroll-profile") $(id)?.scrollIntoView({block:"start"});
+      if (act === "order-accept" || act === "order-decline") {
+        listingAction({kind:"order-status",id:id,status:act==="order-accept"?"accepted":"declined"}).then(function(reply){
+          if(reply?.ok) vendorInbox(undefined,true); else t.textContent="Refresh orders";
+        });
+      }
+      if (act === "message-read") listingAction({kind:"message-read",id:id}).then(function(reply){if(reply?.ok){dismissDrawerPlacement();vendorInbox();}});
+      if (act === "reply-message") {
+        showDrawerPlacement("Reply",'<form id="reply-direct"><textarea required class="field" maxlength="1000"></textarea><button class="sheet-go">Send</button><p role="status"></p></form>');
+        $("reply-direct").onsubmit=async function(e){e.preventDefault();var form=e.currentTarget,b=form.querySelector("button");if(b.disabled)return;b.disabled=true;
+          var result=await listingAction({kind:"message",recipient:id,text:form.querySelector("textarea").value});
+          if(result?.ok) dismissDrawerPlacement();else {b.disabled=false;form.querySelector("p").textContent="Message unavailable.";}};
+      }
+      if (act === "order-inbox" && vendor) vendorInbox(vendor.id);
+      if (act === "order-seen") {
+        listingAction({kind:"inbox",seen:id}).then(function(reply){if(reply?.ok) dismissDrawerPlacement();});
+      }
       if (act === "review-listing" && vendor) {
         var ref = vendor.id;
         listingAction({kind:"review",vendor_ref:ref}).then(function(result) {
@@ -5778,6 +5889,25 @@
         listingAction({kind:"approve",id:id,vendor_ref:vendor.id}).then(function(result) {
           openSheet("Listing review",result?.ok ? "Approved." : "Approval unavailable.");
         });
+      }
+      if ((act === "editor-add-item" || act === "editor-edit-item") && vendor) {
+        var selectedShop=vendor;
+        var previous=act==="editor-edit-item"?vendor.menu[i]:null;
+        $("editor-item")?.remove();
+        var anchor=t.closest(".profile-menu-item") || t.closest(".vendor-menu-controls") || t;
+        anchor.insertAdjacentHTML("afterend",'<form id="editor-item" class="test-form"><label>Name<input class="field" name="product" required maxlength="80"></label><label>Price in euros<input class="field" name="price" type="number" min=".01" max="9999.99" step=".01" required></label><label>Stock<input class="field" name="stock" type="number" min="0" max="99999" value="1" required></label><button class="sheet-go">Save item</button><p role="status"></p></form>');
+        $("editor-item").scrollIntoView({block:"nearest"});
+        if(previous){var fields=$("editor-item").elements;fields.product.value=previous.name;fields.price.value=previous.price;fields.stock.value=previous.quantity ?? 99;}
+        $("editor-item").onsubmit=async function(e) {
+          e.preventDefault();
+          var form=e.currentTarget, submit=form.querySelector("button");
+          if (submit.disabled) return;
+          submit.disabled=true;
+          var item=Object.assign({note:"",category:"",photo:""},previous,{name:form.elements.product.value,price:Number(form.elements.price.value),quantity:Number(form.elements.stock.value)});
+          var response=await fetchJson("/api/vendor-menu?vendor="+encodeURIComponent(selectedShop.id),{method:"POST",headers:{Authorization:"Bearer "+authToken(),"Content-Type":"application/json"},body:JSON.stringify({items:[item],index:previous?i:null,previous:previous})});
+          if(response?.items && vendor===selectedShop){vendor.menu=response.items;vendor.menuStored=true;cart.items={};form.remove();renderVendorShop();}
+          else {submit.disabled=false;form.querySelector("p").textContent="Could not save item.";}
+        };
       }
       if (act === "invite-listing" && vendor) {
         var invite = location.origin + "/?listing=" + encodeURIComponent(vendor.id) + "&lat=" + vendor.lat + "&lng=" + vendor.lng;
@@ -6107,7 +6237,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4459 = true;
+    window.__SN_4460 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
@@ -6139,8 +6269,11 @@
       pullTxnsRemote();
       flushTransactions();
     });
+    setInterval(function(){vendorInbox();},15000);
     window.addEventListener("online", flushTransactions);
     window.addEventListener("spacenet:signed-out", function () {
+      privateNotices=null;noticeAccount="";displayedNotice="";if($("notification-list")) dismissDrawerPlacement();
+      shopMarks.concat(actorMarks).forEach(paintNoticePin);
       profileOrderState = null;
       deliverySelection.clear();
       if (drawerProfile && (drawerProfile.actor.self || drawerProfile.actor.savedDelivery)) drawerProfile = null;

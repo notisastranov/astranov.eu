@@ -380,7 +380,13 @@ serve(async (req) => {
       }
       const { data, error } = await sb.from('vendors').select('id,osm_id,name,category,emoji,lat,lng,address,tags,items,is_active').in('osm_id', ids).eq('is_active',true)
       if (error) throw error
-      published = data || []
+      const freshById = new Map(rows.map(r => [r.osm_id, r]))
+      published = (data || []).map(row => {
+        const observed = freshById.get(row.osm_id)
+        return { ...row, address: { ...row.address,
+          phone: row.address?.phone || observed?.address?.phone,
+          website: row.address?.website || observed?.address?.website } }
+      })
     }
     const vendors = published.map(r => ({
       id:r.id || r.osm_id, name:r.name, category:r.category, emoji:r.emoji, lat:r.lat, lng:r.lng,
