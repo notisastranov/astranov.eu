@@ -1,5 +1,5 @@
 /*
- * SpaceNet 4468
+ * SpaceNet 4469
  *
  * Astranov Script is the project's name for this stack:
  * - JavaScript for the SpaceNet browser app and Node.js API handlers.
@@ -11,7 +11,7 @@
  */
 (function () {
   "use strict";
-  var VER = "4468";
+  var VER = "4469";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -2017,7 +2017,7 @@
       ? '<h3>Free AI providers</h3><select id="sn-provider"><option value="groq">Groq</option><option value="gemini">Gemini</option><option value="openrouter">OpenRouter Free</option></select>' +
         '<input class="field" id="sn-provider-key" type="password" autocomplete="off" placeholder="Provider API key">' +
         '<button class="sheet-go" data-act="save-provider">Save provider key</button><p id="sn-provider-status" role="status"></p>' : "";
-    var menu = providerSettings + '<p>Google account · ' + (person.googleLinked ? 'Linked' : 'Unconfirmed') + '</p><p>Phone · ' +
+    var menu = (vendor && cartSubtotal() ? '<button class="sheet-go" data-act="checkout-return">Return to checkout</button> <button class="sheet-go" data-act="checkout-new-client">Add delivery address</button>' : '') + providerSettings + '<p>Google account · ' + (person.googleLinked ? 'Linked' : 'Unconfirmed') + '</p><p>Phone · ' +
       (person.phoneConfirmed ? 'Verified' : 'Unconfirmed') + '</p>' +
       '<label>Phone with country code<input id="sn-phone-number" type="tel" class="field" value="' + escHtml(person.phone || "") + '"></label>' +
       '<label>WhatsApp verification code<input id="sn-phone-code" inputmode="numeric" class="field"></label>' +
@@ -3073,7 +3073,7 @@
   }
   function liftChrome() {
     var h = 0;
-    ["sn-sheet", "sn-tasks"].forEach(function (id) {
+    ["sn-tasks"].forEach(function (id) {
       var el = $(id);
       if (!el || !el.classList.contains("on") || el.classList.contains("min")) return;
       var card = el.querySelector(".card");
@@ -3137,14 +3137,17 @@
   function openSheet(title, html) {
     var sh = $("sn-sheet"), card = $("sn-sheet-card");
     if (!sh || !card) return;
+    disposeCheckoutMap();
     card.innerHTML = '<div class="sheet-bar"><b class="sheet-ttl"></b><button type="button" class="sheet-x" data-act="close">HIDE</button></div><div id="sn-sheet-body"></div>';
     card.querySelector(".sheet-ttl").textContent = title;
     card.querySelector("#sn-sheet-body").innerHTML = html;
     sh.classList.add("on");
+    sh.scrollTop = 0;
+    setDrawerHeight(Math.max(drawerH,offerDrawerH()));
     materialize(true);
     liftChrome();
   }
-  function closeSheet() { var sh = $("sn-sheet"); if (sh) sh.classList.remove("on"); materialize(needFilter()); liftChrome(); paintDrawerContent(); }
+  function closeSheet() { disposeCheckoutMap(); var sh = $("sn-sheet"); if (sh) sh.classList.remove("on"); materialize(needFilter()); liftChrome(); paintDrawerContent(); }
   function paintShopsOnMap() {
     if (!map || typeof L === "undefined") return;
     shopMarks.forEach(function (m) { try { map.removeLayer(m); } catch (e) {} });
@@ -3662,7 +3665,7 @@
   }
   function deliveryPicker(clients) {
     return '<fieldset id="sn-checkout-client"><legend>Deliver to</legend><p class="note">' +
-      (clients.length ? 'Select a client location or add a delivery address to place this order.' : 'This order needs a delivery address. Add yours or a client location on the map.') + '</p>' + clients.map(function (pin) {
+      (clients.length ? 'Select a client location or add a delivery address to place this order.' : 'This order needs a delivery address. Enable User / Client in your account and choose an address, or tap the map below.') + '</p>' + (!clients.length ? '<button type="button" class="sheet-go" data-act="checkout-profile">User account</button>' : '') + clients.map(function (pin) {
       return '<label><input type="checkbox" value="' + escHtml(pin.id) + '"' +
         (deliverySelection.has(pin.id) ? " checked" : "") + '> ' + escHtml(pin.name) + '</label>';
     }).join("") + '<p class="note">Each address receives a full cart. Choose up to eight addresses.</p></fieldset>' +
@@ -3688,6 +3691,18 @@
   function advanceTestOrder() {
     testOrder = testOrderQueue.shift() || null;
     if (testOrder && offersArmed()) showTestOffer(testOrder, testOrder.drivers[0]);
+  }
+  var checkoutMap;
+  function disposeCheckoutMap() {
+    if (checkoutMap) { checkoutMap.remove(); checkoutMap = null; }
+  }
+  function openCheckoutMap() {
+    if (!vendor || !requireCheckoutSignIn()) return;
+    var center = here || vendor;
+    openSheet("Choose delivery address", '<p class="note">Tap your delivery location on the map.</p><div id="checkout-map"></div><button class="sheet-go" data-act="checkout-cancel-client">Back to checkout</button>');
+    checkoutMap = L.map("checkout-map",{scrollWheelZoom:false}).setView([center.lat,center.lng],16);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(checkoutMap);
+    checkoutMap.on("click",e=>nameDestination(e.latlng));
   }
   function beginDestinationPick() {
     if (!vendor || !requireCheckoutSignIn()) return;
@@ -3816,7 +3831,13 @@
       try { sessionStorage.removeItem("sn:test-submit"); } catch (err) {}
       if (form.isConnected && vendor === shop) cart.items = {};
       closeSheet();
-      say("Delivery requested.");
+      if (!result.assignment) {
+        var pending = (result.checkout || []).filter(row=>orders.some(order=>order.order_id===row.id));
+        var controls = pending.map(row => row.state==="waiting" ? '<button class="sheet-go" data-act="dispatch-pickup" data-id="'+escHtml(row.id)+'">Choose vendor pickup · '+escHtml(row.vendor.name)+'</button>' : '').join(" ");
+        var admin = SNAuth.user()?.roles?.some(role=>["admin","super_admin","owner"].includes(role));
+        showDrawerPlacement("Delivery requested", '<p>'+(pending.some(row=>row.state==="offered") ? 'A nearby driver has received the offer.' : 'Looking for an available driver.')+'</p>'+controls+
+          (admin && controls ? '<button class="sheet-go" data-act="checkout-driver">Add driver at my location</button>' : ''));
+      }
       await displayDispatch(result);
 
     });
@@ -5334,14 +5355,15 @@
       coastFrame = 0;
     };
     function moveBy(dy, inSheet) {
-      var before = sheet.scrollTop, height = drawerH;
+      var scroll = $("sn-sheet").classList.contains("on") ? $("sn-sheet") : sheet;
+      var before = scroll.scrollTop, height = drawerH;
       if (inSheet && dy < 0 && drawerH === maxDrawerH()) {
-        sheet.scrollTop += dy;
-        dy -= sheet.scrollTop - before;
+        scroll.scrollTop += dy;
+        dy -= scroll.scrollTop - before;
       }
       if (Math.abs(dy) >= 1) setDrawerHeight(drawerH + dy, true);
-      if (inSheet && dy > 0) sheet.scrollTop += Math.max(0, dy - (drawerH - height));
-      return { moved: drawerH !== height || sheet.scrollTop !== before, resized: drawerH !== height };
+      if (inSheet && dy > 0) scroll.scrollTop += Math.max(0, dy - (drawerH - height));
+      return { moved: drawerH !== height || scroll.scrollTop !== before, resized: drawerH !== height };
     }
     function coast(state) {
       var velocity = state.velocity;
@@ -5366,7 +5388,7 @@
       var p = e.touches[0];
       touch = {
         x: p.clientX, y: p.clientY, lastY: p.clientY, lastTime: performance.now(),
-        inSheet: sheet.contains(e.target), moved: false, resized: false, velocity: 0
+        inSheet: sheet.contains(e.target) || $("sn-sheet").contains(e.target), moved: false, resized: false, velocity: 0
       };
     }, { passive: true });
     d.addEventListener("touchmove", function (e) {
@@ -6134,9 +6156,20 @@
         loadProfileOrders(drawerProfile.actor, act !== "profile-main", i);
         $("sheet").scrollTop = 0;
       }
+      if (act === "checkout-driver" && SNAuth.user()?.roles?.some(role=>["admin","owner","super_admin"].includes(role))) {
+        locate(function(point) {
+          listPt=point; placeTestPin("driver"); dispatchFix=point;
+          if (!SNAuth.activeRoles().driver) SNAuth.toggleRole("driver");
+          showDrawerPlacement("Delivery driver",'<p>'+ (offersArmed() ? "Checking for nearby orders." : "Hold power for three seconds to receive the order.")+'</p>');
+          refreshDispatch();
+        });
+      }
+      if (act === "checkout-profile") openOwnProfile();
+      if (act === "checkout-return") resumeCheckout();
       if (act === "profile-address") {
         var address = deliveryLocations().find(function (pin) { return pin.id === id; });
-        if (address) { openCity(address); setDrawerHeight(collapsedDrawerH()); }
+        if (address && vendor && cartSubtotal()) { deliverySelection.add(address.id); resumeCheckout(); }
+        else if (address) { openCity(address); setDrawerHeight(collapsedDrawerH()); }
       }
       if (act === "profile-jump") jumpToProfileSection(id);
       if (act === "profile-close") {
@@ -6161,7 +6194,7 @@
         if (window.SNAuth && SNAuth.open) SNAuth.open();
       }
       if (act === "checkout-sign-in") startCheckoutSignIn();
-      if (act === "checkout-new-client") beginDestinationPick();
+      if (act === "checkout-new-client") openCheckoutMap();
       if (act === "checkout-cancel-client") { endDestinationPick(); resumeCheckout(); }
       if (act === "test-client") {
         deliverySelection = new Set([id]);
@@ -6448,7 +6481,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4468 = true;
+    window.__SN_4469 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
