@@ -1,5 +1,5 @@
 /*
- * SpaceNet 4466
+ * SpaceNet 4467
  *
  * Astranov Script is the project's name for this stack:
  * - JavaScript for the SpaceNet browser app and Node.js API handlers.
@@ -11,7 +11,7 @@
  */
 (function () {
   "use strict";
-  var VER = "4466";
+  var VER = "4467";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -1591,7 +1591,9 @@
     listPt = { lat: pt.lat, lng: pt.lng };
     listAlt = altitudeFromDist(cam.dist);
     if (!cityOn) openCity(pt);
-    placeTestPin(localStorage.getItem("sn:pin-role") || "vendor");
+    showDrawerPlacement("Place a pin", Object.keys(testRoles).map(function(role) {
+      return '<button type="button" class="sheet-go" data-act="insert-actor" data-role="'+role+'">'+actorIcons[role]+' List '+testRoles[role].toLowerCase()+'</button>';
+    }).join(" "));
   }
   var testRoles = { vendor: "Vendor", driver: "Driver", client: "Client", delivery_services: "Delivery service", post: "News" };
   var actorIcons = { vendor: "🏪", delivery_services: "📦", driver: "🚚", client: "🏠", post: "📰" };
@@ -1609,7 +1611,7 @@
     }
     if (!pin.name || pin.name === testRoles[pin.role]) pin.name = testRoles[role];
     pin.role = role;
-    pin.accountId = role === "client" ? checkoutAccount() : undefined;
+    pin.accountId = role === "client" || role === "driver" ? checkoutAccount() : undefined;
     if (isVendorRole(role) && !pin.menu) pin.menu = role === "vendor" ? starterProducts.map(item => ({...item})) : [{name:"City delivery",price:3}];
     if (!updateTestPins(pins,true)) return;
     localStorage.setItem("sn:pin-role",role);
@@ -2173,6 +2175,7 @@
           ? '<button type="button" class="sheet-go primary" data-act="test-driver" data-id="' + id + '">Show test offer</button>'
           : '<p class="note">No offer for this driver.</p>')
         : '<button type="button" class="sheet-go primary" data-act="start-tx" data-id="' + id + '">Start delivery</button>';
+    if (a.quick && a.role==="driver" && checkoutAccount() && (!a.accountId || a.accountId===checkoutAccount())) menu = '<button class="sheet-go" data-act="driver-pin" data-id="'+id+'">Use this driver pin for offers</button>' + menu;
     showDrawerProfile(a, menu + (a.test ? '<button type="button" class="sheet-go" data-act="edit-test-vendor">Edit profile</button>' + removeTestPinButton(a) : ""));
   }
   function findActor(id) {
@@ -3660,7 +3663,8 @@
     return Array.from(new Map(savedDeliveryLocations().concat(known).map(function (pin) { return [pin.id, pin]; })).values());
   }
   function deliveryPicker(clients) {
-    return '<fieldset id="sn-checkout-client"><legend>Deliver to</legend>' + clients.map(function (pin) {
+    return '<fieldset id="sn-checkout-client"><legend>Deliver to</legend><p class="note">' +
+      (clients.length ? 'Select a client location or add a delivery address to place this order.' : 'This order needs a delivery address. Add yours or a client location on the map.') + '</p>' + clients.map(function (pin) {
       return '<label><input type="checkbox" value="' + escHtml(pin.id) + '"' +
         (deliverySelection.has(pin.id) ? " checked" : "") + '> ' + escHtml(pin.name) + '</label>';
     }).join("") + '<p class="note">Each address receives a full cart. Choose up to eight addresses.</p></fieldset>' +
@@ -3894,6 +3898,15 @@
   function dispatchRequest(action, details) {
     return testCheckoutRequest({action:action, details:details || {}});
   }
+  var selectedDriverPin = null;
+  function driverPosition() {
+    return selectedDriverPin && selectedDriverPin.accountId === checkoutAccount() ? selectedDriverPin : dispatchFix;
+  }
+  function driverLocationControls() {
+    return '<p>Receive offers at your current location or a driver pin.</p><button class="sheet-go" data-act="driver-current">Use current GPS location</button> ' +
+      loadTestPins().filter(pin=>pin.role==="driver" && (!pin.accountId || pin.accountId===checkoutAccount())).map(pin=>
+        '<button class="sheet-go" data-act="driver-pin" data-id="'+escHtml(pin.id)+'">Use '+escHtml(pin.name)+' pin</button>').join(" ");
+  }
   function driverAvailable() {
     return !!(offersArmed() && checkoutAccount() && window.SNAuth?.activeRoles().driver);
   }
@@ -3902,11 +3915,12 @@
     if (dispatchBusy) return;
     dispatchBusy = true;
     try {
-      if (driverAvailable()) ensureDriverGps();
+      if (driverAvailable() && !driverPosition()) ensureDriverGps();
       var account = checkoutAccount();
       if (dispatchAccount !== account) { dispatchPickup = ""; dispatchView = ""; dispatchAccount = account; }
-      var active = driverAvailable() && !!dispatchFix;
-      var data = await dispatchRequest("presence",{active:active,lat:(dispatchFix || here)?.lat,lng:(dispatchFix || here)?.lng});
+      var position = driverPosition();
+      var active = driverAvailable() && !!position;
+      var data = await dispatchRequest("presence",{active:active,lat:(position || here)?.lat,lng:(position || here)?.lng});
       if (data.ok && account === checkoutAccount()) await displayDispatch(data);
     } finally { dispatchBusy = false; }
   }
@@ -3926,9 +3940,10 @@
       if (dispatchView === key) return;
       var payload = assignment.payload;
       var job = {id:assignment.id,shared:true,vendor:payload.vendor,drop:payload.drop,
-        fee:payload.delivery_cents/100,driver:dispatchFix,item:payload.items.map(row=>row.qty+" × "+row.name).join(", ")};
+        fee:payload.delivery_cents/100,driver:driverPosition(),item:payload.items.map(row=>row.qty+" × "+row.name).join(", ")};
       if (assignment.state === "offered") {
         if (!driverAvailable()) return;
+        clearDrawerPlacement();
         throwOffer(job);
         startOfferCountdown(Math.max(1,Math.ceil((Date.parse(assignment.deadline)-Date.now())/1000)),refreshDispatch);
       } else {
@@ -5425,7 +5440,7 @@
     $("sn-pending-orders").onclick = function () {
       var active = window.SNAuth?.activeRoles().driver;
       showDrawerPlacement("Pending delivery orders", '<p>' + (active ? 'Delivery driver role is on.' : 'Enable your delivery driver role to receive nearby orders.') + '</p>' +
-        (active ? '' : '<button class="sheet-go" data-act="enable-delivery">Enable delivery driver</button>') +
+        (active ? '' : '<button class="sheet-go" data-act="enable-delivery">Enable delivery driver</button>') + driverLocationControls() +
         (offersArmed() ? '' : '<p>Hold the power button for three seconds to receive offers.</p>'));
     };
     $("sn-list-vendor").onclick = function () {
@@ -5644,7 +5659,7 @@
   function homeMarkup() {
     return '<article class="drawer-profile home-panel"><header class="home-title">' +
       '<h2>SpaceNet Home</h2><button type="button" class="sheet-x" data-act="home-close" aria-label="Close Home">×</button></header>' +
-      '<section class="profile-section"><h3>City map layers</h3><button class="sheet-go" data-act="map-osm">OpenStreetMap</button> <button class="sheet-go" data-act="map-carto">CARTO</button> <button class="sheet-go" data-act="map-light">☀️ Bright</button> <button class="sheet-go" data-act="map-dark">🌌 Dark</button></section>' +
+      '<section class="profile-section"><h3>City map layers</h3><button class="sheet-go" data-act="map-osm">OpenStreetMap</button> <button class="sheet-go" data-act="map-carto">CARTO</button> <button class="sheet-go" aria-pressed="' + (localStorage.getItem("sn:dark-map")!=="1") + '" data-act="map-light">☀️ Bright</button> <button class="sheet-go" aria-pressed="' + (localStorage.getItem("sn:dark-map")==="1") + '" data-act="map-dark">🌌 Dark</button></section>' +
       '<section class="profile-section"><h3>Installation</h3><button class="sheet-go" data-act="install-app">Install on computer or phone</button> ' +
       '<a class="sheet-go" href="/" target="_blank" rel="noopener">Open web version</a></section>' +
       '<section class="profile-section"><h3>Version</h3>' +
@@ -6102,7 +6117,7 @@
         };
       }
       if (act === "map-osm" || act === "map-carto") {localStorage.setItem("sn:basemap",act.slice(4)); setStreetLayer();}
-      if (act === "map-dark" || act === "map-light") { localStorage.setItem("sn:dark-map",act==="map-dark"?"1":"0"); setStreetLayer(); }
+      if (act === "map-dark" || act === "map-light") { localStorage.setItem("sn:dark-map",act==="map-dark"?"1":"0"); localStorage.setItem("sn:basemap","carto"); setStreetLayer(); paintDrawerContent(); }
       if (act === "install-app") {
         if (installEvent) { installEvent.prompt(); installEvent = null; }
         else { homeStatus = "Use your browser menu to install SpaceNet or add it to your home screen."; paintDrawerContent(); }
@@ -6182,6 +6197,19 @@
         if (!headline) { $("quick-headline").focus(); return; }
         if (!signed()) { needLogin("Sign in to publish news."); return; }
         persistListing({id:post.id,kind:"post",name:headline,lat:post.lat,lng:post.lng});
+      }
+      if ((act === "driver-current" || act === "driver-pin") && checkoutAccount()) {
+        var account = checkoutAccount();
+        function usePosition(point, gps) {
+          if (checkoutAccount() !== account || !point) return;
+          selectedDriverPin = gps ? null : {lat:point.lat,lng:point.lng,accountId:account};
+          if (gps) { dispatchFix=point; ensureDriverGps(); }
+          if (!SNAuth.activeRoles().driver) SNAuth.toggleRole("driver");
+          showDrawerPlacement("Delivery driver", '<p>'+ (offersArmed() ? "Ready for nearby orders." : "Hold the power button for three seconds to receive nearby orders.")+'</p>');
+          refreshDispatch();
+        }
+        if (act === "driver-current") locate(point=>usePosition(point,true));
+        else usePosition(loadTestPins().find(pin=>pin.id===id && pin.role==="driver" && (!pin.accountId || pin.accountId===account)),false);
       }
       if (act === "enable-delivery" && checkoutAccount()) {
         if (!SNAuth.activeRoles().driver) SNAuth.toggleRole("driver");
@@ -6423,7 +6451,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4466 = true;
+    window.__SN_4467 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
