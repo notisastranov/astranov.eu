@@ -4,13 +4,13 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4461"/>
+<meta name="astranov-build" content="4462"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
-<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4461"/>
+<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4462"/>
 <style>
 :root{
   --bg:#02040a; --fg:#e8fbff; --muted:#8ec8d8; --accent:#4df0ff;
@@ -431,6 +431,9 @@ textarea.field,#sn-support-matter{min-height:88px}
 #drawer.playing-news #sheet,#drawer.playing-news #sn-drawer-cart,#drawer:not(.open) #sn-news-player{display:none}
 #sn-news-player header{display:flex;align-items:center;gap:4px}
 #sn-news-title{flex:1;font:700 11px/1.2 system-ui;color:#e8fbff;max-height:28px;overflow:hidden}
+.news-surface{position:relative}
+#sn-news-touch{display:none}
+@media(any-pointer:coarse){#sn-news-touch{display:block;position:absolute;inset:0;width:100%;height:100%;border:0;background:transparent;touch-action:pan-x}}
 #sn-news-preview iframe{display:block;width:100%;height:auto;aspect-ratio:16/9;max-height:calc(var(--drawer-h) - 110px);border:0}
 #sn-news-status{margin:2px 0;font-size:11px}
 #sn-news-status:empty{display:none}
@@ -564,7 +567,7 @@ textarea.field,#sn-support-matter{min-height:88px}
   <span id="sn-ai-live" class="sr-only" role="status"></span>
   <section id="sn-news-player" aria-labelledby="sn-news-title" hidden>
     <header><b id="sn-news-title"></b><button id="sn-news-close" class="sheet-x" type="button" aria-label="Close news preview">×</button></header>
-    <div id="sn-news-preview"></div>
+    <div class="news-surface"><div id="sn-news-preview"></div><button type="button" id="sn-news-touch" aria-label="Play or pause news video"></button></div>
     <p id="sn-news-status" class="note" role="status"></p>
   </section>
   <div id="sheet"></div>
@@ -577,10 +580,10 @@ textarea.field,#sn-support-matter{min-height:88px}
 <div id="toast" role="status"></div>
 <div id="line" role="status"></div>
 
-<script src="/js/vendor/leaflet.js?v=4461"></script>
-<script src="/js/spacenet/partners/types.js?v=4461"></script>
-<script src="/js/spacenet/partners/client.js?v=4461"></script>
-<script src="/js/spacenet/app.js?v=4461"></script>
-<script src="/js/spacenet/auth.js?v=4461"></script>
+<script src="/js/vendor/leaflet.js?v=4462"></script>
+<script src="/js/spacenet/partners/types.js?v=4462"></script>
+<script src="/js/spacenet/partners/client.js?v=4462"></script>
+<script src="/js/spacenet/app.js?v=4462"></script>
+<script src="/js/spacenet/auth.js?v=4462"></script>
 </body>
 </html>

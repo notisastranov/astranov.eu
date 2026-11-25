@@ -1,5 +1,5 @@
 /*
- * SpaceNet 4461
+ * SpaceNet 4462
  *
  * Astranov Script is the project's name for this stack:
  * - JavaScript for the SpaceNet browser app and Node.js API handlers.
@@ -11,7 +11,7 @@
  */
 (function () {
   "use strict";
-  var VER = "4461";
+  var VER = "4462";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -5227,6 +5227,11 @@
     handle.addEventListener("pointerup", endDrag);
     handle.addEventListener("pointercancel", endDrag);
     var sheet = $("sheet");
+    $("sn-news-touch").addEventListener("click", function () {
+      if (!newsPlayerReady) return;
+      if (newsPlayer.getPlayerState() === 1) newsPlayer.pauseVideo();
+      else newsPlayer.playVideo();
+    });
     sheet.addEventListener("submit", submitProfileEntry);
     var touch = null, coastFrame = 0;
     cancelDrawerCoast = function () {
@@ -5235,11 +5240,12 @@
     };
     function moveBy(dy, inSheet) {
       var before = sheet.scrollTop, height = drawerH;
-      if (inSheet) {
+      if (inSheet && dy < 0 && drawerH === maxDrawerH()) {
         sheet.scrollTop += dy;
         dy -= sheet.scrollTop - before;
       }
       if (Math.abs(dy) >= 1) setDrawerHeight(drawerH + dy, true);
+      if (inSheet && dy > 0) sheet.scrollTop += Math.max(0, dy - (drawerH - height));
       return { moved: drawerH !== height || sheet.scrollTop !== before, resized: drawerH !== height };
     }
     function coast(state) {
@@ -6236,7 +6242,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4461 = true;
+    window.__SN_4462 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
