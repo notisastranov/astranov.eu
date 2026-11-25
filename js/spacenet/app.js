@@ -1,5 +1,5 @@
 /*
- * SpaceNet 4462
+ * SpaceNet 4463
  *
  * Astranov Script is the project's name for this stack:
  * - JavaScript for the SpaceNet browser app and Node.js API handlers.
@@ -11,7 +11,7 @@
  */
 (function () {
   "use strict";
-  var VER = "4462";
+  var VER = "4463";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -1031,7 +1031,7 @@
         var clips = Array.isArray(feed && feed.items) ? feed.items.filter(validNewsClip) : [];
         if (global) clips = clips.filter(clip => clip.location.kind === "story" || clip.topic && clip.topic !== "events");
         var liked = newsLikes();
-        clips.sort((a,b)=>Number(!!liked[b.topic])-Number(!!liked[a.topic]) || Number(!!b.breaking)-Number(!!a.breaking));
+        clips.sort((a,b)=>newsRank(b, liked) - newsRank(a, liked) || Number(!!b.breaking)-Number(!!a.breaking));
         if (!clips.length || feed.fallback) newsRefresh = performance.now() + 30000;
         var previous = new Map(newsItems.map(function (clip) { return [clip.id, clip]; }));
         var next = clips.map(function (clip) {
@@ -5232,6 +5232,7 @@
       if (newsPlayer.getPlayerState() === 1) newsPlayer.pauseVideo();
       else newsPlayer.playVideo();
     });
+    bindNewsFeedback(sheet);
     sheet.addEventListener("submit", submitProfileEntry);
     var touch = null, coastFrame = 0;
     cancelDrawerCoast = function () {
@@ -5366,6 +5367,75 @@
     try { return JSON.parse(localStorage.getItem("sn:news-likes:" + (checkoutAccount() || "guest"))) || {}; }
     catch { return {}; }
   }
+  function newsRank(item, prefs) {
+    return Number(prefs[item.topic || "events"] || 0) +
+      2 * Number(prefs["source:" + item.source] || 0);
+  }
+  function bindNewsFeedback(sheet) {
+    var held, timer, x, y, suppress;
+    function cancel() { clearTimeout(timer); held = null; }
+    function show(target) {
+      var old = sheet.querySelector(".news-feedback");
+      if (old) old.remove();
+      var item = newsDeskCache[drawerNews]?.data?.items?.find(row => row.id === target.dataset.id);
+      var source = target.dataset.act === "news-video" && item?.source;
+      var key = source ? "source:" + source : target.dataset.id;
+      var panel = document.createElement("div");
+      panel.className = "news-feedback";
+      var label = document.createElement("small");
+      label.textContent = source || newsDeskTabs[key];
+      panel.append(label);
+      ["More like this", "Less like this"].forEach(function (text, index) {
+        var button = document.createElement("button");
+        button.type = "button";
+        button.className = "sheet-go";
+        button.textContent = text;
+        var value = index ? -1 : 1;
+        button.setAttribute("aria-pressed", String(Number(newsLikes()[key]) === value));
+        button.onclick = function () {
+          var prefs = newsLikes();
+          prefs[key] = value;
+          localStorage.setItem("sn:news-likes:" + (checkoutAccount() || "guest"), JSON.stringify(prefs));
+          newsRefresh = 0;
+          paintDrawerContent();
+        };
+        panel.append(button);
+      });
+      target.after(panel);
+    }
+    var selector = '[data-act="news-video"],[data-act="news-desk"]';
+    sheet.addEventListener("pointerdown", function (e) {
+      cancel();
+      suppress = null;
+      held = e.target.closest(selector);
+      if (!held || !e.isPrimary || e.button !== 0) return;
+      x = e.clientX; y = e.clientY;
+      timer = setTimeout(function () {
+        if (held.isConnected) { suppress = held; show(held); }
+      }, 500);
+    });
+    sheet.addEventListener("pointermove", function (e) {
+      if (held && Math.hypot(e.clientX - x, e.clientY - y) > 8) cancel();
+    });
+    window.addEventListener("pointerup", cancel);
+    window.addEventListener("pointercancel", cancel);
+    sheet.addEventListener("contextmenu", function (e) {
+      var target = e.target.closest(selector);
+      if (target) { e.preventDefault(); cancel(); suppress = target; show(target); }
+    });
+    sheet.addEventListener("keydown", function (e) {
+      var target = e.target.closest(selector);
+      if (target && e.shiftKey && e.key === "Enter") {
+        e.preventDefault(); show(target);
+        target.nextElementSibling.querySelector("button").focus();
+      }
+    });
+    sheet.addEventListener("click", function (e) {
+      if (suppress && suppress.contains(e.target)) {
+        suppress = null; e.preventDefault(); e.stopImmediatePropagation();
+      }
+    }, true);
+  }
   function newsClipCards(items) {
     return items.filter(function (item) { return item && /^[\w-]{11}$/.test(item.id); }).map(function (item) {
       var where = item.location && item.location.kind === "story" ? " · " + escHtml(item.location.name) : "";
@@ -5396,6 +5466,7 @@
     var fallback = '<p class="note">' + (newsDeskLoading[drawerNews] ? "Loading…" :
       drawerNews === "investments" ? "Market quotes are temporarily unavailable." : "No recent videos available.") + '</p>';
     var liked = newsLikes();
+    items = items.slice().sort((a,b) => newsRank(b, liked) - newsRank(a, liked));
     var body;
     if (drawerNews === "investments") {
       body = '<p class="note">Exchange quotes via Yahoo Finance. Prices may be delayed.</p>' + (marketRows(items) || fallback);
@@ -5417,11 +5488,10 @@
     }
     return '<article class="drawer-profile"><header class="home-title"><h2>News</h2>' +
       '<button type="button" class="sheet-x" data-act="news-desk-close" aria-label="Close news">×</button></header>' +
-      '<nav class="news-desk-tabs" aria-label="News sections">' + Object.keys(newsDeskTabs).map(function (key) {
+      '<nav class="news-desk-tabs" aria-label="News sections">' + Object.keys(newsDeskTabs).sort((a,b) => Number(liked[b] || 0) - Number(liked[a] || 0)).map(function (key) {
         return '<button type="button" class="sheet-go" data-act="news-desk" data-id="' + key + '" aria-pressed="' +
           (drawerNews === key) + '">' + newsDeskTabs[key] + '</button>';
-      }).join("") + '</nav><div class="news-desk-tabs"><button type="button" class="sheet-go" data-act="news-like" aria-pressed="' +
-        !!liked[drawerNews] + '">' + (liked[drawerNews] ? '♥ Preferred' : '♡ Prefer') + ' ' + newsDeskTabs[drawerNews] + '</button></div>' + body + '</article>';
+      }).join("") + '</nav><p class="note">Hold a story or section to see more or less like it.</p>'  + body + '</article>';
   }
   function openNewsDesk(section) {
     if (newsSelection) stopNews();
@@ -5822,13 +5892,6 @@
       if (act === "news-video") {
         var clip = newsDeskCache[drawerNews]?.data?.items?.find(item => item.id === id);
         if (clip) openNews(Object.assign({},clip,{button:t}));
-      }
-      if (act === "news-like" && drawerNews) {
-        var preferences = newsLikes();
-        preferences[drawerNews] = !preferences[drawerNews];
-        localStorage.setItem("sn:news-likes:" + (checkoutAccount() || "guest"), JSON.stringify(preferences));
-        newsRefresh = 0;
-        paintDrawerContent();
       }
       if (act === "news-desk") openNewsDesk(id);
       if (act === "news-desk-close") {
@@ -6242,7 +6305,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4462 = true;
+    window.__SN_4463 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
