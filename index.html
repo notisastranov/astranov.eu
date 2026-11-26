@@ -4,13 +4,13 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4476"/>
+<meta name="astranov-build" content="4477"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
-<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4476"/>
+<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4477"/>
 <style>
 :root{
   --bg:#02040a; --fg:#e8fbff; --muted:#8ec8d8; --accent:#4df0ff;
@@ -573,7 +573,9 @@ textarea.field,#sn-support-matter{min-height:88px}
   <div class="sheet-bar"><b id="sn-resource-title" class="sheet-ttl">Device resources</b><form method="dialog"><button class="sheet-x">Close</button></form></div>
   <canvas id="sn-resource-chart" width="600" height="200" aria-hidden="true"></canvas>
   <dl id="sn-resource-readings"></dl>
-  <p class="note">This graph shows browser and app measurements. System-wide CPU load, RAM usage, and device temperature require native access.</p>
+  <p id="sn-monitor-source" role="status">Browser readings · CPU and memory reflect this page.</p>
+  <button class="sheet-go" type="button" id="sn-connect-monitor">Connect readings file</button>
+  <details><summary>Read this computer’s hardware</summary><p>Download the helper to your computer. With Python installed, run <code>python -m pip install psutil</code>, then <code>python astranov_monitor.py</code>. Connect the generated <code>astranov-resources.json</code> file here in desktop Chrome or Edge. Keep the helper running while monitoring. On Windows, CPU temperature can be read when LibreHardwareMonitor is running and exposes a CPU sensor.</p><a href="/downloads/astranov_monitor.py" download>Download hardware monitor</a></details>
 </dialog>
 
 <nav id="menu" hidden>
@@ -615,10 +617,10 @@ textarea.field,#sn-support-matter{min-height:88px}
 <div id="toast" role="status"></div>
 <div id="line" role="status"></div>
 
-<script src="/js/vendor/leaflet.js?v=4476"></script>
-<script src="/js/spacenet/partners/types.js?v=4476"></script>
-<script src="/js/spacenet/partners/client.js?v=4476"></script>
-<script src="/js/spacenet/app.js?v=4476"></script>
-<script src="/js/spacenet/auth.js?v=4476"></script>
+<script src="/js/vendor/leaflet.js?v=4477"></script>
+<script src="/js/spacenet/partners/types.js?v=4477"></script>
+<script src="/js/spacenet/partners/client.js?v=4477"></script>
+<script src="/js/spacenet/app.js?v=4477"></script>
+<script src="/js/spacenet/auth.js?v=4477"></script>
 </body>
 </html>

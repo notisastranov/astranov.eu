@@ -1,5 +1,5 @@
 /*
- * SpaceNet 4476
+ * SpaceNet 4477
  *
  * Astranov Script is the project's name for this stack:
  * - JavaScript for the SpaceNet browser app and Node.js API handlers.
@@ -11,7 +11,7 @@
  */
 (function () {
   "use strict";
-  var VER = "4476";
+  var VER = "4477";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -2052,11 +2052,11 @@
       ? '<h3>Free AI providers</h3><select id="sn-provider"><option value="groq">Groq</option><option value="gemini">Gemini</option><option value="openrouter">OpenRouter Free</option></select>' +
         '<input class="field" id="sn-provider-key" type="password" autocomplete="off" placeholder="Provider API key">' +
         '<button class="sheet-go" data-act="save-provider">Save provider key</button><p id="sn-provider-status" role="status"></p>' : "";
-    var menu = (vendor && cartSubtotal() ? '<button class="sheet-go" data-act="checkout-return">Return to checkout</button> <button class="sheet-go" data-act="checkout-new-client">Add delivery address</button>' : '') + providerSettings + '<p>Google account · ' + (person.googleLinked ? 'Linked' : 'Unconfirmed') + '</p><p>Phone · ' +
+    var menu = userRoleMarkup() + (vendor && cartSubtotal() ? '<button class="sheet-go" data-act="checkout-return">Return to checkout</button> <button class="sheet-go" data-act="checkout-new-client">Add delivery address</button>' : '') + providerSettings + '<p>Google account · ' + (person.googleLinked ? 'Linked' : 'Unconfirmed') + '</p><p>Phone · ' +
       (person.phoneConfirmed ? 'Verified' : 'Unconfirmed') + '</p>' +
       '<label>Phone with country code<input id="sn-phone-number" type="tel" class="field" value="' + escHtml(person.phone || "") + '"></label>' +
       '<label>WhatsApp verification code<input id="sn-phone-code" inputmode="numeric" class="field"></label>' +
-      '<button class="sheet-go" data-act="verify-phone">Send or confirm WhatsApp code</button><p id="sn-phone-result" role="status"></p>' + userRoleMarkup() + '<h3>Route preferences</h3>' + Object.keys(routeOptions).map(function (key) {
+      '<button class="sheet-go" data-act="verify-phone">Send or confirm WhatsApp code</button><p id="sn-phone-result" role="status"></p>' + '<h3>Route preferences</h3>' + Object.keys(routeOptions).map(function (key) {
       return '<button class="sheet-go" data-act="route-pref" data-id="' + key + '" aria-pressed="' + !!prefs[key] + '">' +
         routeOptions[key] + ' · ' + (prefs[key] ? 'On' : 'Off') + '</button>';
     }).join("") + '<button class="sheet-go" data-act="profile-transactions">Transactions</button><h3>Delivery addresses</h3><p class="note">' + escHtml(person.address || "") + '</p>' +
@@ -4736,12 +4736,35 @@
       } catch (e) { observer = null; }
     }
     var metrics = [
-      { name: "Battery", color: "#7dff9a" },
-      { name: "Memory", color: "#7ee9ff" },
-      { name: "CPU & app performance", color: "#ffd080" },
-      { name: "Network", color: "#ccb5ff" },
-      { name: "Device temperature", color: "#ff9ba9" }
+      {name:"Battery",color:"#70e5ff"}, {name:"RAM",color:"#57aaff"},
+      {name:"CPU",color:"#4897e0"}, {name:"Network",color:"#a5eaff"},
+      {name:"Temperature",color:"#888fff"}
     ];
+    var metricAlerts=[], fileHandle=null, readingFile=false, hardware=null;
+    var connect=$("sn-connect-monitor"), source=$("sn-monitor-source");
+    connect.disabled=!window.showOpenFilePicker;
+    if(connect.disabled) source.textContent="Live file access requires a desktop browser with a file picker such as Chrome or Edge.";
+    connect.onclick=async function(){
+      if(fileHandle){fileHandle=null;hardware=null;history=[];connect.textContent="Connect readings file";source.textContent="Browser readings";sample();return;}
+      try {
+        var handles=await window.showOpenFilePicker({types:[{description:"Astranov resource readings",accept:{"application/json":[".json"]}}]});
+        fileHandle=handles[0];history=[];connect.textContent="Disconnect hardware readings";await readHardware();sample();
+      } catch(error){if(error.name!=="AbortError")source.textContent="Could not open the readings file.";}
+    };
+    async function readHardware(){
+      var handle=fileHandle;
+      if(!handle || readingFile || document.hidden)return;
+      readingFile=true;
+      try {
+        var file=await handle.getFile();
+        if(file.size>8192) throw Error();
+        var data=JSON.parse(await file.text());
+        if(data.format!=="astranov-resources-v1" || !Number.isFinite(data.timestamp) || Math.abs(Date.now()-data.timestamp*1000)>10000) throw Error();
+        if(handle===fileHandle){hardware=data;source.textContent="Live readings from this computer";}
+      } catch {
+        if(handle===fileHandle){hardware=null;source.textContent="Hardware readings stopped. Check the helper and reconnect its file.";}
+      } finally {readingFile=false;}
+    }
     async function probeNetwork() {
       if (probing || !navigator.onLine || document.hidden) return;
       probing = true;
@@ -4781,28 +4804,26 @@
           graph.beginPath(); graph.moveTo(0, h * line / 4); graph.lineTo(w, h * line / 4); graph.stroke();
         }
       }
-      var high = alerts.length > 0;
-      (overview ? [{ color: high ? "#ff5a7a" : "#4df0ff" }] : metrics).forEach(function (metric, i) {
-        graph.strokeStyle = metric.color;
-        graph.lineWidth = overview ? 3 : 2;
-        graph.beginPath();
-        var pen = false;
-        history.forEach(function (sample, j) {
-          var value = overview ? sample.overall : sample.lines[i];
-          if (value == null) { pen = false; return; }
-          var x = (w - 4) * j / Math.max(1, history.length - 1) + 2;
-          var y = h - 3 - (h - 6) * Math.min(value, 1);
-          if (pen) graph.lineTo(x, y); else graph.moveTo(x, y);
-          pen = true;
+      metrics.forEach(function(metric,i){
+        graph.lineWidth=overview?1.5:2;
+        var previous=null;
+        history.forEach(function(sample,j){
+          var value=sample.lines[i];
+          if(!Number.isFinite(value)){previous=null;return;}
+          var x=2+(w-4)*j/Math.max(1,history.length-1);
+          var y=h-3-(h-6)*Math.min(1,Math.max(0,value));
+          graph.strokeStyle=sample.high[i]?"#ff526e":metric.color;
+          graph.beginPath();graph.moveTo(previous?.x ?? x-1,previous?.y ?? y);graph.lineTo(x,y);graph.stroke();
+          previous={x,y};
         });
-        graph.stroke();
       });
     }
     function renderDetails() {
       draw($("sn-resource-chart"), false);
       $("sn-resource-readings").innerHTML = metrics.map(function (metric, i) {
-        return '<dt><i style="background:' + metric.color + '"></i>' + metric.name + '</dt><dd>' +
-          escHtml(values[i] || "Unavailable") + '</dd>';
+        var lastAlert=history.slice().reverse().find(point=>point.high[i]);
+        return '<dt><i style="background:' + (metricAlerts[i]?"#ff526e":metric.color) + '"></i>' + metric.name + '</dt><dd>' +
+          escHtml(values[i] || "Unavailable") + (metricAlerts[i]?' · Alert':'') + (lastAlert && !metricAlerts[i]?' · Recent alert: '+escHtml(lastAlert.values[i]):'') + '</dd>';
       }).join("");
     }
     function sample() {
@@ -4822,7 +4843,7 @@
       blockedMs = 0;
       resourceFrames = 0;
       if (document.hidden) return;
-      if (dialog.open && now - probeAt >= 15000) probeNetwork();
+      if (!fileHandle && now - probeAt >= 15000) probeNetwork();
       if (Number.isFinite(navigator.deviceMemory)) memory.push("Approx. " + navigator.deviceMemory + " GB device RAM");
       if (ram != null) memory.push(Math.round(ram * 100) + "% of JS heap limit");
       if (Number.isFinite(navigator.hardwareConcurrency)) performanceReadings.push(navigator.hardwareConcurrency + " logical cores visible");
@@ -4845,12 +4866,19 @@
       if (offline) alerts.push("Network offline");
       var appPressure = cpu != null ? cpu : frames == null ? null : Math.max(0, 1 - frames / 60);
       var networkPressure = offline ? 1 : responseMs == null ? null : Math.min(1, responseMs / 1000);
-      var pressure = [ram, appPressure, battery && !battery.charging ? 1 - level : null, networkPressure]
-        .filter(function (value) { return value != null; });
-      history.push({
-        overall: pressure.length ? Math.max.apply(null, pressure) : null,
-        lines: [level, ram, appPressure, networkPressure, null]
-      });
+      var lines=[level,ram,appPressure,networkPressure,null];
+      metricAlerts=[level!=null && level<=.15 && !battery.charging,ram>=.9,cpu>=.8,offline || probeFailed || responseMs>=1000,false];
+      if(fileHandle) {
+        var d=hardware || {};
+        function pct(n){return Number.isFinite(n)?n/100:null;}
+        lines=[pct(d.battery),pct(d.ram),pct(d.cpu),pct(d.network_percent),Number.isFinite(d.temperature)?d.temperature/100:null];
+        values=[d.battery,d.ram,d.cpu].map(n=>Number.isFinite(n)?n.toFixed(1)+"%":"Sensor unavailable");
+        values.push(Number.isFinite(d.mbps)?d.mbps.toFixed(2)+" Mbps"+(Number.isFinite(d.network_percent)?" · "+d.network_percent.toFixed(1)+"% link load":" · link capacity unavailable"):"Interface unavailable");
+        values.push(Number.isFinite(d.temperature)?d.temperature.toFixed(1)+" °C":"Temperature sensor unavailable");
+        metricAlerts=[lines[0]!=null && lines[0]<=.15 && d.charging===false,lines[1]>=.9,lines[2]>=.8,lines[3]>=.9,Number.isFinite(d.temperature) && d.temperature>=(d.temperature_limit || 85)];
+      }
+      alerts=metrics.filter((m,i)=>metricAlerts[i]).map(m=>m.name);
+      history.push({lines:lines,high:metricAlerts.slice(),values:values.slice()});
       if (history.length > 60) history.shift();
       var label = "Device resources" + (alerts.length ? " · " + alerts.join(", ") : "");
       button.classList.toggle("alert", alerts.length > 0);
@@ -4865,7 +4893,7 @@
       probeNetwork();
     });
     sample();
-    setInterval(sample, 1000);
+    setInterval(async function(){await readHardware();sample();}, 1000);
     window.addEventListener("online", sample);
     window.addEventListener("offline", sample);
   }
@@ -6722,7 +6750,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4476 = true;
+    window.__SN_4477 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },

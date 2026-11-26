@@ -462,7 +462,7 @@
     body.innerHTML =
       '<div class="who">' + face(u) + "<div><b>" + String(name).replace(/[<>]/g, "") + "</b><span>" + (inNow ? String(mail).replace(/[<>]/g, "") : "Not signed in") + "</span></div></div>" +
       (inNow && mine ? '<p class="note">' + mine + "</p>" : "") +
-      roleBtn("client", "CLIENT", "C") + roleBtn("driver", "DELIVERY DRIVER", "D") + roleBtn("vendor", "VENDOR", "V") +
+      Object.keys(roles).map(id=>roleBtn(id,id==="driver"?"DELIVERY DRIVER":id.toUpperCase(),id[0].toUpperCase())).join("") +
       (inNow
         ? '<input id="sn-newpass" type="password" placeholder="Astranov password" autocomplete="new-password"/>' +
           '<button type="button" class="go" data-act="set-pass">SET ASTRANOV PASSWORD</button>' +
@@ -471,7 +471,7 @@
           '<input id="sn-mail" type="email" placeholder="Astranov email" autocomplete="username"/>' +
           '<input id="sn-pass" type="password" placeholder="Astranov password" autocomplete="current-password"/>' +
           '<button type="button" class="go" data-act="mail-in">SIGN IN</button>') +
-      '<p class="note">' + (inNow ? "Roles on this control: client · delivery driver · vendor. Google verified this id. The password is the Astranov account. No SMS." : "Roles on this control: client · delivery driver · vendor (LOGIN to activate). Google creates and verifies the id. No SMS.") + "</p>";
+      '<p class="note">' + (inNow ? "Choose the roles you want to use." : "Roles on this control: client · delivery driver · vendor (LOGIN to activate). Google creates and verifies the id. No SMS.") + "</p>";
   }
   function openMe() {
     css();
@@ -500,7 +500,7 @@
         if (act === "role-set") {
           if (!user() || !user().email) { google(); return; }
           var role = b.getAttribute("data-role") || "";
-          if (role !== "client" && role !== "vendor" && role !== "driver") return;
+          if (!Object.hasOwn(activeRoles(),role)) return;
           toggleRole(role);
           fillBody();
           return;
@@ -532,13 +532,13 @@
   }
   async function refreshRoleChanges() {
     var at=token(), current=user();
-    if(!at || !current?.id || document.hidden || !SB || !ANON) return;
+    if(!at || document.hidden || !SB || !ANON) return;
     try {
       var response=await fetch(SB+"/auth/v1/user",{headers:{apikey:ANON,Authorization:"Bearer "+at},cache:"no-store"});
       if(!response.ok) return;
       var latest=await response.json();
-      if(token()!==at || latest.id!==current.id) return;
-      if(current.creator!==verifiedCreator(latest) || JSON.stringify(assignedRoles(latest))!==JSON.stringify(current.roles) ||
+      if(token()!==at || !latest.id) return;
+      if(current?.id!==latest.id || current.creator!==verifiedCreator(latest) || JSON.stringify(assignedRoles(latest))!==JSON.stringify(current.roles) ||
          JSON.stringify(latest.app_metadata?.role_switches || {})!==JSON.stringify(current.roleSwitches || {})) saveUser(latest);
     } catch {}
   }
