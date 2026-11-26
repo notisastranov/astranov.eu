@@ -16,16 +16,18 @@ def sensor(name):
         return None
 
 
-def temperature():
+def temperature(kind):
     readings = sensor("sensors_temperatures") or {}
-    sensors = [s for group in readings.values() for s in group
+    sensors = [s for name, group in readings.items() for s in group
+               if any(token in (name + " " + s.label).lower() for token in
+                      (("cpu", "coretemp", "k10temp", "zenpower") if kind == "cpu" else ("battery", "bat0", "bat1")))
                if s.current is not None and math.isfinite(s.current) and 0 < s.current < 150]
     if not sensors:
         if os.name == "nt":
             # LibreHardwareMonitor publishes CPU sensors through this WMI provider.
             command = ("Get-CimInstance -Namespace root/LibreHardwareMonitor -ClassName Sensor "
-                       "-ErrorAction Stop | Where-Object {$_.SensorType -eq 'Temperature' "
-                       "-and $_.Identifier -match 'cpu'} | Measure-Object Value -Maximum | "
+                       "-ErrorAction Stop | Where-Object {$_.SensorType -eq 'Temperature' " +
+                       ("-and $_.Identifier -match '" + kind + "'} | Measure-Object Value -Maximum | ") +
                        "Select-Object -ExpandProperty Maximum")
             try:
                 output = subprocess.check_output(["powershell.exe", "-NoProfile", "-NonInteractive",
@@ -33,12 +35,12 @@ def temperature():
                                                  timeout=4, text=True)
                 value = float(output.strip().replace(",", "."))
                 if 0 < value < 150:
-                    return value, 85
+                    return value, 85 if kind == "cpu" else 50
             except (OSError, ValueError, subprocess.SubprocessError):
                 pass
         return None, None
     hottest = max(sensors, key=lambda s: s.current)
-    return hottest.current, hottest.high or hottest.critical or 85
+    return hottest.current, hottest.high or hottest.critical or (85 if kind == "cpu" else 50)
 
 
 def main():
@@ -64,14 +66,16 @@ def main():
         previous, last = current, now
         battery = sensor("sensors_battery")
         if now >= next_temperature:
-            temp, limit = temperature()
+            temp, limit = temperature("cpu")
+            battery_temp, battery_limit = temperature("battery")
             next_temperature = now + 10
         data = dict(format="astranov-resources-v1", timestamp=time.time(),
                     cpu=cpu, ram=psutil.virtual_memory().percent, mbps=rate,
                     network_percent=min(100, 100*rate/speed) if speed > 0 else None,
                     battery=battery.percent if battery else None,
                     charging=battery.power_plugged if battery else None,
-                    temperature=temp, temperature_limit=limit)
+                    temperature=temp, cpu_temperature=temp, temperature_limit=limit,
+                    battery_temperature=battery_temp, battery_temperature_limit=battery_limit)
         temp_path = destination.with_suffix(".tmp")
         temp_path.write_text(json.dumps(data, allow_nan=False), encoding="utf-8")
         temp_path.replace(destination)

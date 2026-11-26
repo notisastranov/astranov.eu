@@ -1,5 +1,5 @@
 /*
- * SpaceNet 4480
+ * SpaceNet 4481
  *
  * Astranov Script is the project's name for this stack:
  * - JavaScript for the SpaceNet browser app and Node.js API handlers.
@@ -11,7 +11,7 @@
  */
 (function () {
   "use strict";
-  var VER = "4480";
+  var VER = "4481";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -3842,7 +3842,7 @@
     openSheet("Checkout", '<form id="test-order-form" class="test-form">' +
       deliveryPicker(clients) + '<p class="note" id="sn-test-total"></p>' +
       '<p class="note" id="sn-test-credit">Loading test credit…</p>' +
-      '<button class="sheet-go primary place-order" disabled>Place order</button><p role="alert" class="note"></p><button type="button" class="sheet-go" id="demo-driver-offer">Preview driver offer on this device</button></form>');
+      '<button class="sheet-go primary place-order" disabled>Place order</button><p role="alert" class="note"></p></form>');
     var form = $("test-order-form");
     function showTotal() {
       var destinations = checkoutDeliveries(clients, {});
@@ -3850,17 +3850,6 @@
       $("sn-test-total").textContent = destinations.length
         ? destinations.length + (destinations.length === 1 ? ' delivery' : ' deliveries') + ' · total including 3% fee: ' + testCoinText(deliveryTotal(destinations)) : "";
     }
-    form.querySelector("#demo-driver-offer").onclick=function(){
-      var destination=checkoutDeliveries(clients,{})[0];
-      var alert=form.querySelector('[role="alert"]');
-      if(!destination){alert.textContent="Choose a delivery location first.";return;}
-      if(testSubmitting || pendingOffer || offerActiveId){alert.textContent="Finish the current request first.";return;}
-      var driver=Object.assign({name:"Driver preview"},driverPosition() || {});
-      testOrder={id:"preview-"+crypto.randomUUID(),test:true,stage:0,drivers:[driver],vendor:shop,drop:destination.pin,
-        fee:destination.quote.driver,item:"On-device demo · no payment or dispatch",accepted:false};
-      clearDrawerPlacement();
-      showTestOffer(testOrder,driver);
-    };
     mountDeliveryPicker(clients,showTotal);
     testCheckoutRequest().then(paintTestCredit);
     form.addEventListener("submit", async function (e) {
@@ -3912,7 +3901,7 @@
       if (!result.ok) {
         alert.textContent = result.error === "insufficient_test_credit" ? "Not enough test credit for this order." :
           result.error === "auth_required" || result.error === "auth_changed" ? "Your session could not authorize this order. Your cart is saved here." :
-          result.error === "dispatch_schema_missing" ? "Live dispatch is unavailable. Your cart is saved. You can preview the driver offer below." :
+          result.error === "dispatch_schema_missing" ? "Live dispatch is unavailable. Your cart is saved. The dispatch database update is required." :
           result.error === "checkout_config_missing" ? "The server has no checkout database connection. Your cart is saved." :
           "The order service did not confirm this order. Your cart is saved for retry.";
         return;
@@ -3961,11 +3950,14 @@
     if (vendor.canEdit && vendor.editorAccount===checkoutAccount()) controls += '<button class="sheet-go" data-act="editor-add-item">Add menu item</button>';
     var rows = vendorMenu(vendor).map(function (item) {
       var photo = profileImage(item.photo);
+      var category = (item.name+" "+(item.category || "")).toLowerCase();
+      var sample = /pizza|margherita/.test(category)?"pizza":/coffee|espresso|latte|cappuccino/.test(category)?"coffee":/beer|lager|ale\b/.test(category)?"beer":"";
+      var thumbnail = photo || (sample?"/js/spacenet/assets/products/"+sample+".webp":"");
       var available = itemAvailable(item);
       var details = [item.price + " AV€", item.hours, item.category, item.weight_g && item.weight_g+" g", item.temperature_c!=null ? item.temperature_c+" °C" : "", item.expires ? (item.expires<=Date.now()?"Spoiled":"Deliver by "+new Date(item.expires).toLocaleString()) : "",
         item.limited ? item.quantity + " in stock" : "", available ? "" : "Unavailable"].filter(Boolean);
       return '<article class="test-item profile-menu-item">' +
-        (photo ? '<img width="58" height="58" src="' + escHtml(photo) + '" alt="" loading="lazy">' : '') +
+        (thumbnail ? '<img width="58" height="58" src="' + escHtml(thumbnail) + '" alt="'+(photo?'':'Sample image')+'" loading="lazy">' : '<span class="item-placeholder" aria-label="Item image unavailable">📦</span>') +
         '<div class="profile-item-copy"><b>' + escHtml(item.name) + '</b><p class="note">' + escHtml(details.join(" · ")) + '</p>' +
         (item.note ? '<p class="note">' + escHtml(item.note) + '</p>' : '') +
         (item.source && /^https:\/\//.test(item.source) ? '<a href="' + escHtml(item.source) + '" target="_blank" rel="noopener">Published menu</a>' : '') +
@@ -4800,7 +4792,7 @@
     var metrics = [
       {name:"Battery",color:"#70e5ff"}, {name:"RAM",color:"#57aaff"},
       {name:"CPU",color:"#4897e0"}, {name:"Network",color:"#a5eaff"},
-      {name:"Temperature",color:"#888fff"}
+      {name:"CPU temperature",color:"#888fff"}, {name:"Battery temperature",color:"#7fdfc4"}
     ];
     var metricAlerts=[], fileHandle=null, readingFile=false, hardware=null;
     var connect=$("sn-connect-monitor"), source=$("sn-monitor-source");
@@ -4862,18 +4854,25 @@
       if (!overview) {
         graph.strokeStyle = "rgba(126,233,255,.2)";
         graph.lineWidth = 1;
-        for (var line = 1; line <= 3; line++) {
-          graph.beginPath(); graph.moveTo(0, h * line / 4); graph.lineTo(w, h * line / 4); graph.stroke();
+        for (var line = 1; line < metrics.length; line++) {
+          graph.beginPath(); graph.moveTo(0, h * line / metrics.length); graph.lineTo(w, h * line / metrics.length); graph.stroke();
         }
       }
       metrics.forEach(function(metric,i){
+        var lane=h/metrics.length, left=overview?0:155;
+        if(!overview){
+          graph.font="16px system-ui";
+          graph.fillStyle=metricAlerts[i]?"#ff526e":metric.color;
+          graph.fillText(metric.name,5,lane*(i+.5)+5);
+        }
         graph.lineWidth=overview?1.5:2;
         var previous=null;
         history.forEach(function(sample,j){
           var value=sample.lines[i];
           if(!Number.isFinite(value)){previous=null;return;}
-          var x=2+(w-4)*j/Math.max(1,history.length-1);
-          var y=h-3-(h-6)*Math.min(1,Math.max(0,value));
+          var x=left+2+(w-left-4)*j/Math.max(1,history.length-1);
+          var height=overview?h:lane;
+          var y=(overview?0:i*lane)+height-3-(height-6)*Math.min(1,Math.max(0,value));
           graph.strokeStyle=sample.high[i]?"#ff526e":metric.color;
           graph.beginPath();graph.moveTo(previous?.x ?? x-1,previous?.y ?? y);graph.lineTo(x,y);graph.stroke();
           previous={x,y};
@@ -4933,11 +4932,11 @@
       if(fileHandle) {
         var d=hardware || {};
         function pct(n){return Number.isFinite(n)?n/100:null;}
-        lines=[pct(d.battery),pct(d.ram),pct(d.cpu),pct(d.network_percent),Number.isFinite(d.temperature)?d.temperature/100:null];
+        lines=[pct(d.battery),pct(d.ram),pct(d.cpu),pct(d.network_percent),Number.isFinite(d.cpu_temperature)?d.cpu_temperature/100:null,Number.isFinite(d.battery_temperature)?d.battery_temperature/100:null];
         values=[d.battery,d.ram,d.cpu].map(n=>Number.isFinite(n)?n.toFixed(1)+"%":"Sensor unavailable");
         values.push(Number.isFinite(d.mbps)?d.mbps.toFixed(2)+" Mbps"+(Number.isFinite(d.network_percent)?" · "+d.network_percent.toFixed(1)+"% link load":" · link capacity unavailable"):"Interface unavailable");
-        values.push(Number.isFinite(d.temperature)?d.temperature.toFixed(1)+" °C":"Temperature sensor unavailable");
-        metricAlerts=[lines[0]!=null && lines[0]<=.15 && d.charging===false,lines[1]>=.9,lines[2]>=.8,lines[3]>=.9,Number.isFinite(d.temperature) && d.temperature>=(d.temperature_limit || 85)];
+        for(var temp of [d.cpu_temperature,d.battery_temperature]) values.push(Number.isFinite(temp)?temp.toFixed(1)+" °C":"Sensor unavailable");
+        metricAlerts=[lines[0]!=null && lines[0]<=.15 && d.charging===false,lines[1]>=.9,lines[2]>=.8,lines[3]>=.9,Number.isFinite(d.cpu_temperature) && d.cpu_temperature>=(d.temperature_limit || 85),Number.isFinite(d.battery_temperature) && d.battery_temperature>=(d.battery_temperature_limit || 50)];
       }
       alerts=metrics.filter((m,i)=>metricAlerts[i]).map(m=>m.name);
       history.push({lines:lines,high:metricAlerts.slice(),values:values.slice()});
@@ -6880,7 +6879,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4480 = true;
+    window.__SN_4481 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
