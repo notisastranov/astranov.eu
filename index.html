@@ -4,13 +4,13 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4477"/>
+<meta name="astranov-build" content="4478"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
-<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4477"/>
+<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4478"/>
 <style>
 :root{
   --bg:#02040a; --fg:#e8fbff; --muted:#8ec8d8; --accent:#4df0ff;
@@ -78,7 +78,7 @@ button{cursor:pointer}
   box-shadow:0 0 12px rgba(77,240,255,.55);animation:sn-pulse 1.4s ease-in-out infinite;
 }
 #sn-power.off{border-color:#ff3b3b;background:#c41414;color:#fff;box-shadow:0 0 8px rgba(255,60,60,.35);animation:none}
-#sn-power-count{position:fixed;top:35%;left:50%;transform:translate(-50%,-50%);z-index:80;color:white;background:#08264a;border:2px solid #78d9ff;border-radius:18px;padding:.12em .38em;box-shadow:0 0 24px #1674bb;font:800 clamp(64px,15vmin,120px)/1 system-ui;pointer-events:none}
+#sn-power-count{position:fixed;inset:0;display:grid;place-items:center;z-index:80;color:white;text-shadow:0 2px 6px #001324,0 0 24px #1364a0;font:800 clamp(96px,40vmin,440px)/1 system-ui;pointer-events:none}
 #sn-power-count:empty,#sn-order-guidance[hidden]{display:none}
 #sn-order-guidance{position:fixed;z-index:49;top:calc(var(--safe-t) + var(--top-row) + 48px);left:50%;transform:translateX(-50%);width:min(78vw,440px);box-sizing:border-box;max-height:22dvh;overflow:auto;background:#092847;color:#fff;border:1px solid #76caff;border-radius:12px;padding:10px 32px 10px 12px;box-shadow:0 2px 12px #0009;font:650 clamp(15px,2vw,20px)/1.35 system-ui}
 #sn-order-guidance button{position:absolute;right:3px;top:3px;background:#103555;color:white;border:0;font-size:18px}
@@ -278,7 +278,6 @@ body.drawer-covers-map-controls #gps,body.drawer-covers-map-controls #sn-me{visi
 #drawer #sn-sheet{position:static;min-height:0;flex:1;overflow:auto;touch-action:pan-x;pointer-events:auto}
 #drawer #sn-sheet-card{position:static;transform:none;width:auto;max-height:none;overflow:visible;background:transparent;border:0;box-shadow:none;padding:8px}
 #drawer:not(.open) #sn-sheet,#drawer #sn-sheet.on ~ #sheet,#drawer #sn-sheet.on ~ #sn-drawer-cart{display:none}
-#checkout-map{height:180px;width:100%;border-radius:8px}
 #sn-support-sheet{
   position:fixed;z-index:72;display:none;width:min(360px,94vw);padding:12px;border-radius:16px;
   background:rgba(4,14,28,.97);border:1px solid rgba(126,233,255,.45);
@@ -483,10 +482,6 @@ textarea.field,#sn-support-matter{min-height:88px}
 .drawer-cart-line>span{font:650 13px system-ui}
 .drawer-cart-line .sheet-go,.drawer-cart-links .sheet-go{margin:0}
 #sn-checkout-client{position:relative;margin:0;padding:0;border:0;min-width:0}
-#checkout-guide,#checkout-add-stop{position:absolute;z-index:450;color:#eaf7ff;background:#073252;border:1px solid #74cbff;border-radius:8px;padding:5px 8px;box-shadow:0 0 5px #248ccc;font-weight:700}
-#checkout-guide{top:5px;left:43px;right:5px;pointer-events:none;text-align:center}
-#checkout-add-stop{bottom:18px;right:6px}
-#checkout-guide{color:#073052;background:#dfF3ff;border-color:#368fc1;text-shadow:0 1px 1px #fff}
 #drawer .sheet-go{color:#e2f2ff;background-color:#123650;border-color:#599fc6}
 #drawer .sheet-go.primary{color:#fff;background:#123f72;border-color:#75baff;text-shadow:none}
 #drawer .sheet-go.primary:disabled{color:#ced9e4;background:#26394b;border-color:#62788c;opacity:1}
@@ -617,10 +612,10 @@ textarea.field,#sn-support-matter{min-height:88px}
 <div id="toast" role="status"></div>
 <div id="line" role="status"></div>
 
-<script src="/js/vendor/leaflet.js?v=4477"></script>
-<script src="/js/spacenet/partners/types.js?v=4477"></script>
-<script src="/js/spacenet/partners/client.js?v=4477"></script>
-<script src="/js/spacenet/app.js?v=4477"></script>
-<script src="/js/spacenet/auth.js?v=4477"></script>
+<script src="/js/vendor/leaflet.js?v=4478"></script>
+<script src="/js/spacenet/partners/types.js?v=4478"></script>
+<script src="/js/spacenet/partners/client.js?v=4478"></script>
+<script src="/js/spacenet/app.js?v=4478"></script>
+<script src="/js/spacenet/auth.js?v=4478"></script>
 </body>
 </html>

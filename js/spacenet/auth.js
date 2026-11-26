@@ -362,7 +362,12 @@
       location.href = u.origin + u.pathname + u.search;
     } catch (e) {}
   }
+  var pendingSession;
   function session() {
+    if (!pendingSession) pendingSession=readSession().finally(function(){pendingSession=null;});
+    return pendingSession;
+  }
+  function readSession() {
     return new Promise(function (resolve) {
       loadCfg(function () {
         var at = token();

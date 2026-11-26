@@ -1,5 +1,5 @@
 /*
- * SpaceNet 4477
+ * SpaceNet 4478
  *
  * Astranov Script is the project's name for this stack:
  * - JavaScript for the SpaceNet browser app and Node.js API handlers.
@@ -11,7 +11,7 @@
  */
 (function () {
   "use strict";
-  var VER = "4477";
+  var VER = "4478";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -1538,7 +1538,7 @@
   }
   function closeCity() {
     if (!cityOn) return;
-    if (pickingDestination) { endDestinationPick(); resumeCheckout(); }
+    if (pickingDestination) { skipAutoPick=true; endDestinationPick(); resumeCheckout(); }
     var center = map.getCenter();
     aim = { lat: center.lat, lng: center.lng };
     clearCityRadar();
@@ -1891,6 +1891,7 @@
     var phone = vendorBrand(row).phone;
     return '<p class="profile-contact">' +
       (phone ? '<a href="tel:' + escHtml(phone.replace(/[^+\d]/g, "")) + '">' + escHtml(phone) + '</a>' : 'Phone unavailable') +
+      (row.email && /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(row.email) ? ' · <a href="mailto:'+escHtml(row.email)+'">'+escHtml(row.email)+'</a>' : '') +
       (row.messaging && /^https:\/\/(wa\.me|api\.whatsapp\.com|m\.me|t\.me)\//i.test(row.messaging) ? ' · <a target="_blank" rel="noopener" href="'+escHtml(row.messaging)+'">Website messaging</a>' : '') +
       (row.streetAddress ? ' · '+escHtml(row.streetAddress) : '') + (row.hours ? ' · '+escHtml(row.hours) : '') +
       (row.website && /^https?:\/\//i.test(row.website) ? ' · <a href="'+escHtml(row.website)+'" target="_blank" rel="noopener">Website</a>' : '') +
@@ -2099,7 +2100,7 @@
   function profileMarkup(profile) {
     var actor = profile.actor, role = profileRole(actor);
     var isVendor = profileIsVendor(actor);
-    var avatar = profileImage(actor.profile || actor.avatar || actor.avatar_url || actor.photo);
+    var avatar = profileImage((isVendor && actor.logo) || actor.profile || actor.avatar || actor.avatar_url || actor.photo);
     var cover = profileImage(actor.cover || (actor.test && isVendor ? vendorBrand(actor).photo : ""));
     var state = profileOrdersFor(actor);
     if (state && state.history) return orderHistoryMarkup(actor, state);
@@ -3193,7 +3194,6 @@
   function openSheet(title, html) {
     var sh = $("sn-sheet"), card = $("sn-sheet-card");
     if (!sh || !card) return;
-    disposeCheckoutMap();
     card.innerHTML = '<div class="sheet-bar"><b class="sheet-ttl"></b><button type="button" class="sheet-x" data-act="close">HIDE</button></div><div id="sn-sheet-body"></div>';
     card.querySelector(".sheet-ttl").textContent = title;
     card.querySelector("#sn-sheet-body").innerHTML = html;
@@ -3203,7 +3203,7 @@
     materialize(true);
     liftChrome();
   }
-  function closeSheet() { disposeCheckoutMap(); var sh = $("sn-sheet"); if (sh) sh.classList.remove("on"); materialize(needFilter()); liftChrome(); paintDrawerContent(); }
+  function closeSheet() { var sh = $("sn-sheet"); if (sh) sh.classList.remove("on"); materialize(needFilter()); liftChrome(); paintDrawerContent(); }
   function paintShopsOnMap() {
     if (!map || typeof L === "undefined") return;
     shopMarks.forEach(function (m) { try { map.removeLayer(m); } catch (e) {} });
@@ -3369,6 +3369,7 @@
       s.menuStored=data.stored;
       s.canEdit = data.canEdit;
       s.editorAccount = checkoutAccount();
+      s.email = data.email || s.email;
       s.phone = data.phone || s.phone;
       s.website = data.website || s.website;
       s.streetAddress = [data.address?.street,data.address?.housenumber,data.address?.city].filter(Boolean).join(" ");
@@ -3614,8 +3615,8 @@
   var testCredit = null;
   var testCreditToken = "";
   var testSubmitting = false;
-  async function testCheckoutRequest(body) {
-    var token = authToken();
+  async function testCheckoutRequest(body,retried) {
+    var token = authToken(), account=checkoutAccount();
     if (!token) return { error: "auth_required" };
     try {
       var response = await fetch("/api/test-checkout", {
@@ -3625,7 +3626,11 @@
         body: body ? JSON.stringify(body) : undefined
       });
       var result = await response.json();
-      if (token !== authToken()) return { error: "auth_changed" };
+      if (response.status===401 && !retried && account && window.SNAuth?.session) {
+        if (token===authToken()) await SNAuth.session();
+        if (account===checkoutAccount() && token!==authToken()) return testCheckoutRequest(body,true);
+      }
+      if (account !== checkoutAccount()) return {error:"auth_changed"};
       if (Number.isInteger(result.balance_cents)) {
         testCredit = result.balance_cents;
         testCreditToken = token;
@@ -3723,36 +3728,28 @@
   }
   var checkoutStops = [];
   function deliveryPicker() {
-    return '<fieldset id="sn-checkout-client" aria-label="Delivery location"><div id="checkout-map"></div><div id="checkout-guide" role="status">Tap the map to choose your delivery spot</div><button type="button" id="checkout-add-stop" hidden>+ Add stop</button></fieldset>';
+    return '<fieldset id="sn-checkout-client"><legend>Deliver to</legend><select class="field" id="checkout-address" aria-label="Delivery address"></select><button type="button" class="sheet-go" data-act="checkout-new-client">Choose delivery location on the main map</button></fieldset>';
   }
   function selectedDeliveries() { return checkoutStops.slice(); }
+  var pickedCheckoutAddress=null;
   function mountDeliveryPicker(clients,update) {
-    var center=here || vendor, field=$("sn-checkout-client"), guide=$("checkout-guide"), add=$("checkout-add-stop");
-    checkoutStops=clients.filter(pin=>deliverySelection.has(pin.id)).slice(0,8);
-    var mapView=checkoutMap=L.map("checkout-map",{scrollWheelZoom:false}).setView([center.lat,center.lng],16);
-    applyMapTone($("checkout-map"));
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(mapView);
-    var selected=L.layerGroup().addTo(mapView), adding=false;
-    function paint() {
-      selected.clearLayers();
-      checkoutStops.forEach((pin,index)=>L.circleMarker([pin.lat,pin.lng],{radius:8,color:"#073b66",fillColor:"#61dfff",fillOpacity:1}).addTo(selected).bindTooltip(String(index+1),{permanent:true,direction:"top"}));
-      guide.textContent=adding?"Tap another delivery spot":checkoutStops.length?(checkoutStops.length===1?"Delivery spot selected":checkoutStops.length+" delivery spots selected")+" · Place order below":"Tap the map to choose your delivery spot";
-      add.hidden=!checkoutStops.length || checkoutStops.length>=8;
+    var options=clients.slice(), select=$("checkout-address");
+    if(pickedCheckoutAddress && pickedCheckoutAddress.account===checkoutAccount()) options.unshift(pickedCheckoutAddress);
+    options=Array.from(new Map(options.map(pin=>[pin.id,pin])).values());
+    var pin=options.find(p=>deliverySelection.has(p.id)) || options[0];
+    options.forEach(p=>select.add(new Option(p.name,p.id)));
+    select.hidden=!options.length;
+    select.onchange=function(){
+      checkoutStops=options.filter(p=>p.id===select.value);
+      deliverySelection=new Set(checkoutStops.map(p=>p.id));
       update();
-    }
-    function choose(pin) {
-      if(field.disabled)return;
-      if(!adding) checkoutStops=[];
-      if(!checkoutStops.some(p=>p.id===pin.id)) checkoutStops.push(pin);
-      deliverySelection=new Set(checkoutStops.map(p=>p.id));adding=false;paint();
-    }
-    clients.forEach(pin=>L.marker([pin.lat,pin.lng],{title:pin.name}).addTo(mapView).on("click",()=>choose(pin)));
-    var initial=checkoutStops[0] || clients[0];
-    if(initial) mapView.setView([initial.lat,initial.lng],16);
-    mapView.on("click",e=>choose({id:crypto.randomUUID(),name:"Delivery pin",lat:e.latlng.lat,lng:e.latlng.lng}));
-    add.onclick=()=>{adding=true;paint();};
-    paint();
+    };
+    if(pin) select.value=pin.id;
+    select.onchange();
+    if(!pin && !skipAutoPick) beginDestinationPick();
+    skipAutoPick=false;
   }
+  var skipAutoPick=false;
   function deliveryTotal(entries) {
     var subtotal = cartSubtotal();
     return entries.reduce(function (sum, entry) {
@@ -3766,24 +3763,11 @@
     testOrder = testOrderQueue.shift() || null;
     if (testOrder && offersArmed()) showTestOffer(testOrder, testOrder.drivers[0]);
   }
-  var checkoutMap;
-  function disposeCheckoutMap() {
-    if (checkoutMap) { checkoutMap.remove(); checkoutMap = null; }
-  }
-  function openCheckoutMap() {
-    if (!vendor || !requireCheckoutSignIn()) return;
-    var center = here || vendor;
-    openSheet("Choose delivery address", '<p class="note">Tap your delivery location on the map.</p><div id="checkout-map"></div><button class="sheet-go" data-act="checkout-cancel-client">Back to checkout</button>');
-    checkoutMap = L.map("checkout-map",{scrollWheelZoom:false}).setView([center.lat,center.lng],16);
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(checkoutMap);
-    checkoutMap.on("click",e=>nameDestination(e.latlng));
-  }
   function beginDestinationPick() {
     if (!vendor || !requireCheckoutSignIn()) return;
     var note = $("sn-order-comment");
     if (note) cart.comment = note.value;
     selectedDeliveries(deliveryLocations());
-    closeSheet();
     if (!cityOn) openCity(vendor);
     map.closePopup();
     pickingDestination = true;
@@ -3803,33 +3787,12 @@
     endDestinationPick();
     var account = checkoutAccount();
     if (!account) { requireCheckoutSignIn(); return; }
-    openSheet("New client location", '<form id="sn-client-location-form" class="test-form">' +
-      '<p class="note">' + pt.lat.toFixed(5) + ', ' + pt.lng.toFixed(5) + '</p>' +
-      '<label>Location name<input class="field" name="label" placeholder="Home or a friend’s name" maxlength="80" required></label>' +
-      '<p class="note" role="alert"></p><button class="sheet-go primary">Save and use location</button> ' +
-      '<button type="button" class="sheet-go" data-act="checkout-cancel-client">Back to checkout</button></form>');
-    $("sn-client-location-form").addEventListener("submit", function (e) {
-      e.preventDefault();
-      if (checkoutAccount() !== account) { requireCheckoutSignIn(); return; }
-      var form = e.currentTarget;
-      var label = form.elements.label.value.trim();
-      if (!label) { form.querySelector('[role="alert"]').textContent = "Enter a location name."; return; }
-      var pin = { id: crypto.randomUUID(), name: label, lat: pt.lat, lng: pt.lng, role: "client", savedDelivery: true };
-      var locations = savedDeliveryLocations();
-      locations.unshift(pin);
-      try {
-        localStorage.setItem(deliveryStorageKey(), JSON.stringify(locations.slice(0, 120)));
-      } catch (err) {
-        form.querySelector('[role="alert"]').textContent = "This browser could not save the new location.";
-        return;
-      }
-      if (deliverySelection.size < 8) deliverySelection.add(pin.id);
-      paintActorsOnMap();
-      resumeCheckout();
-    });
+    pickedCheckoutAddress={id:crypto.randomUUID(),name:"Selected map location",lat:pt.lat,lng:pt.lng,account:account};
+    deliverySelection=new Set([pickedCheckoutAddress.id]);
+    resumeCheckout();
   }
   function usesTestCheckout(shop) {
-    return !!shop && (shop.test || shop.quickCheckout || shop.discovered && vendorMenu(shop).some(item=>item.sample && cartQty(item.i)>0));
+    return !!shop && (shop.test || shop.quickCheckout || shop.discovered && !shop.claimed && !shop.verified);
   }
   function openTestCheckout() {
     if (!usesTestCheckout(vendor) || !cartSubtotal()) return;
@@ -3901,7 +3864,7 @@
       testSubmitting = false;
       if (!result.ok) {
         alert.textContent = result.error === "insufficient_test_credit" ? "Not enough test credit for this order." :
-          result.error === "auth_required" || result.error === "auth_changed" ? "Sign in again to use test credit." :
+          result.error === "auth_required" || result.error === "auth_changed" ? "Your session could not authorize this order. Your cart is saved here." :
           "Dispatch could not confirm receipt. Check your connection and retry the same order.";
         orderGuidance(alert.textContent);
         return;
@@ -3916,7 +3879,8 @@
         var admin = SNAuth.user()?.roles?.some(role=>["admin","super_admin","owner"].includes(role));
         showDrawerPlacement("Delivery requested", '<p>'+(pending.some(row=>row.state==="offered") ? 'A nearby driver has received the offer.' : 'Looking for an available driver.')+'</p>'+controls+
           (controls && !SNAuth.activeRoles().driver ? '<button class="sheet-go" data-act="enable-delivery">Enable my delivery driver role</button>' : '') +
-          (admin && controls ? '<button class="sheet-go" data-act="checkout-driver">Add driver at my location</button>' : ''));
+          (admin && controls ? '<button class="sheet-go" data-act="checkout-driver">Add driver at my location</button>' : '') +
+          '<button class="sheet-go" data-act="checkout-another-vendor">Choose another vendor on the map for a new order</button>');
       }
       await displayDispatch(result);
 
@@ -4009,6 +3973,7 @@
     return !!(offersArmed() && checkoutAccount() && window.SNAuth?.activeRoles().driver);
   }
   async function refreshDispatch() {
+    if (holdAccount !== checkoutAccount()) clearHoldRoutes();
     if (!checkoutAccount()) { $("sn-pending-orders").hidden=true; return; }
     if (dispatchBusy) return;
     dispatchBusy = true;
@@ -5191,6 +5156,47 @@
     } while (page.items.length && offset < page.count);
     saveTransactionFile("spacenet-transactions.csv", "\ufeff" + lines.join("\r\n"), "text/csv");
   }
+  var holdRoutes = [], holdAccount = "";
+  function clearHoldRoutes() {
+    holdRoutes.forEach(line => line.remove());
+    holdRoutes = [];
+  }
+  async function openOrderHolds(id) {
+    var account = checkoutAccount();
+    var data = await dispatchRequest("order_hold",{});
+    if (account !== checkoutAccount()) return;
+    clearHoldRoutes();
+    holdAccount = account;
+    var rows = data.orders;
+    if (!Array.isArray(rows)) { showDrawerPlacement("Order payments","<p>Could not load order payments. Sign in and retry.</p>"); return; }
+    rows.forEach(row => {
+      if (!map || !["held","review","disputed"].includes(row.state) ||
+          ![row.origin,row.destination].every(pt=>Array.isArray(pt) && pt.length===2 && pt.every(Number.isFinite))) return;
+      holdRoutes.push(L.polyline([row.origin,row.destination],{color:"#42cfff",weight:5,dashArray:"6 4"}).addTo(map)
+        .on("click",()=>openOrderHolds(row.id)));
+    });
+    var row = rows.find(r=>r.id===id);
+    if (!row) {
+      showDrawerPlacement("Order payments", rows.map(r=>'<button class="sheet-go" data-act="hold-open" data-id="'+escHtml(r.id)+'">'+escHtml(r.name)+' · '+escHtml(r.state)+' · '+escHtml(r.total)+' AVC</button>').join(" ") || "<p>No prepaid orders.</p>");
+      return;
+    }
+    var log = await dispatchRequest("order_hold",{id:id});
+    if (account !== checkoutAccount()) return;
+    var editable = ["held","review","disputed"].includes(row.state);
+    var actions = editable ? row.roles.map(role=>{
+      var options = row.state==="review" && role!=="admin" ? [] : [
+        ["delivered",role==="vendor"?"I dispatched the goods":role==="driver"?"I delivered the order":role==="buyer"?"I received the order":"Release payment"],
+        ["refund","Refund client "+row.total+" AVC"],
+        ["driver_damage","Driver pays vendor "+row.goods+" AVC · refund client "+row.total+" AVC"],
+        ["review","Request administrator review"]];
+      options.push(["note","Add explanation"]);
+      return '<fieldset><legend>'+escHtml(role)+'</legend>'+options.map(([decision,label])=>'<button class="sheet-go" data-act="hold-vote" data-role="'+role+'" data-decision="'+decision+'" data-id="'+escHtml(id)+'">'+escHtml(label)+'</button>').join(" ")+'</fieldset>';
+    }).join("") : "";
+    showDrawerPlacement(row.name, '<p>'+escHtml(row.state)+' · Goods '+escHtml(row.goods)+' AVC · Delivery '+escHtml(row.delivery)+' AVC · Total '+escHtml(row.total)+' AVC</p>'+
+      (log.history || []).map(e=>'<p>'+escHtml(e.role)+' · '+escHtml(e.decision)+' '+escHtml(e.note)+'</p>').join("")+
+      (editable?'<label>Explanation<textarea class="field" maxlength="1500" id="hold-explanation"></textarea></label>':'')+actions+
+      '<button class="sheet-go" data-act="hold-open">All order payments</button>');
+  }
   function openTransactionHistory() {
     if (!checkoutAccount()) {
       openSheet("Transactions", '<p class="note">Sign in to view your account history and invoices.</p>' +
@@ -5198,7 +5204,7 @@
       return;
     }
     openSheet("Transactions", '<form id="sn-history" class="test-form">' +
-      '<div class="test-times"><label>From (Athens time)<input type="date" class="field" name="from"></label>' +
+      '<button type="button" class="sheet-go" data-act="hold-open">Order payments and disputes</button><div class="test-times"><label>From (Athens time)<input type="date" class="field" name="from"></label>' +
       '<label>Through (Athens time)<input type="date" class="field" name="to"></label></div>' +
       '<div class="test-times"><label>Type<select class="field" name="kind"><option value="">All types</option></select></label>' +
       '<label>Order<select class="field" name="sort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select></label></div>' +
@@ -6154,7 +6160,7 @@
       if(e.target.id!=="map-brightness")return;
       localStorage.setItem("sn:map-brightness",e.target.value);
       $("brightness-value").textContent=e.target.value+"%";
-      applyMapTone($("city")); applyMapTone($("checkout-map"));
+      applyMapTone($("city"));
     });
     bindGps();
     bindLogo();
@@ -6292,6 +6298,14 @@
           if (!result.ok) {t.disabled=false;say(result.error || "Please retry.");return;}
           if(act==="dispatch-pickup") {dismissDrawerPlacement();say("Pickup order confirmed.");}
           displayDispatch(result);
+        });
+      }
+      if (act === "hold-open") openOrderHolds(id);
+      if (act === "hold-vote") {
+        t.disabled=true;
+        dispatchRequest("order_hold",{id:id,role:t.dataset.role,decision:t.dataset.decision,note:$("hold-explanation")?.value || ""}).then(function(result){
+        if(result.ok) openOrderHolds(id);
+        else {t.disabled=false;orderGuidance("Decision could not be recorded. Reopen the order and check its status.");}
         });
       }
       if (act === "home-account" && window.SNAuth && SNAuth.open) SNAuth.open();
@@ -6460,8 +6474,14 @@
         if (window.SNAuth && SNAuth.open) SNAuth.open();
       }
       if (act === "checkout-sign-in") startCheckoutSignIn();
-      if (act === "checkout-new-client") openCheckoutMap();
-      if (act === "checkout-cancel-client") { endDestinationPick(); resumeCheckout(); }
+      if (act === "checkout-another-vendor") {
+        dismissDrawerPlacement();
+        if (!cityOn && vendor) openCity(vendor);
+        setDrawerHeight(collapsedDrawerH());
+        orderGuidance("Tap another vendor on the map to start a new order.");
+      }
+      if (act === "checkout-new-client") beginDestinationPick();
+      if (act === "checkout-cancel-client") { skipAutoPick=true; endDestinationPick(); resumeCheckout(); }
       if (act === "test-client") {
         deliverySelection = new Set([id]);
         if (vendor && cartSubtotal() > 0) resumeCheckout();
@@ -6750,7 +6770,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4477 = true;
+    window.__SN_4478 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
@@ -6794,10 +6814,10 @@
       if ($("sn-history") || $("sn-checkout-client") || $("sn-client-location-form")) closeSheet();
       paintDrawerContent();
       if (cityOn) paintActorsOnMap();
-      if (pickingDestination) { endDestinationPick(); resumeCheckout(); }
+      if (pickingDestination) { skipAutoPick=true; endDestinationPick(); resumeCheckout(); }
     });
     window.addEventListener("keydown", function (event) {
-      if (event.key === "Escape" && pickingDestination) { endDestinationPick(); resumeCheckout(); }
+      if (event.key === "Escape" && pickingDestination) { skipAutoPick=true; endDestinationPick(); resumeCheckout(); }
     });
     restoreCheckoutAfterAuth();
     var link = new URLSearchParams(location.search);

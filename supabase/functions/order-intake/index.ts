@@ -318,7 +318,9 @@ async function handleDriverAccept(sb: ReturnType<typeof createClient>, body: Rec
     .maybeSingle()
 
   const now = new Date().toISOString()
-  const payouts = order.driver_accepted_at ? null : await payoutOnAccept(sb, order, vendor || { id: order.vendor_id, name: 'Vendor' })
+  const { data: hold, error: holdError } = await sb.from('sn_order_holds').select('id').eq('id', order.id).maybeSingle()
+  if (holdError) throw holdError
+  const payouts = hold || order.driver_accepted_at ? null : await payoutOnAccept(sb, order, vendor || { id: order.vendor_id, name: 'Vendor' })
   if (payouts?.errors?.some(message => !message.endsWith('_missing'))) {
     return new Response(JSON.stringify({ error: 'settlement_pending', payouts }), { status: 409, headers: cors })
   }
@@ -616,6 +618,7 @@ async function handleCreateOrder(sb: ReturnType<typeof createClient>, body: Reco
   if (order?.error === 'insufficient_balance') {
     return new Response(JSON.stringify(order), { status: 402, headers: cors })
   }
+  if (order?.error) return new Response(JSON.stringify(order), { status: 409, headers: cors })
   const balanceAfter = paid ? Number(order.calc?.balance_after) : null
 
   if (customerId) {
