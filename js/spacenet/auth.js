@@ -548,7 +548,23 @@
     } catch {}
   }
   setInterval(refreshRoleChanges,30000);
-  window.SNAuth = { verifyPhone: verifyPhone, activeRoles: activeRoles, toggleRole: toggleRole, google: google, mailIn: mailIn, mailUp: mailUp, password: password, setPassword: setPassword, remember: remember, session: session, youtube: youtube, yt: yt, x: x, out: out, savePhone: savePhone, user: user, token: token, boot: boot, paint: paintMe, open: openMe };
+  // The signed-in browser can reach the same RPC when the checkout proxy is unavailable.
+  async function checkoutRpc(body) {
+    if (!ANON || !token()) return null;
+    var action=body?.action;
+    var name=!body?"sn_test_balance":action==="order_hold"?"sn_hold_action":action?"sn_dispatch":null;
+    if(!name) return null;
+    var response=await fetch(SB+"/rest/v1/rpc/"+name,{
+      method:"POST",headers:headers(),signal:AbortSignal.timeout(8000),
+      body:JSON.stringify(action==="order_hold"?{details:body.details}:body || {})
+    });
+    var value=await response.json();
+    if(response.ok) return body?value:{balance_cents:value};
+    if(["PGRST202","42P01","42883"].includes(value.code)) return {error:"dispatch_schema_missing"};
+    if(response.status===401) return {error:"auth_required"};
+    return null;
+  }
+  window.SNAuth = {checkoutRpc:checkoutRpc, verifyPhone: verifyPhone, activeRoles: activeRoles, toggleRole: toggleRole, google: google, mailIn: mailIn, mailUp: mailUp, password: password, setPassword: setPassword, remember: remember, session: session, youtube: youtube, yt: yt, x: x, out: out, savePhone: savePhone, user: user, token: token, boot: boot, paint: paintMe, open: openMe };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
 })();

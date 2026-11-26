@@ -1,5 +1,5 @@
 /*
- * SpaceNet 4478
+ * SpaceNet 4479
  *
  * Astranov Script is the project's name for this stack:
  * - JavaScript for the SpaceNet browser app and Node.js API handlers.
@@ -11,7 +11,7 @@
  */
 (function () {
   "use strict";
-  var VER = "4478";
+  var VER = "4479";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -1477,6 +1477,7 @@
     if (!map) {
       map = L.map(el, { zoomControl: false, attributionControl: true, minZoom: 12, maxZoom: 19, scrollWheelZoom: true }).setView([pt.lat, pt.lng], 16);
       setStreetLayer();
+      el.addEventListener("touchstart",e=>{if(e.touches.length>=2) routeFreeZoom=true;},{passive:true});
       map.on("click", function (e) {
         if (pickingDestination) nameDestination(e.latlng);
       });
@@ -1526,6 +1527,7 @@
       youMark = L.circleMarker([here.lat, here.lng], { radius: 8, color: "#4df0ff", fillColor: "#4df0ff", fillOpacity: 0.9, weight: 2 }).addTo(map);
       youMark.on("click", function (e) {
         if (pickingDestination) nameDestination(e.latlng);
+        else if(trackingAccount===checkoutAccount() && trackedOrders.some(o=>["paid","accepted"].includes(o.state))) openTrackedOrder(trackedOrders.find(o=>["paid","accepted"].includes(o.state)).id);
         else if (!openOwnProfile() && window.SNAuth) SNAuth.open();
       });
     }
@@ -1791,7 +1793,9 @@
         if (!pos || !pos.coords) return;
         here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         window.__SN_HERE = here;
+        var firstFix=!dispatchFix;
         dispatchFix = {lat:here.lat,lng:here.lng};
+        if(firstFix && driverAvailable()) refreshDispatch();
         if (youMark && map) try { youMark.setLatLng([here.lat, here.lng]); } catch (e) {}
       }, function () { dispatchFix=null; }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
     } catch (e) {}
@@ -2053,7 +2057,7 @@
       ? '<h3>Free AI providers</h3><select id="sn-provider"><option value="groq">Groq</option><option value="gemini">Gemini</option><option value="openrouter">OpenRouter Free</option></select>' +
         '<input class="field" id="sn-provider-key" type="password" autocomplete="off" placeholder="Provider API key">' +
         '<button class="sheet-go" data-act="save-provider">Save provider key</button><p id="sn-provider-status" role="status"></p>' : "";
-    var menu = userRoleMarkup() + (vendor && cartSubtotal() ? '<button class="sheet-go" data-act="checkout-return">Return to checkout</button> <button class="sheet-go" data-act="checkout-new-client">Add delivery address</button>' : '') + providerSettings + '<p>Google account · ' + (person.googleLinked ? 'Linked' : 'Unconfirmed') + '</p><p>Phone · ' +
+    var menu = trackingMarkup() + userRoleMarkup() + (vendor && cartSubtotal() ? '<button class="sheet-go" data-act="checkout-return">Return to checkout</button> <button class="sheet-go" data-act="checkout-new-client">Add delivery address</button>' : '') + providerSettings + '<p>Google account · ' + (person.googleLinked ? 'Linked' : 'Unconfirmed') + '</p><p>Phone · ' +
       (person.phoneConfirmed ? 'Verified' : 'Unconfirmed') + '</p>' +
       '<label>Phone with country code<input id="sn-phone-number" type="tel" class="field" value="' + escHtml(person.phone || "") + '"></label>' +
       '<label>WhatsApp verification code<input id="sn-phone-code" inputmode="numeric" class="field"></label>' +
@@ -2788,21 +2792,21 @@
     if (driverMark && map) try { map.removeLayer(driverMark); } catch (e) {}
     driverMark = null;
   }
-  function placeDriverOnRoute(from, to) {
+  function placeDriverOnRoute(position) {
     clearDriverMark();
-    if (!map || typeof L === "undefined" || !from || !to) return;
-    var mid = { lat: (Number(from.lat) + Number(to.lat)) / 2, lng: (Number(from.lng) + Number(to.lng)) / 2 };
-    driverMark = L.circleMarker([mid.lat, mid.lng], {
+    if (!map || !position || ![position.lat,position.lng].every(Number.isFinite)) return;
+    driverMark = L.circleMarker([position.lat, position.lng], {
       radius: 9, color: "#4df0ff", fillColor: "#1a3cff", fillOpacity: 0.95, weight: 2
     }).bindTooltip("DRIVER", { permanent: false, direction: "top" }).addTo(map);
   }
   function drawAcceptedRoute(job) {
+    routeFreeZoom=false;
     var from = job && (job.vendor || job.from);
     var to = job && (job.drop || job.to);
     if (!from || !to || !isFinite(Number(from.lat)) || !isFinite(Number(to.lat))) return;
     if (!cityOn && typeof openCity === "function") openCity(here || from);
     drawRoute(from, to, job.driver);
-    placeDriverOnRoute(from, to);
+    placeDriverOnRoute(job.driver);
   }
   function paintActiveOfferCard(job, mode) {
     ensureHopConfirms(job);
@@ -2819,7 +2823,7 @@
         '<button type="button" class="decline" data-act="decline" data-id="' + job.id + '">DECLINE</button>' +
         '<button type="button" class="accept" data-act="accept" data-id="' + job.id + '">ACCEPT</button></div>';
     } else if (job.shared) {
-      body = mode === "paid" ? '<button class="sheet-go" data-act="dispatch-complete" data-id="'+escHtml(job.id)+'">Confirm delivery completed</button>' : '<p>Awaiting checkout confirmation.</p>';
+      body = mode==="paid" && job.tracking && !job.collected ? '<button class="sheet-go" data-act="dispatch-collect" data-id="'+escHtml(job.id)+'">Picked up from vendor</button>' : mode === "paid" ? '<button class="sheet-go" data-act="dispatch-complete" data-id="'+escHtml(job.id)+'">Confirm delivery completed</button>' : '<p>Awaiting checkout confirmation.</p>';
     } else if (job.test) {
       body = '<button type="button" class="sheet-go primary" data-act="test-stage" data-id="' + escHtml(job.id) + '">' +
         testDeliveryStages[job.stage] + '</button>';
@@ -2827,7 +2831,7 @@
       body = hopHtml(job);
     }
     var html = '<div class="offer-card" data-offer="' + escHtml(id) + '">' +
-      (mode === "pending" ? "" : priceHtml) +
+      priceHtml +
       "<h3>" + escHtml(title.toUpperCase()) + "</h3>" +
       '<p class="note">' + note + (isFinite(Number(job.km)) ? " · " + Number(job.km).toFixed(1) + " km" : "") + "</p>" +
       body + "</div>";
@@ -3145,7 +3149,9 @@
     if (routeLayer && map) fitOfferRoute();
   }
   var fittingRoute = false;
+  var routeFreeZoom=false;
   function fitOfferRoute() {
+    if(routeFreeZoom)return;
     if (!map || typeof L === "undefined") return;
     var topEl = visRect($("top"));
     var drawer = visRect($("drawer"));
@@ -3615,18 +3621,32 @@
   var testCredit = null;
   var testCreditToken = "";
   var testSubmitting = false;
+  var directCheckoutAccount="";
   async function testCheckoutRequest(body,retried) {
     var token = authToken(), account=checkoutAccount();
     if (!token) return { error: "auth_required" };
     try {
+      if(account && directCheckoutAccount===account && window.SNAuth?.checkoutRpc) {
+        var direct=await SNAuth.checkoutRpc(body).catch(()=>null);
+        if(direct && account!==checkoutAccount()) return {error:"auth_changed"};
+        if(direct && direct.error!=="auth_required") {
+          if(Number.isInteger(direct.balance_cents)){testCredit=direct.balance_cents;testCreditToken=token;paintTestCredit();}
+          return direct;
+        }
+        directCheckoutAccount="";
+      }
       var response = await fetch("/api/test-checkout", {
         method: body ? "POST" : "GET",
         headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
         signal:AbortSignal.timeout(12000),
         body: body ? JSON.stringify(body) : undefined
       });
-      var result = await response.json();
-      if (response.status===401 && !retried && account && window.SNAuth?.session) {
+      var result = await response.json().catch(()=>({error:"test_checkout_unavailable"}));
+      if(response.status>=500 && window.SNAuth?.checkoutRpc && (!body || ["create","poll","presence"].includes(body.action))) {
+        var recovered=await SNAuth.checkoutRpc(body).catch(()=>null);
+        if(recovered){result=recovered;if(!result.error && account===checkoutAccount()) directCheckoutAccount=account;}
+      }
+      if ((response.status===401 || result.error==="auth_required") && !retried && account && window.SNAuth?.session) {
         if (token===authToken()) await SNAuth.session();
         if (account===checkoutAccount() && token!==authToken()) return testCheckoutRequest(body,true);
       }
@@ -3800,12 +3820,10 @@
     var shop = vendor;
     var clients = deliveryLocations();
 
-    openSheet("Test checkout", '<form id="test-order-form" class="test-form">' +
+    openSheet("Checkout", '<form id="test-order-form" class="test-form">' +
       deliveryPicker(clients) + '<p class="note" id="sn-test-total"></p>' +
       '<p class="note" id="sn-test-credit">Loading test credit…</p>' +
-      '<p role="alert" class="note"></p>' +
-      '<button class="sheet-go primary" disabled>Place test order</button>' +
-      '<button type="button" class="sheet-go" data-act="test-menu">Back to menu</button></form>');
+      '<button class="sheet-go primary place-order" disabled>Place order</button><p role="alert" class="note"></p></form>');
     var form = $("test-order-form");
     function showTotal() {
       var destinations = checkoutDeliveries(clients, {});
@@ -3856,17 +3874,17 @@
       button.disabled = true;
       $("sn-checkout-client").disabled = true;
       testSubmitting = true;
-      alert.textContent = "";
-      orderGuidance("Sending your delivery request…");
-      var result = await dispatchRequest("create",{orders:orders});
+      alert.textContent = "Sending your delivery request…";
+      var result = await dispatchRequest("create",{orders:orders,driver_position:driverAvailable()?driverPosition():null});
       button.disabled = false;
       form.querySelector("fieldset").disabled = false;
       testSubmitting = false;
       if (!result.ok) {
         alert.textContent = result.error === "insufficient_test_credit" ? "Not enough test credit for this order." :
           result.error === "auth_required" || result.error === "auth_changed" ? "Your session could not authorize this order. Your cart is saved here." :
-          "Dispatch could not confirm receipt. Check your connection and retry the same order.";
-        orderGuidance(alert.textContent);
+          result.error === "dispatch_schema_missing" ? "The server is missing its dispatch database update. Your cart is saved." :
+          result.error === "checkout_config_missing" ? "The server has no checkout database connection. Your cart is saved." :
+          "The order service did not confirm this order. Your cart is saved for retry.";
         return;
       }
       try { sessionStorage.removeItem("sn:test-submit"); } catch (err) {}
@@ -3944,8 +3962,8 @@
       '<textarea id="sn-order-comment" class="field" placeholder="Order comments">' + escHtml(cart.comment || "") + '</textarea>' +
       '<div class="checkout test-form">' +
       '<p class="note" id="sn-cart-total"></p>' +
-      '<button type="button" id="sn-pay-cart" class="sheet-go primary" data-act="pay-avc" disabled>Place order</button>' +
-      '<button type="button" class="sheet-go" data-act="back-vendor">Back to menu</button></div>');
+      '<button type="button" id="sn-pay-cart" class="sheet-go primary place-order" data-act="pay-avc" disabled>Place order</button>' +
+      '</div>');
     function update() {
       var destinations = checkoutDeliveries(clients, quoteOpts);
       $("sn-pay-cart").disabled = !destinations.length;
@@ -3972,10 +3990,11 @@
   function driverAvailable() {
     return !!(offersArmed() && checkoutAccount() && window.SNAuth?.activeRoles().driver);
   }
+  var nextDispatchPoll=0, dispatchDelay=0;
   async function refreshDispatch() {
     if (holdAccount !== checkoutAccount()) clearHoldRoutes();
     if (!checkoutAccount()) { $("sn-pending-orders").hidden=true; return; }
-    if (dispatchBusy) return;
+    if (dispatchBusy || Date.now()<nextDispatchPoll) return;
     dispatchBusy = true;
     try {
       if (driverAvailable() && !driverPosition()) ensureDriverGps();
@@ -3984,10 +4003,53 @@
       var position = driverPosition();
       var active = driverAvailable() && !!position;
       var data = await dispatchRequest("presence",{active:active,lat:(position || here)?.lat,lng:(position || here)?.lng});
+      dispatchDelay=data.ok?0:Math.min(30000,Math.max(4000,dispatchDelay*2));
+      nextDispatchPoll=Date.now()+dispatchDelay;
       if (data.ok && account === checkoutAccount()) await displayDispatch(data);
     } finally { dispatchBusy = false; }
   }
+  var trackedOrders=[], trackingAccount="";
+  function trackingText(row) {
+    var states={waiting:"Waiting for a driver",offered:"Offer sent to a driver",accepted:"Driver accepted",paid:"Driver assigned · checkout confirmed",done:"Delivery completed",pickup:"Pickup available",collected_order:"Vendor pickup confirmed",payment_failed:"Payment failed"};
+    var text=states[row.state] || row.state;
+    if(row.state==="paid") {
+      var minutes=Math.ceil(VENDOR_PREP_MIN-(Date.now()-Date.parse(row.created))/60000);
+      text=row.picked_up_at?"Driver on the way":minutes>0?"Awaiting pickup · estimated preparation "+minutes+" min":"Awaiting pickup";
+    }
+    if(row.driver && row.drop) text+=" · Driver "+Math.round(haversineKm(row.driver,row.drop)*1000)+" m from delivery";
+    return text;
+  }
+  function trackingMarkup(vendorId) {
+    if(trackingAccount!==checkoutAccount()) return "";
+    return trackedOrders.filter(row=>!vendorId || row.vendor.id===vendorId).map(row=>
+      '<button class="sheet-go tracking-order" data-act="track-order" data-id="'+escHtml(row.id)+'">'+escHtml(row.vendor.name)+' · '+escHtml(trackingText(row))+'</button>').join("");
+  }
+  function openTrackedOrder(id) {
+    if(trackingAccount!==checkoutAccount()) return;
+    var row=trackedOrders.find(order=>order.id===id);
+    if(!row) return;
+    showDrawerPlacement(row.vendor.name,'<p role="status" id="tracking-details">'+escHtml(trackingText(row))+'</p>');
+    $("tracking-details").dataset.id=id;
+    drawAcceptedRoute(row);
+  }
   async function displayDispatch(data) {
+    if(Array.isArray(data.tracking)) {
+      trackedOrders=data.tracking;
+      trackingAccount=checkoutAccount();
+      var detail=$("tracking-details"), row=detail && trackedOrders.find(o=>o.id===detail.dataset.id);
+      if(row) {detail.textContent=trackingText(row);placeDriverOnRoute(row.driver);}
+      if(drawerProfile && !offerActiveId && !drawerPlacement && !drawerAI && !drawerHome && !drawerNews) paintDrawerCart(drawerProfile);
+      for(var order of trackedOrders) {
+        if(!order.mine || order.state!=="paid" || !order.picked_up_at || !order.driver) continue;
+        var km=haversineKm(order.driver,order.drop), threshold=[1,2,3].find(n=>km<=n);
+        if(!threshold) continue;
+        var noticeKey="sn:delivery-distance:"+trackingAccount+":"+order.id;
+        if(Number(sessionStorage.getItem(noticeKey) || 4)>threshold) {
+          sessionStorage.setItem(noticeKey,String(threshold));
+          orderGuidance("Your driver is within "+threshold+" km of your delivery location.");
+        }
+      }
+    }
     var ordersButton = $("sn-pending-orders");
     ordersButton.hidden = !data.pending_count;
     ordersButton.textContent = "Orders · " + (data.pending_count || 0);
@@ -4000,11 +4062,15 @@
       assignment = settled.assignment;
     }
     if (assignment) {
-      var key = assignment.id + assignment.state;
+      var tracked=trackedOrders.find(row=>row.id===assignment.id);
+      var key = assignment.id + assignment.state + (tracked?.picked_up_at || "");
       orderGuidance("");
-      if (dispatchView === key) return;
+      if (dispatchView === key) {
+        if(assignment.state==="paid" && driverMark && driverPosition()) driverMark.setLatLng(driverPosition());
+        return;
+      }
       var payload = assignment.payload;
-      var job = {id:assignment.id,shared:true,vendor:payload.vendor,drop:payload.drop,
+      var job = {id:assignment.id,shared:true,tracking:!!tracked,collected:!!tracked?.picked_up_at,vendor:payload.vendor,drop:payload.drop,
         fee:payload.delivery_cents/100,driver:driverPosition(),item:payload.items.map(row=>row.qty+" × "+row.name).join(", ")};
       if (assignment.state === "offered") {
         if (!driverAvailable()) return;
@@ -4014,6 +4080,7 @@
       } else {
         clearOfferCountdown(); pendingOffer=null; offerActiveId=job.id;
         paintActiveOfferCard(job,assignment.state);
+        drawAcceptedRoute(job);
       }
       dispatchView=key;
       return;
@@ -5314,7 +5381,7 @@
     var html = (active && !state?.history ? '<div class="drawer-cart-line"><span>Cart · ' + items + (items === 1 ? ' item' : ' items') +
       ' · <b>' + subtotal + ' AV€</b></span>' +
       '<button type="button" class="sheet-go primary" data-act="' + (usesTestCheckout(profile.actor) ? "test-checkout" : "open-order") + '"' +
-      (subtotal > 0 ? '' : ' disabled') + '>Checkout</button></div>' : '') +
+      (subtotal > 0 ? '' : ' disabled') + '>Place order</button>'+trackingMarkup(profileId(vendor))+'</div>' : '') +
       '<nav class="drawer-cart-links" aria-label="Profile sections">' +
       (state && state.data ? '<button type="button" class="sheet-go" data-act="profile-orders">History</button>' : '<span></span>') +
       '<button type="button" class="sheet-go chat-button" data-unread="'+ (chatCount.account===checkoutAccount() && chatCount.key===profileId(profile.actor) && chatCount.value>0) +'" data-act="profile-chat">Messaging <b>'+ (chatCount.key===profileId(profile.actor) && chatCount.account===checkoutAccount()?chatCount.value:0) +'</b></button></nav>';
@@ -6292,14 +6359,15 @@
         setDrawerHeight(collapsedDrawerH());
       }
       if (act === "home-close") openHomeDrawer();
-      if (act === "dispatch-pickup" || act === "dispatch-complete") {
+      if (act === "dispatch-pickup" || act === "dispatch-complete" || act === "dispatch-collect") {
         t.disabled=true;
-        dispatchRequest(act==="dispatch-pickup"?"pickup":"complete",{id:id}).then(function(result){
+        dispatchRequest(act.slice("dispatch-".length),{id:id}).then(function(result){
           if (!result.ok) {t.disabled=false;say(result.error || "Please retry.");return;}
           if(act==="dispatch-pickup") {dismissDrawerPlacement();say("Pickup order confirmed.");}
           displayDispatch(result);
         });
       }
+      if (act === "track-order") openTrackedOrder(id);
       if (act === "hold-open") openOrderHolds(id);
       if (act === "hold-vote") {
         t.disabled=true;
@@ -6770,7 +6838,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4478 = true;
+    window.__SN_4479 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
