@@ -1,5 +1,5 @@
 /*
- * SpaceNet 4473
+ * SpaceNet 4474
  *
  * Astranov Script is the project's name for this stack:
  * - JavaScript for the SpaceNet browser app and Node.js API handlers.
@@ -11,7 +11,7 @@
  */
 (function () {
   "use strict";
-  var VER = "4473";
+  var VER = "4474";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -2077,6 +2077,25 @@
     var role = profileRole(actor);
     return role === "Vendor" || role === "Delivery service";
   }
+  var ownerProfileInfo=null;
+  function isRoleOwner() {return !!window.SNAuth?.user()?.roles?.includes("owner");}
+  function ownerRolePanel(actor) {
+    if(actor.self || !isRoleOwner()) return "";
+    var info=ownerProfileInfo;
+    if(!info || info.actor!==profileId(actor) || info.viewer!==checkoutAccount()) return "";
+    if(!info.data?.linked) return '<p class="note">'+(info.data?.ok?"No linked user account.":"Account information unavailable.")+'</p>';
+    var data=info.data;
+    return '<section class="profile-section"><h3>User account</h3><p>'+[data.name,data.email,data.phone,data.id].filter(Boolean).map(escHtml).join(' · ')+'</p><div class="home-roles">'+Object.keys(homeRoleLabels).map(role=>
+      '<button class="sheet-go" data-act="owner-role" data-role="'+role+'" aria-pressed="'+!!data.switches[role]+'">'+homeRoleLabels[role]+' · '+(data.switches[role]?'On':'Off')+'</button>').join('')+'</div></section>';
+  }
+  async function fetchOwnerProfile(actor,role,enabled) {
+    var viewer=checkoutAccount(), key=profileId(actor);
+    if(!viewer || !isRoleOwner() || actor.self) return;
+    var target=actor.discovered ? {vendor:key} : {account:actor.accountId || actor.id};
+    var data=await listingAction({...target,kind:role?"owner-role-set":"owner-role-get",role,enabled});
+    if(viewer!==checkoutAccount() || !isRoleOwner() || drawerProfile?.actor!==actor) return;
+    ownerProfileInfo={viewer,actor:key,data};paintDrawerContent();
+  }
   function profileMarkup(profile) {
     var actor = profile.actor, role = profileRole(actor);
     var isVendor = profileIsVendor(actor);
@@ -2096,6 +2115,7 @@
       '</div><div><h2>' + escHtml(actor.name || role) + '</h2><p class="note">' + escHtml(role) +
       (actor.test ? ' · Test profile' : actor.verified ? ' · Verified' : '') + '</p>' +
       (isVendor ? vendorContact(actor) : actor.self && actor.phone ? '<p class="note">' + escHtml(actor.phone) + '</p>' : '') + '</div></div></div>' +
+      ownerRolePanel(actor) +
       (actor.quick ? '<nav aria-label="Pin type">' + Object.keys(testRoles).map(function (key) {
         return '<button class="sheet-go" data-act="quick-role" data-role="' + key + '" aria-pressed="' + (actor.role === key) + '">' + actorIcons[key] + ' ' + testRoles[key] + '</button>';
       }).join("") + '</nav>' : '') +
@@ -2138,6 +2158,7 @@
     var changed = !drawerProfile || profileId(actor) !== profileId(drawerProfile.actor);
     clearDrawerPlacement();
     drawerProfile = { actor: actor, menu: menu };
+    if (changed || ownerProfileInfo?.actor!==profileId(actor)) fetchOwnerProfile(actor);
     if ($("sn-sheet").classList.contains("on")) closeSheet();
     else paintDrawerContent();
     var orders = profileOrdersFor(actor);
@@ -5794,16 +5815,16 @@
   var homeStatus = "";
   var homeLoading = false;
   var homeRoleLabels = {
-    client: "User", vendor: "Vendor", driver: "Delivery driver",
+    client: "User", support:"Support", vendor: "Vendor", driver: "Delivery driver",
     ambassador: "Ambassador", partner: "Partner", owner: "Owner", admin: "Admin"
   };
   function userRoleMarkup() {
     var account = SNAuth.user(), assigned = account.roles || [];
     var active = SNAuth.activeRoles();
-    var roleList = ["client", "vendor", "driver", "ambassador", "partner", "admin", "owner"];
+    var roleList = ["client", "vendor", "driver", "support", "ambassador", "partner", "admin", "owner"];
     return '<p class="note">Account roles · ' + escHtml(assigned.join(", ") || "Client") + '</p>' +
       (account ? '<section class="profile-section"><h3>Role availability</h3><div class="home-roles">' + roleList.map(function (role) {
-        var allowed = role === "client" || role === "vendor" || role === "driver" || assigned.includes(role);
+        var allowed = Object.hasOwn(active,role);
         return '<button type="button" class="sheet-go" data-act="home-role" data-role="' + role + '" aria-pressed="' + !!active[role] + '"' +
           (allowed ? '' : ' disabled') + '><span>' + homeRoleLabels[role] + '</span><small>' +
           (allowed ? active[role] ? 'On' : 'Off' : 'Unassigned') + '</small></button>';
@@ -6238,6 +6259,10 @@
         });
       }
       if (act === "home-account" && window.SNAuth && SNAuth.open) SNAuth.open();
+      if (act === "owner-role" && drawerProfile && isRoleOwner()) {
+        t.disabled=true;
+        fetchOwnerProfile(drawerProfile.actor,t.dataset.role,t.getAttribute("aria-pressed")!=="true");
+      }
       if (act === "home-role" && window.SNAuth && SNAuth.toggleRole) {
         SNAuth.toggleRole(t.getAttribute("data-role"));
         refreshDispatch();
@@ -6689,7 +6714,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4473 = true;
+    window.__SN_4474 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
