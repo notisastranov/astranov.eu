@@ -1,5 +1,5 @@
 /*
- * SpaceNet 4474
+ * SpaceNet 4475
  *
  * Astranov Script is the project's name for this stack:
  * - JavaScript for the SpaceNet browser app and Node.js API handlers.
@@ -11,7 +11,7 @@
  */
 (function () {
   "use strict";
-  var VER = "4474";
+  var VER = "4475";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -4764,7 +4764,15 @@
     }
     var history = [], values = [], alerts = [], lastSample = performance.now();
     function draw(canvas, overview) {
-      var graph = canvas.getContext("2d"), w = canvas.width, h = canvas.height;
+      var w = overview ? canvas.clientWidth : canvas.width;
+      var h = overview ? canvas.clientHeight : canvas.height;
+      var scale = overview ? window.devicePixelRatio || 1 : 1;
+      if (overview) {
+        if (canvas.width !== Math.round(w * scale)) canvas.width = Math.round(w * scale);
+        if (canvas.height !== Math.round(h * scale)) canvas.height = Math.round(h * scale);
+      }
+      var graph = canvas.getContext("2d");
+      graph.setTransform(scale, 0, 0, scale, 0, 0);
       graph.clearRect(0, 0, w, h);
       if (!overview) {
         graph.strokeStyle = "rgba(126,233,255,.2)";
@@ -6714,7 +6722,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4474 = true;
+    window.__SN_4475 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
