@@ -1,5 +1,5 @@
 /*
- * SpaceNet 4475
+ * SpaceNet 4476
  *
  * Astranov Script is the project's name for this stack:
  * - JavaScript for the SpaceNet browser app and Node.js API handlers.
@@ -11,7 +11,7 @@
  */
 (function () {
   "use strict";
-  var VER = "4475";
+  var VER = "4476";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -2078,7 +2078,7 @@
     return role === "Vendor" || role === "Delivery service";
   }
   var ownerProfileInfo=null;
-  function isRoleOwner() {return !!window.SNAuth?.user()?.roles?.includes("owner");}
+  function isRoleOwner() {return window.SNAuth?.user()?.creator===true;}
   function ownerRolePanel(actor) {
     if(actor.self || !isRoleOwner()) return "";
     var info=ownerProfileInfo;
@@ -6722,7 +6722,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4475 = true;
+    window.__SN_4476 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
@@ -6746,7 +6746,8 @@
       goCityFromGlobe: goCityFromGlobe, startTransaction: startTransaction, openPeerMessage: openPeerMessage
     };
     window.addEventListener("spacenet:signed-in", function () {
-      if (drawerProfile) loadProfileOrders(drawerProfile.actor, false, 0);
+      if (drawerProfile?.actor.self) openOwnProfile();
+      else if (drawerProfile) {loadProfileOrders(drawerProfile.actor, false, 0);fetchOwnerProfile(drawerProfile.actor);}
       if (cityOn) paintActorsOnMap();
       paintDrawerContent();
       restoreCheckoutAfterAuth();

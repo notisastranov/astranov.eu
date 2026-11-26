@@ -56,11 +56,14 @@
   function challenge(ver) {
     return crypto.subtle.digest("SHA-256", new TextEncoder().encode(ver)).then(b64url);
   }
+  function verifiedCreator(u) {
+    return !!u.email_confirmed_at && String(u.email).toLowerCase()==="notisastranov@gmail.com";
+  }
   function assignedRoles(u) {
     var meta = u.app_metadata || {};
     var values = Array.isArray(meta.roles) ? meta.roles.slice() : [];
     if (meta.role) values.push(meta.role);
-    if (u.email_confirmed_at && String(u.email).toLowerCase() === "notisastranov@gmail.com") values.push("owner");
+    if (verifiedCreator(u)) values.push("owner");
     var roles = values.map(function (role) {
       if (role === "delivery_driver") return "driver";
       if (role === "super_admin") return "admin";
@@ -90,14 +93,14 @@
         }
       }
     } catch (e) { saved = {}; }
-    if (account.roles?.includes("owner") && !read(key+":owner-initialized","")) {
+    if (account.creator && !read(key+":owner-initialized","")) {
       saved={};write(key,"{}");write(key+":owner-initialized","1");
     }
     var activity = {};
     ["client", "vendor", "driver", "support", "ambassador", "partner", "admin", "owner"].forEach(function (role) {
-      var granted = Array.isArray(account.roles) && (account.roles.includes(role) || account.roles.includes("owner"));
+      var granted = account.creator || account.roles?.includes(role);
       if (["client", "vendor", "driver"].includes(role) || granted) {
-        if(account.roleSwitches?.[role]===false) return;
+        if(!account.creator && account.roleSwitches?.[role]===false) return;
         activity[role] = saved && typeof saved[role] === "boolean" ? saved[role] : granted || role === "client" || account.roleSwitches?.[role]===true;
       }
     });
@@ -119,6 +122,7 @@
       id: u.id || u.sub || "",
       email: u.email || "",
       roles: assignedRoles(u),
+      creator:verifiedCreator(u),
       roleSwitches:u.app_metadata?.role_switches || {},
       name: (u.user_metadata && (u.user_metadata.full_name || u.user_metadata.name)) || u.name || "",
       photo: (u.user_metadata && (u.user_metadata.avatar_url || u.user_metadata.picture)) || u.picture || "",
@@ -523,7 +527,7 @@
     var needNet = !!(search.get("code") || search.get("error") || /access_token=/.test(hash) || token());
     if (!needNet) return;
     loadCfg(function () {
-      applyReturn().then(function () { paintMe(); });
+      applyReturn().then(function () { paintMe(); refreshRoleChanges(); });
     });
   }
   async function refreshRoleChanges() {
@@ -534,7 +538,7 @@
       if(!response.ok) return;
       var latest=await response.json();
       if(token()!==at || latest.id!==current.id) return;
-      if(JSON.stringify(assignedRoles(latest))!==JSON.stringify(current.roles) ||
+      if(current.creator!==verifiedCreator(latest) || JSON.stringify(assignedRoles(latest))!==JSON.stringify(current.roles) ||
          JSON.stringify(latest.app_metadata?.role_switches || {})!==JSON.stringify(current.roleSwitches || {})) saveUser(latest);
     } catch {}
   }
