@@ -4,13 +4,13 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4481"/>
+<meta name="astranov-build" content="4482"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
-<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4481"/>
+<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4482"/>
 <style>
 :root{
   --bg:#02040a; --fg:#e8fbff; --muted:#8ec8d8; --accent:#4df0ff;
@@ -151,7 +151,13 @@ button{cursor:pointer}
   background:radial-gradient(circle,rgba(4,14,28,.78) 0 58%,transparent 59%);
   box-shadow:inset 0 0 10px rgba(77,240,255,.14);
 }
-#sn-radar[aria-expanded="true"]{position:fixed;left:50%;top:calc(var(--safe-t) + var(--top-row) + 48px);transform:translateX(-50%);width:min(52vw,220px,max(36px,calc(100dvh - var(--drawer-h) - var(--safe-t) - var(--top-row) - 52px)));height:auto;aspect-ratio:1;border-radius:50%}
+#radar-display #sn-radar{display:block;position:relative;inset:auto;transform:none;width:110px;height:110px;border-radius:50%;margin:auto}
+#active-offer-section{overflow:auto;max-height:65%;flex-shrink:0}#active-offer-section>.sheet-x{float:right}#drawer:not(.open) #active-offer-section{display:none}
+#drawer-tools{overflow:auto;flex:0 1 auto;max-height:60%;min-height:0}
+#drawer-tools:has(>section[hidden]+section[hidden]),#drawer:not(.open) #drawer-tools{display:none}
+#drawer-tools header{display:flex;justify-content:space-between}
+#region-map{position:fixed;inset:0;z-index:2;background:#102335}
+#drawer-tools #sn-resource-dialog{width:100%}
 #sn-radar::after{content:"";position:absolute;top:50%;left:50%;width:5px;height:5px;border-radius:50%;background:white;transform:translate(-50%,-50%)}
 #sn-money{grid-column:5}
 #sn-radar-sweep{
@@ -530,13 +536,13 @@ textarea.field,#sn-support-matter{min-height:88px}
 </head>
 <body>
 <canvas id="g"></canvas>
-<div id="city" aria-label="Street map"></div>
+<div hidden id="region-map" aria-label="Country and city boundaries"></div><div id="city" aria-label="Street map"></div>
 <div id="sn-location-pick" hidden><span>Tap the delivery spot</span><button type="button" class="sheet-go" data-act="checkout-cancel-client">Cancel</button></div>
 <div id="sn-topchrome-drag" class="sn-trivial-law" aria-hidden="true"></div>
 
 <header id="top">
   <button type="button" id="sn-burger" aria-label="Menu" aria-expanded="false" aria-controls="menu">☰</button>
-  <button type="button" id="sn-resources" aria-label="Device resources" aria-haspopup="dialog"><canvas id="sn-spark" width="100" height="42" aria-hidden="true"></canvas></button>
+  <button type="button" id="sn-resources" aria-label="Device resources" aria-controls="sn-resource-dialog"><canvas id="sn-spark" width="100" height="42" aria-hidden="true"></canvas></button>
   <button type="button" id="logo" aria-label="Astranov.eu Home" aria-controls="sheet" aria-expanded="false">ASTRANOV.EU</button>
   <button id="sn-radar" type="button" aria-label="Radar" aria-expanded="false" aria-controls="sheet"><span id="sn-radar-sweep"></span><span id="sn-radar-blips"></span></button>
   <span id="sn-radar-status" role="status"></span>
@@ -570,14 +576,7 @@ textarea.field,#sn-support-matter{min-height:88px}
 <div id="sn-offer-pay" hidden></div>
 <div id="sn-level" hidden></div>
 
-<dialog id="sn-resource-dialog" aria-labelledby="sn-resource-title">
-  <div class="sheet-bar"><b id="sn-resource-title" class="sheet-ttl">Device resources</b><form method="dialog"><button class="sheet-x">Close</button></form></div>
-  <canvas id="sn-resource-chart" width="600" height="200" aria-hidden="true"></canvas>
-  <dl id="sn-resource-readings"></dl>
-  <p id="sn-monitor-source" role="status">Browser readings · CPU and memory reflect this page.</p>
-  <button class="sheet-go" type="button" id="sn-connect-monitor">Connect readings file</button>
-  <details><summary>Read this computer’s hardware</summary><p>Download the helper to your computer. With Python installed, run <code>python -m pip install psutil</code>, then <code>python astranov_monitor.py</code>. Connect the generated <code>astranov-resources.json</code> file here in desktop Chrome or Edge. Keep the helper running while monitoring. On Windows, CPU temperature can be read when LibreHardwareMonitor is running and exposes a CPU sensor.</p><a href="/downloads/astranov_monitor.py" download>Download hardware monitor</a></details>
-</dialog>
+
 
 <nav id="menu" hidden>
   <button type="button" id="sn-list-vendor">🏪 List vendor here</button>
@@ -607,8 +606,17 @@ textarea.field,#sn-support-matter{min-height:88px}
     <div class="news-surface"><div id="sn-news-preview"></div><button type="button" id="sn-news-touch" aria-label="Play or pause news video"></button></div>
     <p id="sn-news-status" class="note" role="status"></p>
   </section>
+  <section id="active-offer-section" hidden><button class="sheet-x" type="button" data-act="hide-active-offer" aria-label="Hide delivery offer">×</button><div id="active-offer-body"></div></section>
   <div id="sn-sheet"><div id="sn-sheet-card" class="card"></div></div>
   <div id="sheet"></div>
+  <div id="drawer-tools"><section hidden id="sn-resource-dialog" aria-labelledby="sn-resource-title">
+  <div class="sheet-bar"><b id="sn-resource-title" class="sheet-ttl">Device resources</b><button id="resource-close" type="button" class="sheet-x" aria-label="Close device resources">×</button></div>
+  <canvas id="sn-resource-chart" width="600" height="200" aria-hidden="true"></canvas>
+  <dl id="sn-resource-readings"></dl>
+  <p id="sn-monitor-source" role="status">Browser readings · CPU and memory reflect this page.</p>
+  <button class="sheet-go" type="button" id="sn-connect-monitor">Connect readings file</button>
+  <details><summary>Read this computer’s hardware</summary><p>Download the helper to your computer. With Python installed, run <code>python -m pip install psutil</code>, then <code>python astranov_monitor.py</code>. Connect the generated <code>astranov-resources.json</code> file here in desktop Chrome or Edge. Keep the helper running while monitoring. On Windows, CPU temperature can be read when LibreHardwareMonitor is running and exposes a CPU sensor.</p><a href="/downloads/astranov_monitor.py" download>Download hardware monitor</a></details>
+</section><section id="radar-section" hidden><header><b>Radar</b><button class="sheet-x" type="button" id="radar-close" aria-label="Close radar">×</button></header><div id="radar-display"></div><div id="radar-panel"><p id="radar-heading"></p><button class="sheet-go" data-act="radar-game">Play hide-and-seek</button><div id="radar-game"></div><div id="radar-targets"></div></div></section></div>
   <div id="sn-drawer-cart" hidden></div>
 </div>
 
@@ -618,10 +626,10 @@ textarea.field,#sn-support-matter{min-height:88px}
 <div id="toast" role="status"></div>
 <div id="line" role="status"></div>
 
-<script src="/js/vendor/leaflet.js?v=4481"></script>
-<script src="/js/spacenet/partners/types.js?v=4481"></script>
-<script src="/js/spacenet/partners/client.js?v=4481"></script>
-<script src="/js/spacenet/app.js?v=4481"></script>
-<script src="/js/spacenet/auth.js?v=4481"></script>
+<script src="/js/vendor/leaflet.js?v=4482"></script>
+<script src="/js/spacenet/partners/types.js?v=4482"></script>
+<script src="/js/spacenet/partners/client.js?v=4482"></script>
+<script src="/js/spacenet/app.js?v=4482"></script>
+<script src="/js/spacenet/auth.js?v=4482"></script>
 </body>
 </html>

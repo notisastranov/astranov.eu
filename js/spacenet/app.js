@@ -1,5 +1,5 @@
 /*
- * SpaceNet 4481
+ * SpaceNet 4482
  *
  * Astranov Script is the project's name for this stack:
  * - JavaScript for the SpaceNet browser app and Node.js API handlers.
@@ -11,7 +11,7 @@
  */
 (function () {
   "use strict";
-  var VER = "4481";
+  var VER = "4482";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -1280,8 +1280,84 @@
       pitch: Math.max(-1.15, Math.min(1.15, (pt.lat * Math.PI) / 180))
     };
   }
+  var regionMap, regionLevel="", countryLayers, chosenNation, cityOutline, regionRequest=0, regionFitting=false, countryZoom=4;
+  function hideRegions() {
+    regionLevel="";
+    regionRequest++;
+    $("region-map").hidden=true;
+  }
+  function focusCity(point) {
+    hideRegions();
+    openCity(point);
+  }
+  async function selectMunicipality(point) {
+    var revision=++regionRequest;
+    aim=point;
+    if(cityOutline){cityOutline.remove();cityOutline=null;}
+    var params=new URLSearchParams({format:"jsonv2",lat:point.lat,lon:point.lng,zoom:10,polygon_geojson:1,polygon_threshold:0.001});
+    var place=await fetchJson("https://nominatim.openstreetmap.org/reverse?"+params);
+    if(revision!==regionRequest || regionLevel!=="National")return;
+    var geometry=place?.geojson;
+    if(geometry && ["Polygon","MultiPolygon"].includes(geometry.type)){
+      cityOutline=L.geoJSON(geometry,{style:{color:"#5ff5ff",fillOpacity:.18},bubblingMouseEvents:false}).addTo(regionMap);
+      cityOutline.on("click",e=>focusCity(e.latlng));
+      regionMap.fitBounds(cityOutline.getBounds(),{padding:[35,70],maxZoom:11});
+    }else{
+      cityOutline=L.circleMarker(point,{radius:7,color:"#5ff5ff",bubblingMouseEvents:false}).addTo(regionMap).on("click",()=>focusCity(point));
+      regionMap.setView(point,10);
+    }
+    $("sn-level").textContent=(place?.name || "Selected location")+" · tap again for streets";
+  }
+  function showRegions(point,country) {
+    if(!point || !window.L)return;
+    $("region-map").hidden=false;
+    regionLevel=country?"National":"International";
+    tierI=3;aim=point;intro=false;fly=null;
+    if(!regionMap){
+      regionMap=L.map("region-map",{zoomControl:false,minZoom:2,maxZoom:16});
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"© OpenStreetMap contributors"}).addTo(regionMap);
+      regionMap.on("click",e=>{if(regionLevel==="National")selectMunicipality(e.latlng);});
+      regionMap.on("zoomend",()=>{
+        if(regionFitting || !regionLevel)return;
+        var zoom=regionMap.getZoom(),center=regionMap.getCenter();
+        if(regionLevel==="International" && zoom<=2){hideRegions();settleTier(2,center);paintViewBtn();}
+        else if(regionLevel==="International" && zoom>=5){var nation=eventCountry(center);if(nation)showRegions(center,nation);}
+        else if(regionLevel==="National" && zoom<countryZoom-1)showRegions(center);
+        else if(regionLevel==="National" && zoom>=13)focusCity(center);
+
+      });
+    }
+    regionRequest++;
+    if(countryLayers)countryLayers.remove();
+    if(cityOutline){cityOutline.remove();cityOutline=null;}
+    countryLayers=L.layerGroup().addTo(regionMap);
+    var countryShape;
+    (country?[country]:eventOutlines).forEach(row=>{
+      var polygons=row[1].map(poly=>poly[1].map(ring=>ring.map(([lng,lat])=>[lat,lng])));
+      var shape=L.polygon(polygons,{weight:country?3:1,color:country?"#5ff5ff":"#2492be",fillOpacity:country ? .08 : .12,bubblingMouseEvents:false}).addTo(countryLayers);
+      if(country)countryShape=shape;
+      shape.on("click",e=>country?selectMunicipality(e.latlng):showRegions(e.latlng,row));
+    });
+    chosenNation=country;
+    regionFitting=true;regionMap.invalidateSize();
+    if(countryShape){
+      var bounds=country[1].find(poly=>insideCountryRing(point,poly[1][0]))?.[0];
+      regionMap.fitBounds(bounds?[[bounds[1],bounds[0]],[bounds[3],bounds[2]]]:countryShape.getBounds(),{padding:[28,60],maxZoom:10,animate:false});
+      countryZoom=regionMap.getZoom();
+    }else regionMap.setView(point,3,{animate:false});
+    regionFitting=false;
+    paintViewBtn();
+  }
   function stepTier(dir, sx, sy) {
     if (Date.now() < tierLock) return false;
+    if(regionLevel){
+      var pt=regionMap.getCenter();
+      if(dir>0 && regionLevel==="International"){hideRegions();settleTier(2,pt);paintViewBtn();}
+      else if(dir>0)showRegions(pt);
+      else if(regionLevel==="National")focusCity(aim || pt);
+      else {var country=eventCountry(pt);if(country)showRegions(pt,country);else say("Tap a country to focus its boundaries.");}
+      return true;
+    }
     if (cityOn) {
       if (dir > 0) closeCity();
       else if (map) map.zoomIn();
@@ -1293,7 +1369,8 @@
     gpsSeq++;
     aim = pointUnder(sx, sy) || aim || here;
     if (!aim) return false;
-    if (next === 4) {
+    if(next===3 && dir<0){showRegions(aim);}
+    else if (next === 4) {
       openCity(aim);
     } else {
       settleTier(next, aim);
@@ -1463,6 +1540,7 @@
     }).addTo(map);
   }
   function openCity(pt) {
+    if(regionLevel)hideRegions();
     if (!pt || !isFinite(pt.lat) || !isFinite(pt.lng)) return;
     aim = { lat: pt.lat, lng: pt.lng };
     var el = $("city");
@@ -1552,6 +1630,7 @@
     cam.dist = TIERS[3].dist;
     tierI = 3;
     tierLock = Date.now() + 450;
+    showRegions(aim,eventCountry(aim));
 
     paintViewBtn();
   }
@@ -2250,9 +2329,9 @@
     var level = $("sn-level");
     if (level) {
       level.hidden = tierI !== 3 || !!pendingOffer;
-      level.textContent = "National";
+      level.textContent = regionLevel==="National" ? chosenNation?.[0]+" · choose a city" : regionLevel || "National";
     }
-    if (inBtn) inBtn.textContent = "Zoom in · " + (cityOn ? "Streets" : TIERS[tierI + 1].name);
+    if (inBtn) inBtn.textContent = "Zoom in · " + (regionLevel==="International"?"National":regionLevel==="National"?"City":cityOn ? "Streets" : tierI===2?"International":TIERS[tierI + 1].name);
     if (outBtn) {
       outBtn.disabled = tierI === 0;
       outBtn.textContent = tierI > 0 ? "Zoom out · " + TIERS[tierI - 1].name : "Zoom out";
@@ -2949,8 +3028,9 @@
     drawerNews = "";
     $("logo").setAttribute("aria-expanded", "false");
     pendingOffer = job;
+    hiddenOfferId=null;
     closeJobs();
-    closeSheet();
+    if(!$("sn-checkout-client") || !$("sn-sheet").classList.contains("on"))closeSheet();
     if (!cityOn) openCity(job.vendor);
     paintActiveOfferCard(job, "pending");
     $("sheet").scrollTop = 0;
@@ -3952,12 +4032,12 @@
       var photo = profileImage(item.photo);
       var category = (item.name+" "+(item.category || "")).toLowerCase();
       var sample = /pizza|margherita/.test(category)?"pizza":/coffee|espresso|latte|cappuccino/.test(category)?"coffee":/beer|lager|ale\b/.test(category)?"beer":"";
-      var thumbnail = photo || (sample?"/js/spacenet/assets/products/"+sample+".webp":"");
+      var thumbnail = photo || "/js/spacenet/assets/products/"+(sample || "pizza")+".webp";
       var available = itemAvailable(item);
       var details = [item.price + " AV€", item.hours, item.category, item.weight_g && item.weight_g+" g", item.temperature_c!=null ? item.temperature_c+" °C" : "", item.expires ? (item.expires<=Date.now()?"Spoiled":"Deliver by "+new Date(item.expires).toLocaleString()) : "",
         item.limited ? item.quantity + " in stock" : "", available ? "" : "Unavailable"].filter(Boolean);
       return '<article class="test-item profile-menu-item">' +
-        (thumbnail ? '<img width="58" height="58" src="' + escHtml(thumbnail) + '" alt="'+(photo?'':'Sample image')+'" loading="lazy">' : '<span class="item-placeholder" aria-label="Item image unavailable">📦</span>') +
+        (thumbnail ? '<img width="58" height="58" src="' + escHtml(thumbnail) + '" title="'+(photo?'Vendor photo':'Sample product photo')+'" alt="'+(photo?'':'Sample image')+'" loading="lazy">' : '<span class="item-placeholder" aria-label="Item image unavailable">📦</span>') +
         '<div class="profile-item-copy"><b>' + escHtml(item.name) + '</b><p class="note">' + escHtml(details.join(" · ")) + '</p>' +
         (item.note ? '<p class="note">' + escHtml(item.note) + '</p>' : '') +
         (item.source && /^https:\/\//.test(item.source) ? '<a href="' + escHtml(item.source) + '" target="_blank" rel="noopener">Published menu</a>' : '') +
@@ -4841,10 +4921,10 @@
     }
     var history = [], values = [], alerts = [], lastSample = performance.now();
     function draw(canvas, overview) {
-      var w = overview ? canvas.clientWidth : canvas.width;
-      var h = overview ? canvas.clientHeight : canvas.height;
-      var scale = overview ? window.devicePixelRatio || 1 : 1;
-      if (overview) {
+      var w = canvas.clientWidth || 300;
+      var h = overview ? canvas.clientHeight : 210;
+      var scale = window.devicePixelRatio || 1;
+      {
         if (canvas.width !== Math.round(w * scale)) canvas.width = Math.round(w * scale);
         if (canvas.height !== Math.round(h * scale)) canvas.height = Math.round(h * scale);
       }
@@ -4859,9 +4939,10 @@
         }
       }
       metrics.forEach(function(metric,i){
-        var lane=h/metrics.length, left=overview?0:155;
+        var lane=h/metrics.length, left=overview?(w>=60?25:0):133;
+        if(overview && left){graph.font="bold "+Math.max(6,Math.min(10,lane))+"px system-ui";graph.fillStyle=metric.color;graph.fillText(["BAT","RAM","CPU","NET","CPU°","BAT°"][i],0,lane*(i+1)-1); }
         if(!overview){
-          graph.font="16px system-ui";
+          graph.font="bold 14px system-ui";
           graph.fillStyle=metricAlerts[i]?"#ff526e":metric.color;
           graph.fillText(metric.name,5,lane*(i+.5)+5);
         }
@@ -4871,8 +4952,9 @@
           var value=sample.lines[i];
           if(!Number.isFinite(value)){previous=null;return;}
           var x=left+2+(w-left-4)*j/Math.max(1,history.length-1);
-          var height=overview?h:lane;
-          var y=(overview?0:i*lane)+height-3-(height-6)*Math.min(1,Math.max(0,value));
+          var height=overview && !left?h:lane;
+          var pad=overview?1:3;
+          var y=(overview && !left?0:i*lane)+height-pad-(height-2*pad)*Math.min(1,Math.max(0,value));
           graph.strokeStyle=sample.high[i]?"#ff526e":metric.color;
           graph.beginPath();graph.moveTo(previous?.x ?? x-1,previous?.y ?? y);graph.lineTo(x,y);graph.stroke();
           previous={x,y};
@@ -4946,13 +5028,14 @@
       button.title = label;
       button.setAttribute("aria-label", label);
       draw($("sn-spark"), true);
-      if (dialog.open) renderDetails();
+      if (!dialog.hidden) renderDetails();
     }
     button.addEventListener("click", function () {
+      dialog.hidden=false;setDrawerHeight(offerDrawerH());dialog.scrollIntoView({block:"nearest"});
       renderDetails();
-      dialog.showModal();
       probeNetwork();
     });
+    $("resource-close").onclick=()=>{dialog.hidden=true;};
     sample();
     setInterval(async function(){await readHardware();sample();}, 1000);
     window.addEventListener("online", sample);
@@ -5470,12 +5553,20 @@
     if (drawerH <= collapsedDrawerH() + 8) setDrawerHeight(offerDrawerH());
     sheet.scrollTop += target.getBoundingClientRect().top - sheet.getBoundingClientRect().top;
   }
+  var hiddenOfferId=null;
   function paintDrawerContent() {
     var sheet = $("sheet");
     if (!sheet) return;
     var task = currentTaskHtml();
+    var offerSection=$("active-offer-section"),offerBody=$("active-offer-body");
+    offerSection.hidden=!offerActiveId || hiddenOfferId===offerActiveId;
+    if(offerActiveId){
+      if(offerBody.__content!==task){offerBody.innerHTML=task;offerBody.__content=task;}
+      task="";
+    }else {offerBody.innerHTML="";offerBody.__content="";}
+
     var body = "";
-    var profile = drawerAI || drawerNews || drawerHome || drawerPlacement || offerActiveId ? null : drawerProfile;
+    var profile = drawerAI || drawerNews || drawerHome || drawerPlacement ? null : drawerProfile;
     paintDrawerCart(profile);
     if (drawerAI && !offerActiveId) body = '<article class="drawer-profile"><header class="home-title"><h2>SpaceNet AI</h2>' +
       '<button type="button" class="sheet-x" data-act="ai-close" aria-label="Close SpaceNet AI">×</button></header>' +
@@ -6131,7 +6222,7 @@
       }
     });
   }
-  var radarExpanded=false, radarHeading=null, radarRows=[], gamePoints=[], gameRoom=null;
+  var radarAnchor, radarExpanded=false, radarHeading=null, radarRows=[], gamePoints=[], gameRoom=null;
   function radarOrigin() { return here || (cityOn && map ? map.getCenter() : view && globeHit(view.cx,view.cy,cam)); }
   function radarBearing(a,b) {
     var rad=Math.PI/180, delta=(b.lng-a.lng)*rad;
@@ -6173,12 +6264,17 @@
       window.removeEventListener("deviceorientationabsolute",compassReading);
       window.removeEventListener("deviceorientation",compassReading);
       radarHeading=null;
-      if($("radar-panel")) dismissDrawerPlacement();
+      $("radar-section").hidden=true;
+      radarAnchor.after($("sn-radar"));
       return;
     }
-    showDrawerPlacement("Radar",'<div id="radar-panel"><p id="radar-heading">North up</p><button class="sheet-go" data-act="radar-game">Play hide-and-seek</button><div id="radar-game"></div><h3>Map results</h3><div id="radar-targets"></div></div>');
-    setDrawerHeight(Math.round(innerHeight/3));
-    if(routeLayer) fitOfferRoute();
+    var radar=$("sn-radar");
+    if(!radarAnchor){radarAnchor=document.createComment("radar position");radar.before(radarAnchor);}
+    $("radar-section").hidden=false;
+    $("radar-display").append(radar);
+    $("radar-close").onclick=toggleRadar;
+    setDrawerHeight(offerDrawerH());
+    $("radar-section").scrollIntoView({block:"nearest"});
     syncRadarHud();
     try {
       if(window.DeviceOrientationEvent?.requestPermission && await DeviceOrientationEvent.requestPermission()!=="granted") return;
@@ -6396,7 +6492,8 @@
           displayDispatch(result);
         });
       }
-      if (act === "track-order") openTrackedOrder(id);
+      if (act==="hide-active-offer"){hiddenOfferId=offerActiveId;paintDrawerContent();}
+      if (act === "track-order") {if(id===offerActiveId){hiddenOfferId=null;paintDrawerContent();}openTrackedOrder(id);}
       if (act === "hold-open") openOrderHolds(id);
       if (act === "hold-vote") {
         t.disabled=true;
@@ -6879,7 +6976,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4481 = true;
+    window.__SN_4482 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
