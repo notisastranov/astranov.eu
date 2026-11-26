@@ -4,13 +4,13 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
 <title>Astranov SpaceNet</title>
-<meta name="astranov-build" content="4479"/>
+<meta name="astranov-build" content="4480"/>
 <meta name="theme-color" content="#02040a"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"/>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
-<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4479"/>
+<link rel="stylesheet" href="/js/vendor/leaflet.css?v=4480"/>
 <style>
 :root{
   --bg:#02040a; --fg:#e8fbff; --muted:#8ec8d8; --accent:#4df0ff;
@@ -491,6 +491,8 @@ textarea.field,#sn-support-matter{min-height:88px}
 .drawer-cart-line{flex-direction:column;align-items:stretch}
 .drawer-cart-line .primary,.place-order{display:block;width:100%;min-height:46px;background:#103f70;color:white;font-weight:750}
 .tracking-order{text-align:left}
+.delivery-destination{font-size:27px;line-height:30px;text-align:center;filter:drop-shadow(0 0 5px #38d8ff)}
+@media(prefers-reduced-motion:no-preference){.delivery-destination{animation:delivery-pulse 1.2s ease-in-out infinite alternate}@keyframes delivery-pulse{to{filter:drop-shadow(0 0 10px #00eaff) brightness(1.4)}}}
 .leaflet-tooltip{color:#113557;background:#ecf8ff;border:1px solid #5faada}
 #sn-checkout-client label{display:flex;align-items:center;gap:8px;margin:0;padding:3px}
 #sn-checkout-client input{width:auto;margin:0}
@@ -615,10 +617,10 @@ textarea.field,#sn-support-matter{min-height:88px}
 <div id="toast" role="status"></div>
 <div id="line" role="status"></div>
 
-<script src="/js/vendor/leaflet.js?v=4479"></script>
-<script src="/js/spacenet/partners/types.js?v=4479"></script>
-<script src="/js/spacenet/partners/client.js?v=4479"></script>
-<script src="/js/spacenet/app.js?v=4479"></script>
-<script src="/js/spacenet/auth.js?v=4479"></script>
+<script src="/js/vendor/leaflet.js?v=4480"></script>
+<script src="/js/spacenet/partners/types.js?v=4480"></script>
+<script src="/js/spacenet/partners/client.js?v=4480"></script>
+<script src="/js/spacenet/app.js?v=4480"></script>
+<script src="/js/spacenet/auth.js?v=4480"></script>
 </body>
 </html>

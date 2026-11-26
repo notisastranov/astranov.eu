@@ -1,5 +1,5 @@
 /*
- * SpaceNet 4479
+ * SpaceNet 4480
  *
  * Astranov Script is the project's name for this stack:
  * - JavaScript for the SpaceNet browser app and Node.js API handlers.
@@ -11,7 +11,7 @@
  */
 (function () {
   "use strict";
-  var VER = "4479";
+  var VER = "4480";
   var INTRO_MS = 13000;
   var LAND = [], BORDERS = [];
   function unpackLines(pack) {
@@ -1540,7 +1540,7 @@
   }
   function closeCity() {
     if (!cityOn) return;
-    if (pickingDestination) { skipAutoPick=true; endDestinationPick(); resumeCheckout(); }
+    if (pickingDestination) { endDestinationPick(); resumeCheckout(); }
     var center = map.getCenter();
     aim = { lat: center.lat, lng: center.lng };
     clearCityRadar();
@@ -2870,6 +2870,7 @@
       pendingOffer = null;
       testOrder.accepted = true;
       paintActiveOfferCard(testOrder, "active");
+      drawAcceptedRoute(testOrder);
       return;
     }
     var received = pendingOffer;
@@ -3748,7 +3749,7 @@
   }
   var checkoutStops = [];
   function deliveryPicker() {
-    return '<fieldset id="sn-checkout-client"><legend>Deliver to</legend><select class="field" id="checkout-address" aria-label="Delivery address"></select><button type="button" class="sheet-go" data-act="checkout-new-client">Choose delivery location on the main map</button></fieldset>';
+    return '<fieldset id="sn-checkout-client"><legend>Where should we deliver?</legend><label id="account-address-label" for="checkout-address">Account or selected address</label><select class="field" id="checkout-address" aria-label="Delivery address"></select><button type="button" class="sheet-go" data-act="checkout-new-client">Place a delivery pin on the map</button><button type="button" class="sheet-go" data-act="checkout-gps">Use my current GPS location</button><button type="button" class="sheet-go" id="save-delivery-pin" hidden>Save this location to my addresses</button></fieldset>';
   }
   function selectedDeliveries() { return checkoutStops.slice(); }
   var pickedCheckoutAddress=null;
@@ -3759,17 +3760,33 @@
     var pin=options.find(p=>deliverySelection.has(p.id)) || options[0];
     options.forEach(p=>select.add(new Option(p.name,p.id)));
     select.hidden=!options.length;
+    $("account-address-label").hidden=!options.length;
     select.onchange=function(){
       checkoutStops=options.filter(p=>p.id===select.value);
       deliverySelection=new Set(checkoutStops.map(p=>p.id));
+      var chosen=checkoutStops[0],save=$("save-delivery-pin");
+      save.hidden=!chosen || chosen.id!==pickedCheckoutAddress?.id || clients.some(p=>p.id===chosen.id);
+      save.onclick=function(){
+        var saved=Object.assign({},chosen,{savedDelivery:true,role:"client",accountId:checkoutAccount()});
+        try {localStorage.setItem(deliveryStorageKey(),JSON.stringify([saved,...savedDeliveryLocations().filter(p=>p.id!==saved.id)].slice(0,120)));save.hidden=true;}
+        catch {orderGuidance("This browser could not save the address.");}
+      };
+      markDelivery(chosen);
       update();
     };
     if(pin) select.value=pin.id;
     select.onchange();
-    if(!pin && !skipAutoPick) beginDestinationPick();
-    skipAutoPick=false;
+
   }
-  var skipAutoPick=false;
+  var deliveryMarker;
+  function markDelivery(pin) {
+    if(deliveryMarker) {deliveryMarker.remove();deliveryMarker=null;}
+    if(!map || !pin) return;
+    requestAnimationFrame(()=>{if(cityOn && deliveryMarker) map.panInside([pin.lat,pin.lng],{paddingTopLeft:[20,85],paddingBottomRight:[20,Math.min(drawerH+35,window.innerHeight-140)],animate:false});});
+    deliveryMarker=L.marker([pin.lat,pin.lng],{interactive:false,keyboard:false,zIndexOffset:1100,
+      icon:L.divIcon({className:"delivery-destination",html:"📍",iconSize:[30,30],iconAnchor:[15,30]})})
+      .addTo(map).bindTooltip("Deliver here",{permanent:true,direction:"top",offset:[0,-27]});
+  }
   function deliveryTotal(entries) {
     var subtotal = cartSubtotal();
     return entries.reduce(function (sum, entry) {
@@ -3803,12 +3820,14 @@
     $("sn-location-pick").hidden = true;
     $("city").classList.remove("picking-destination");
   }
-  function nameDestination(pt) {
+  function nameDestination(pt,label) {
     endDestinationPick();
     var account = checkoutAccount();
     if (!account) { requireCheckoutSignIn(); return; }
-    pickedCheckoutAddress={id:crypto.randomUUID(),name:"Selected map location",lat:pt.lat,lng:pt.lng,account:account};
+    pickedCheckoutAddress={id:crypto.randomUUID(),name:label || "Selected map location",lat:pt.lat,lng:pt.lng,account:account};
     deliverySelection=new Set([pickedCheckoutAddress.id]);
+    if(!cityOn) openCity(pt);
+    map.setView([pt.lat,pt.lng],map.getZoom());
     resumeCheckout();
   }
   function usesTestCheckout(shop) {
@@ -3823,7 +3842,7 @@
     openSheet("Checkout", '<form id="test-order-form" class="test-form">' +
       deliveryPicker(clients) + '<p class="note" id="sn-test-total"></p>' +
       '<p class="note" id="sn-test-credit">Loading test credit…</p>' +
-      '<button class="sheet-go primary place-order" disabled>Place order</button><p role="alert" class="note"></p></form>');
+      '<button class="sheet-go primary place-order" disabled>Place order</button><p role="alert" class="note"></p><button type="button" class="sheet-go" id="demo-driver-offer">Preview driver offer on this device</button></form>');
     var form = $("test-order-form");
     function showTotal() {
       var destinations = checkoutDeliveries(clients, {});
@@ -3831,6 +3850,17 @@
       $("sn-test-total").textContent = destinations.length
         ? destinations.length + (destinations.length === 1 ? ' delivery' : ' deliveries') + ' · total including 3% fee: ' + testCoinText(deliveryTotal(destinations)) : "";
     }
+    form.querySelector("#demo-driver-offer").onclick=function(){
+      var destination=checkoutDeliveries(clients,{})[0];
+      var alert=form.querySelector('[role="alert"]');
+      if(!destination){alert.textContent="Choose a delivery location first.";return;}
+      if(testSubmitting || pendingOffer || offerActiveId){alert.textContent="Finish the current request first.";return;}
+      var driver=Object.assign({name:"Driver preview"},driverPosition() || {});
+      testOrder={id:"preview-"+crypto.randomUUID(),test:true,stage:0,drivers:[driver],vendor:shop,drop:destination.pin,
+        fee:destination.quote.driver,item:"On-device demo · no payment or dispatch",accepted:false};
+      clearDrawerPlacement();
+      showTestOffer(testOrder,driver);
+    };
     mountDeliveryPicker(clients,showTotal);
     testCheckoutRequest().then(paintTestCredit);
     form.addEventListener("submit", async function (e) {
@@ -3882,7 +3912,7 @@
       if (!result.ok) {
         alert.textContent = result.error === "insufficient_test_credit" ? "Not enough test credit for this order." :
           result.error === "auth_required" || result.error === "auth_changed" ? "Your session could not authorize this order. Your cart is saved here." :
-          result.error === "dispatch_schema_missing" ? "The server is missing its dispatch database update. Your cart is saved." :
+          result.error === "dispatch_schema_missing" ? "Live dispatch is unavailable. Your cart is saved. You can preview the driver offer below." :
           result.error === "checkout_config_missing" ? "The server has no checkout database connection. Your cart is saved." :
           "The order service did not confirm this order. Your cart is saved for retry.";
         return;
@@ -4461,7 +4491,7 @@
     clearRoute();
     map.setMinZoom(2);
     var revision = routeRevision;
-    var stops = driver ? [driver, from, to] : [from, to];
+    var stops = driver && [driver.lat,driver.lng].every(Number.isFinite) ? [driver, from, to] : [from, to];
     routeLayer = L.polyline(stops.map(function (p) { return [p.lat, p.lng]; }), {
       className: "sn-route-line", color: "#79dfff", weight: 4, opacity: 0.95, dashArray: "6 5"
     }).addTo(map);
@@ -6548,8 +6578,20 @@
         setDrawerHeight(collapsedDrawerH());
         orderGuidance("Tap another vendor on the map to start a new order.");
       }
+      if (act === "checkout-gps") {
+        var owner=checkoutAccount(), field=t.closest("fieldset");
+        if(!navigator.geolocation){orderGuidance("GPS unavailable. Place a delivery pin on the map.");return;}
+        t.disabled=true;
+        navigator.geolocation.getCurrentPosition(pos=>{
+          if(!field.isConnected || field.disabled || checkoutAccount()!==owner) return;
+          var pt={lat:pos.coords.latitude,lng:pos.coords.longitude};
+          if(driverAvailable()) dispatchFix=pt;
+          nameDestination(pt,"Current GPS location");
+        },()=>{t.disabled=false;orderGuidance("Location unavailable. Allow location access or place a pin.");},
+        {enableHighAccuracy:true,timeout:10000,maximumAge:5000});
+      }
       if (act === "checkout-new-client") beginDestinationPick();
-      if (act === "checkout-cancel-client") { skipAutoPick=true; endDestinationPick(); resumeCheckout(); }
+      if (act === "checkout-cancel-client") { endDestinationPick(); resumeCheckout(); }
       if (act === "test-client") {
         deliverySelection = new Set([id]);
         if (vendor && cartSubtotal() > 0) resumeCheckout();
@@ -6838,7 +6880,7 @@
     if (navigator.serviceWorker) {
       try { navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {}); } catch (e) {}
     }
-    window.__SN_4479 = true;
+    window.__SN_4480 = true;
     window.SN = {
       talk: talk, say: say, cam: cam,
       getMap: function () { return map; },
@@ -6878,14 +6920,15 @@
       shopMarks.concat(actorMarks).forEach(paintNoticePin);
       profileOrderState = null;
       deliverySelection.clear();
+      pickedCheckoutAddress=null;markDelivery(null);
       if (drawerProfile && (drawerProfile.actor.self || drawerProfile.actor.savedDelivery)) drawerProfile = null;
       if ($("sn-history") || $("sn-checkout-client") || $("sn-client-location-form")) closeSheet();
       paintDrawerContent();
       if (cityOn) paintActorsOnMap();
-      if (pickingDestination) { skipAutoPick=true; endDestinationPick(); resumeCheckout(); }
+      if (pickingDestination) { endDestinationPick(); resumeCheckout(); }
     });
     window.addEventListener("keydown", function (event) {
-      if (event.key === "Escape" && pickingDestination) { skipAutoPick=true; endDestinationPick(); resumeCheckout(); }
+      if (event.key === "Escape" && pickingDestination) { endDestinationPick(); resumeCheckout(); }
     });
     restoreCheckoutAfterAuth();
     var link = new URLSearchParams(location.search);
